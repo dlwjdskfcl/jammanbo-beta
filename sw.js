@@ -1,4 +1,5 @@
-/* 잠만보 서비스 워커 v2.2 — 재방문을 빠르게 (안전하게)
+/* 잠만보 서비스 워커 v2.3 — 재방문을 빠르게 (안전하게)
+ * - v2.3: tichu/ 폴더(미니게임 티츄)는 건드리지 않음 (앱 첫 화면으로 바꿔치기하지 않도록)
  * - v2.2: /jammanbo/games 처럼 탭 주소로 열어도 앱 첫 화면(index.html)을 보여 줌 (주소는 그대로 → router.js 가 그 탭을 엶)
  * - 같은 출처의 GET(시작 페이지·config·auth·아이콘): 캐시 먼저 보여주고 뒤에서 새로 받아 둠 (stale-while-revalidate)
  *   → GitHub 에 올린 변경은 "다음 번" 열 때 적용됨
@@ -26,6 +27,7 @@ self.addEventListener('fetch', function (e) {
   var url = new URL(req.url);
   if (url.origin !== self.location.origin) return;                    // Apps Script · 카카오는 그대로 통과
   if (/[?&](code|error|state|reset)=?/.test(url.search)) return;      // 카카오 로그인 복귀 · 초기화는 캐시 안 씀
+  if (url.pathname.indexOf(new URL(self.registration.scope).pathname + 'tichu/') === 0) return;   // 미니게임 티츄: 따로 동작
 
   var nav = req.mode === 'navigate';
   // 화면 이동(주소창 입력·새로고침)은 어느 탭 주소든 앱 첫 화면 하나(./)로 처리 — 탭은 router.js 가 주소를 보고 엶

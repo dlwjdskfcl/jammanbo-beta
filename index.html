@@ -203,6 +203,7 @@ function handleKakaoRedirect() {
   var p = new URLSearchParams(location.search), code = p.get('code'), err = p.get('error');
   if (!code && !err) return Promise.resolve();
   history.replaceState(null, '', location.pathname + location.hash); // 주소에서 code 제거 (새로고침 시 재사용 방지)
+  window.JMB_FROM_KAKAO = true;   // [티츄] 로그인을 시작한 페이지로 돌아가기 위한 표시 (start 참고)
   function msg(t) { try { localStorage.setItem(AUTH_MSG, t); } catch (e) {} }
   try { var back = sessionStorage.getItem('jmb_route'); if (back && back.indexOf(window.JMB_ROOT) === 0) history.replaceState(null, '', back); } catch (e) {}   // 로그인 전에 보던 탭으로
   if (err) { msg('카카오 로그인이 취소됐어요'); return Promise.resolve(); }
@@ -221,6 +222,14 @@ function handleKakaoRedirect() {
 
 function start() {
   if (window.JMB_RESETTING) return;
+  // [티츄] tichu/ 에서 카카오 로그인을 시작했으면 로그인 처리 뒤 그 페이지로 돌아감 (그 밖에는 아무 영향 없음)
+  if (window.JMB_FROM_KAKAO) {
+    try {
+      var back2 = sessionStorage.getItem('jmb_after_login');
+      sessionStorage.removeItem('jmb_after_login');
+      if (back2 && back2.indexOf(window.JMB_ROOT + 'tichu/') === 0 && /^[\w\/.#-]+$/.test(back2)) { location.replace(back2); return; }
+    } catch (e) {}
+  }
   if (!API) return fail(new Error('설정 파일(config.js)을 읽지 못했어요'));
   var cached = lsGetJSON(SHELL_KEY);
   if (cached && cached.html) {
