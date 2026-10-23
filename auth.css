@@ -1,0 +1,44 @@
+/* 잠만보 계정 모듈 스타일 — 앱의 색상 변수(--accent, --surface, --line …)를 그대로 써서 라이트/다크 모두 맞춰집니다. */
+.jmb-hbtn { display: inline-flex; align-items: center; gap: 6px; max-width: 150px; }
+.jmb-hbtn .jmb-w { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.jmb-hbtn .jmb-nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jmb-hbtn .jmb-ck { flex: none; font-size: 10px; font-weight: 800; padding: 1px 5px; border-radius: 999px; background: var(--accent-soft, #eceafd); color: var(--accent, #4f46e5); }
+.jmb-hbtn.primary .jmb-ck { background: rgba(255, 255, 255, .25); color: inherit; }
+.jmb-av { flex: none; width: 20px; height: 20px; border-radius: 50%; object-fit: cover; background: var(--line, #e3e6ee); }
+.jmb-av0 { display: inline-block; background: linear-gradient(135deg, #fee500, #f5c400); }
+.jmb-av.big { width: 52px; height: 52px; }
+
+.jmb-login { display: flex; flex-direction: column; gap: 10px; }
+.jmb-kakao { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 48px; border: 0; border-radius: 12px; background: #fee500; color: rgba(0, 0, 0, .85); font: 700 16px var(--sans, system-ui, sans-serif); cursor: pointer; }
+.jmb-kakao:hover { filter: brightness(.97); }
+.jmb-kakao:active { transform: translateY(1px); }
+.jmb-kakao:focus-visible, .jmb-chip:focus-visible, .jmb-wide:focus-visible { outline: 2px solid var(--accent, #4f46e5); outline-offset: 2px; }
+.jmb-wide { width: 100%; min-height: 44px; }
+.jmb-hint { margin: 0; color: var(--muted, #7c8496); font-size: 13px; line-height: 1.5; }
+.jmb-hint.sm { font-size: 12px; margin-top: 12px; }
+.jmb-or { display: flex; align-items: center; gap: 10px; color: var(--muted, #7c8496); font-size: 12px; margin: 4px 0; }
+.jmb-or::before, .jmb-or::after { content: ""; flex: 1; height: 1px; background: var(--line, #e3e6ee); }
+.jmb-admin { display: flex; flex-direction: column; gap: 4px; }
+.jmb-admin[hidden] { display: none; }
+.jmb-more { text-align: center; margin-top: 2px; }
+.jmb-link { background: none; border: 0; padding: 6px; color: var(--muted, #7c8496); font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer; }
+.jmb-link.danger { color: var(--bad, #b91c1c); }
+
+.jmb-prof { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.jmb-prof .jmb-av { width: 52px; height: 52px; }
+.jmb-prof b { display: block; font-size: 17px; }
+.jmb-prof small { color: var(--muted, #7c8496); }
+.jmb-list { min-height: 0; margin-bottom: 8px; }
+.jmb-menu { display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+.jmb-menu .jmb-link { align-self: center; }
+
+.jmb-names { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 4px; max-height: 38vh; overflow: auto; min-height: 48px; padding: 2px; }
+.jmb-chip { border: 1px solid var(--line, #e3e6ee); background: var(--surface2, #f1f3f8); color: inherit; border-radius: 999px; padding: 7px 12px; font: inherit; font-size: 14px; cursor: pointer; }
+.jmb-chip.on { background: var(--accent, #4f46e5); border-color: var(--accent, #4f46e5); color: var(--accent-ink, #fff); font-weight: 700; }
+.jmb-mute { color: var(--muted, #7c8496); font-size: 13px; padding: 8px 2px; }
+.jmb-err { color: var(--bad, #b91c1c); font-size: 13px; min-height: 18px; margin-top: 4px; }
+
+/* 앱 모달이 없을 때의 대체 창 / 토스트 */
+.jmb-ov { position: fixed; inset: 0; z-index: 2147483000; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(10, 12, 20, .45); }
+.jmb-box { width: 100%; max-width: 420px; max-height: 90vh; overflow: auto; background: var(--surface, #fff); color: var(--ink, #1b1f2a); border-radius: 18px; padding: 18px 16px 20px; }
+.jmb-toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 2147483001; display: none; background: #222; color: #fff; padding: 10px 16px; border-radius: 12px; font-size: 14px; }

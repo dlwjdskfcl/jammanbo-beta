@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>잠만보 보드게임 모임</title>
+<script>
+/* GitHub Pages 에는 /jammanbo/games 같은 파일이 없어서 이 404.html 이 열립니다.
+ * 원래 주소를 기억해 두고 앱 첫 화면으로 보내면, index.html 이 주소를 되살려 그 탭을 엽니다.
+ * (한 번 방문한 기기는 sw.js 가 바로 앱을 보여 주므로 이 파일을 거치지 않음) */
+(function () {
+  var seg = location.pathname.split('/')[1] || '';
+  var root = /\.github\.io$/.test(location.hostname) && seg ? '/' + seg + '/' : '/';
+  try { sessionStorage.setItem('jmb_deeplink', location.pathname + location.search + location.hash); } catch (e) {}
+  location.replace(root);
+})();
+</script>
+</head>
+<body style="font-family:sans-serif;text-align:center;padding-top:40vh;color:#888">잠만보로 이동 중…</body>
+</html>

@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>
+/* [주소] 앱 뿌리 주소(ROOT) 계산 + 404.html 에서 넘어온 주소 되살리기 — 다른 파일보다 먼저 실행돼야 함
+ *  github.io → 저장소 이름이 뿌리(/jammanbo/, /jammanbo-beta/) · 그 밖(localhost 등) → '/' */
+(function () {
+  var seg = location.pathname.split('/')[1] || '';
+  var root = /\.github\.io$/.test(location.hostname) && seg ? '/' + seg + '/' : '/';
+  window.JMB_ROOT = root;
+  try {
+    var dl = sessionStorage.getItem('jmb_deeplink');           // 404.html 이 저장해 둔 원래 주소
+    if (dl) { sessionStorage.removeItem('jmb_deeplink'); if (dl.indexOf(root) === 0) history.replaceState(null, '', dl); }
+  } catch (e) {}
+  // /jammanbo/games/ · /jammanbo/games/x 처럼 끝에 더 붙은 주소는 한 단계로 정리 (상대 경로 파일이 깨지지 않게)
+  var rest = location.pathname.slice(root.length).split('/');
+  if (location.pathname.indexOf(root) === 0 && rest.length > 1) history.replaceState(null, '', root + rest[0] + location.search + location.hash);
+})();
+</script>
+<title>잠만보 보드게임 모임</title>
+<meta name="theme-color" content="#4f46e5">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://script.google.com" crossorigin>
+<link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
+<link rel="dns-prefetch" href="https://kauth.kakao.com">
+<style>
+ html,body{margin:0;height:100%;background:#f6f7fb;color:#1b1f2a;font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif}
+ @media (prefers-color-scheme: dark){html,body{background:#0f1117;color:#eceef4}}
+ #boot{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:14px;padding:0 16px;text-align:center}
+ #boot img{width:72px;height:72px;border-radius:16px}
+ #boot .msg{font-size:15px;opacity:.75}
+ #boot button{font:inherit;padding:8px 16px;border-radius:10px;border:1px solid #c9cde0;background:#fff;cursor:pointer}
+</style>
+<script src="config.js"></script>
+<script>
+/*
+ * 잠만보 보드게임 모임 — GitHub Pages 시작 페이지 (v2.2, 탭별 주소 + 뒤로가기 + 테스트 사이트 분리)
+ *
+ * 화면 코드(Index.html)·데이터는 시트 안의 Apps Script 에서 받아 옵니다. (주소는 config.js)
+ * 화면을 고칠 때는 Apps Script 의 Index.html 만 고치고 '새 버전 배포'하면 됩니다. (여기는 안 고쳐도 됨)
+ *
+ * 빠르게 여는 방법
+ *  1) 화면 코드: 기기에 저장해 둔 것으로 바로 띄우고, 뒤에서 버전만 확인 → 바뀌었으면 받아 두었다가 다음에 적용
+ *  2) 데이터:   이 페이지가 열리자마자(화면보다 먼저) 서버에 요청. 기기에 저장된 데이터가 있으면 그걸 먼저 보여주고,
+ *               서버 버전이 같으면 데이터를 다시 받지 않음(작은 응답만), 다르면 새 데이터로 바꿔 그림
+ *  3) 정적 파일: sw.js 가 캐시 (재방문 시 네트워크를 기다리지 않음)
+ *
+ * [권한] 로그인 없이는 조회만 · 로그인하면 자기 닉네임으로만 등록 · 익명 글은 누구나
+ *   회원용 쓰기 요청에는 카카오 세션 토큰을 마지막 인자로 붙여 보내고, 서버(Kakao.gs)가 최종 확인합니다.
+ */
+/* 초기화: 주소 끝에 ?reset 을 붙여 열면 이 기기의 잠만보 캐시(서비스 워커·저장된 화면·데이터)를 모두 지우고 새로 시작
+ * (로그인 정보 jmb_kakao_v2 는 남겨 둠) */
+if (/[?&]reset\b/.test(location.search)) {
+  try { Object.keys(localStorage).forEach(function (k) { if (/^jmb_(shell|data)_/.test(k)) localStorage.removeItem(k); }); } catch (e) {}
+  var jobs = [];
+  if ('serviceWorker' in navigator) jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); }));
+  if (window.caches) jobs.push(caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); }));
+  Promise.all(jobs).catch(function () {}).then(function () { location.replace(window.JMB_ROOT); });
+  window.JMB_RESETTING = true;   // 아래 시작 코드는 건너뜀
+}
+
+var CFG = window.JMB_CONFIG || {};   // config.js 를 못 읽었으면 start() 에서 안내
+var API = CFG.api;
+var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';   // 테스트 사이트는 저장 칸을 따로 씀 (같은 github.io 라서 섞이지 않게)
+var SHELL_KEY = 'jmb_shell_v2' + ENV_SFX;   // 기기에 저장해 두는 화면 코드 {html, v, title}
+var DATA_KEY = 'jmb_data_v2';     // 기기에 저장해 두는 데이터 {v, d}  (화면 코드 Index.html 과 같은 이름)
+var AUTH_STORE = 'jmb_kakao_v2' + ENV_SFX, AUTH_STATE = 'jmb_kakao_state' + ENV_SFX, AUTH_MSG = 'jmb_kakao_msg' + ENV_SFX;
+var AUTH_ON = !!CFG.kakaoApi && !!CFG.kakaoRestKey && CFG.kakaoApi.indexOf('YOUR_') < 0 && CFG.kakaoRestKey.indexOf('YOUR_') < 0;
+var REDIRECT = location.origin + window.JMB_ROOT; // 카카오 개발자 사이트에 등록한 Redirect URI (어느 탭에서 로그인해도 항상 뿌리 주소)
+
+function lsGetJSON(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } }
+function lsPutJSON(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+
+/* 데이터 요청: {v, r} 또는 {same:true, v} — 화면 코드의 load() 가 사용 */
+window.JMB_GETDATA = function (pw, fresh, ver) {
+  return fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: 'getData', args: [pw || '', !!fresh, ver || ''] }) })
+    .then(function (r) { if (!r.ok) throw new Error('서버 응답 오류 (' + r.status + ')'); return r.json(); })
+    .then(function (j) { if (!j || !j.ok) throw new Error((j && j.e) || '알 수 없는 오류'); return j.same ? { same: true, v: j.v } : { v: j.v, r: j.r }; },
+          function (e) { throw (e instanceof TypeError) ? new Error('인터넷 연결을 확인해 주세요') : e; });
+};
+
+/* ① 가장 먼저: 데이터 요청 시작 (화면 코드를 기다리지 않음) */
+if (API && !window.JMB_RESETTING) (function () {
+  var c = lsGetJSON(DATA_KEY);
+  window.JMB_EARLY = window.JMB_GETDATA('', false, c && c.v ? c.v : '');
+  window.JMB_EARLY.catch(function () {});   // 처리되지 않은 오류 경고 방지 (실제 처리는 화면 코드에서)
+})();
+</script>
+</head>
+<body>
+<div id="boot"><img src="icon-192.png" alt=""><div class="msg">잠만보 불러오는 중…</div></div>
+<script>
+/* 기존 화면 코드의 google.script.run 호출을 fetch로 바꿔 주는 코드 (화면 안에 넣음) */
+function shim(API, STORE) {
+  // 회원용 쓰기 함수 — n: 원래 인자 개수(마지막이 pw), who: 닉네임 인자 위치 (서버 Kakao.gs 의 JMB_RULES 와 같게)
+  var MEMBER = {
+    addPost: { n: 4, who: 1, anon: true }, addPlays: { n: 5, who: 1, list: true },
+    toggleOwner: { n: 4, who: 1 }, toggleWish: { n: 3, who: 1 }, rateGame: { n: 5, who: 1 },
+    addAgitGame: { n: 4, who: 1 }, takeAgitGame: { n: 3, who: 1 }, borrowGame: { n: 5, who: 1 },
+    returnGame: { n: 3, who: 1 }, requestRename: { n: 4, who: 0 }
+  };
+  function session() { try { var s = JSON.parse(localStorage.getItem(STORE) || 'null'); return s && s.token ? s : null; } catch (e) { return null; } }
+  function askLogin() { setTimeout(function () { if (window.JMB_AUTH) window.JMB_AUTH.open(); }, 600); }
+  function isAnon(v) { v = String(v == null ? '' : v).trim(); return v === '' || v === '익명'; }
+
+  // 회원 쓰기 요청: 미리 확인(친절한 안내) + 토큰 붙이기. 문제 있으면 오류 메시지를 돌려줌
+  function prepare(fn, a) {
+    var rule = STORE && MEMBER[fn];
+    if (!rule) return null;
+    var s = session();
+    while (a.length < rule.n) a.push('');
+    a.length = rule.n;
+    a.push(s ? s.token : '');
+    if (a[rule.n - 1] || window.ADMIN_PW) return null;   // 운영진은 서버가 확인
+    var who = a[rule.who];
+    if (rule.anon && isAnon(who)) return null;
+    if (!s) { askLogin(); return '로그인 후 이용할 수 있어요'; }
+    var me = s.user && s.user.nickname;
+    if (!me) { askLogin(); return '닉네임을 먼저 연결해 주세요'; }
+    var names = rule.list ? (Array.isArray(who) ? who : [who]) : [who];
+    if (!names.length || names.some(function (x) { return String(x).trim() !== me; })) {
+      return rule.list ? '본인(' + me + ') 기록만 등록할 수 있어요. 다른 분 기록은 각자 등록해 주세요.' : '본인 닉네임(' + me + ')으로만 할 수 있어요';
+    }
+    return null;
+  }
+
+  function call(fn, args) {
+    var stop = prepare(fn, args);
+    if (stop) return Promise.reject(new Error(stop));
+    return fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: fn, args: args }) })
+      .then(function (r) { if (!r.ok) throw new Error('서버 응답 오류 (' + r.status + ')'); return r.json(); })
+      .then(function (j) { if (!j || !j.ok) throw new Error((j && j.e) || '알 수 없는 오류'); return j.r; },
+            function (e) { throw (e instanceof TypeError) ? new Error('인터넷 연결을 확인해 주세요') : e; });
+  }
+  function runner(ok, fail) {
+    return new Proxy({}, { get: function (_, k) {
+      if (k === 'withSuccessHandler') return function (f) { return runner(f, fail); };
+      if (k === 'withFailureHandler') return function (f) { return runner(ok, f); };
+      if (k === 'withUserObject') return function () { return runner(ok, fail); };
+      if (typeof k !== 'string') return undefined;
+      return function () {
+        var a = Array.prototype.slice.call(arguments);
+        call(k, a).then(function (r) { if (ok) ok(r); }, function (e) { if (fail) fail(e); else console.error(e); });
+      };
+    } });
+  }
+  window.google = window.google || {};
+  window.google.script = { run: runner(null, null) };
+}
+
+function escHtml(s) { return String(s || '').replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+
+function boot(shell) {
+  var v = encodeURIComponent(CFG.version || '1');
+  var auth = AUTH_ON
+    ? '<script>window.JMB_CONFIG=' + JSON.stringify({ version: CFG.version, kakaoApi: CFG.kakaoApi, kakaoRestKey: CFG.kakaoRestKey, redirect: REDIRECT, storeKey: AUTH_STORE, stateKey: AUTH_STATE, msgKey: AUTH_MSG }).replace(/</g, '\\u003c') + ';<\/script>' +
+      '<link rel="stylesheet" href="auth.css?v=' + v + '">' +
+      '<script src="auth.js?v=' + v + '" defer><\/script>'
+    : '';
+  var head =
+    '<meta name="theme-color" content="#4f46e5">' +
+    '<link rel="manifest" href="manifest.webmanifest">' +
+    '<link rel="icon" type="image/png" href="icon-192.png">' +
+    '<link rel="apple-touch-icon" href="apple-touch-icon.png">' +
+    '<meta name="apple-mobile-web-app-capable" content="yes">' +
+    '<meta name="mobile-web-app-capable" content="yes">' +
+    '<meta name="apple-mobile-web-app-title" content="잠만보">' +
+    '<script>(' + shim.toString() + ')(' + JSON.stringify(API) + ',' + JSON.stringify(AUTH_ON ? AUTH_STORE : '') + ');' +
+    // document.write 뒤에도 데이터 요청 함수·미리 보낸 요청을 그대로 쓰도록 (브라우저가 전역을 비운 경우 대비)
+    'window.JMB_GETDATA=window.JMB_GETDATA||' + window.JMB_GETDATA.toString().replace(/\bAPI\b/g, JSON.stringify(API)) + ';<\/script>' + auth;
+  var html = shell.html.replace(/<head[^>]*>/i, function (m) { return m + head; });
+  // [주소] 탭마다 주소 + 뒤로가기 — 화면 코드가 다 실행된 뒤(맨 끝)에 붙임
+  var route = '<script>window.JMB_ROOT=' + JSON.stringify(window.JMB_ROOT) + ';<\/script><script src="' + window.JMB_ROOT + 'router.js?v=' + v + '"><\/script>';
+  html = /<\/body>/i.test(html) ? html.replace(/<\/body>(?![\s\S]*<\/body>)/i, function (m) { return route + m; }) : html + route;
+  if (CFG.env && CFG.env !== 'prod') html = html.replace(/<\/body>(?![\s\S]*<\/body>)/i, function (m) { return '<div style="position:fixed;left:8px;bottom:8px;z-index:9999;background:#e11d48;color:#fff;font:700 12px sans-serif;padding:4px 8px;border-radius:6px;pointer-events:none">TEST · ' + escHtml(CFG.env) + '</div>' + m; });
+  if (shell.title) html = html.replace(/<title>[^<]*<\/title>/i, function () { return '<title>' + escHtml(shell.title) + '</title>'; });
+  document.open(); document.write(html); document.close();
+}
+
+function fail(e) {
+  var b = document.getElementById('boot');
+  if (!b) return;
+  b.innerHTML = '<div class="msg">불러오지 못했어요<br><small>' + escHtml(e && e.message ? e.message : e) + '</small></div>' +
+    '<button onclick="location.reload()">다시 시도</button>' +
+    '<button onclick="location.replace(window.JMB_ROOT + \'?reset\')">초기화하고 다시 열기</button>';
+}
+
+/* 화면 코드 받기: ?api=page&v=<기기 버전> → {v, r:{html,title}} 또는 {same:true} */
+function fetchShell(ver) {
+  return fetch(API + '?api=page&v=' + encodeURIComponent(ver || '')).then(function (r) { return r.json(); }).then(function (j) {
+    if (!j || !j.ok) throw new Error((j && j.e) || '화면 코드를 받지 못했어요');
+    return j.same ? null : { html: j.r.html, title: j.r.title, v: j.v };
+  });
+}
+
+/* 카카오에서 ?code= 를 달고 돌아왔을 때: 서버에서 로그인 처리 → 세션 저장 (화면은 그다음에 뜸) */
+function handleKakaoRedirect() {
+  if (!AUTH_ON) return Promise.resolve();
+  var p = new URLSearchParams(location.search), code = p.get('code'), err = p.get('error');
+  if (!code && !err) return Promise.resolve();
+  history.replaceState(null, '', location.pathname + location.hash); // 주소에서 code 제거 (새로고침 시 재사용 방지)
+  function msg(t) { try { localStorage.setItem(AUTH_MSG, t); } catch (e) {} }
+  try { var back = sessionStorage.getItem('jmb_route'); if (back && back.indexOf(window.JMB_ROOT) === 0) history.replaceState(null, '', back); } catch (e) {}   // 로그인 전에 보던 탭으로
+  if (err) { msg('카카오 로그인이 취소됐어요'); return Promise.resolve(); }
+  var saved = lsGetJSON(AUTH_STATE);
+  try { localStorage.removeItem(AUTH_STATE); } catch (e) {}
+  if (!saved || saved.s !== p.get('state') || Date.now() - saved.t > 10 * 60 * 1000) { msg('로그인 요청이 올바르지 않아요. 다시 시도해 주세요.'); return Promise.resolve(); }
+  return fetch(CFG.kakaoApi, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: 'kakaoLogin', args: [code, REDIRECT] }) })
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      if (!j || !j.ok) throw new Error((j && j.e) || '로그인에 실패했어요');
+      lsPutJSON(AUTH_STORE, { token: j.r.token, user: j.r.user, fresh: true });
+      try { sessionStorage.removeItem('jmb_link_prompt'); } catch (e) {}
+    })
+    .catch(function (e) { msg(e && e.message ? e.message : '로그인에 실패했어요'); });
+}
+
+function start() {
+  if (window.JMB_RESETTING) return;
+  if (!API) return fail(new Error('설정 파일(config.js)을 읽지 못했어요'));
+  var cached = lsGetJSON(SHELL_KEY);
+  if (cached && cached.html) {
+    // ② 저장된 화면으로 바로 시작. 페이지를 다 읽은 뒤에 바꿔 써야 이 시작 화면이 깨끗이 지워짐
+    var go = function () {
+      // 뒤에서 화면 코드 버전 확인 → 바뀌었으면 받아 두었다가 다음에 열 때 적용 (데이터 요청이 먼저 끝나도록 조금 늦게)
+      setTimeout(function () {
+        fetchShell(cached.v).then(function (s) { if (s) lsPutJSON(SHELL_KEY, s); }).catch(function () {});
+      }, 4000);
+      try { boot(cached); }
+      catch (e) { try { localStorage.removeItem(SHELL_KEY); } catch (x) {} location.reload(); }   // 저장된 화면이 깨졌으면 지우고 새로 받기
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { setTimeout(go, 0); });
+    else setTimeout(go, 0);
+    return;
+  }
+  // 처음 방문: 화면 코드와 데이터(①에서 이미 요청 중)를 동시에 받음
+  fetchShell('').then(function (s) {
+    if (!s) throw new Error('화면 코드를 받지 못했어요');
+    lsPutJSON(SHELL_KEY, s);
+    boot(s);
+  }).catch(fail);
+}
+
+if (!window.JMB_RESETTING) handleKakaoRedirect().then(start, start); // 로그인 복귀 처리 → 화면 시작
+
+if (!window.JMB_RESETTING && 'serviceWorker' in navigator && location.protocol === 'https:') { // 정적 파일 캐시 (재방문 속도)
+  window.addEventListener('load', function () { navigator.serviceWorker.register(window.JMB_ROOT + 'sw.js', { scope: window.JMB_ROOT }).catch(function () {}); });
+}
+try { localStorage.removeItem('jmb_shell_v1'); } catch (e) {}   // 예전 형식 정리
+</script>
+</body>
+</html>
