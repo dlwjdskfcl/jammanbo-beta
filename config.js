@@ -7,7 +7,7 @@
  *  local    http://localhost:8080/                           BETA
  */
 var JMB_API_PROD = 'https://script.google.com/macros/s/AKfycbwvE4TAy7rTGJe2FPIHh-norBPsZ_7oY5Cb8tQKEd53hDhXaUIVF4MGPL6Tb4pdEFFN/exec';
-var JMB_API_BETA = 'YOUR_BETA_DEPLOY_URL';   // Apps Script → 배포 관리 → 새 배포(설명: 테스트)의 웹 앱 URL. 비워 두면 PROD 를 씀
+var JMB_API_BETA = 'https://script.google.com/macros/s/AKfycbwbDyYxw__R89IxnfekTwERd5xKK5y54h_6YcVNBYZLdg6K1U4n98hdoBh7OiIVUBia/exec';   // Apps Script → 배포 관리 → 새 배포(설명: 테스트)의 웹 앱 URL. 비워 두면 PROD 를 씀
 
 var JMB_ENV = !/github\.io$/.test(location.hostname) ? 'local'
             : /^\/jammanbo\//.test(location.pathname) ? 'prod' : 'beta';
