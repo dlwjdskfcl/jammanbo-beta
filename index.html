@@ -174,7 +174,8 @@ function boot(shell) {
     'window.JMB_GETDATA=window.JMB_GETDATA||' + window.JMB_GETDATA.toString().replace(/\bAPI\b/g, JSON.stringify(API)) + ';<\/script>' + auth;
   var html = shell.html.replace(/<head[^>]*>/i, function (m) { return m + head; });
   // [주소] 탭마다 주소 + 뒤로가기 — 화면 코드가 다 실행된 뒤(맨 끝)에 붙임
-  var route = '<script>window.JMB_ROOT=' + JSON.stringify(window.JMB_ROOT) + ';<\/script><script src="' + window.JMB_ROOT + 'router.js?v=' + v + '"><\/script>';
+  var route = '<script>window.JMB_ROOT=' + JSON.stringify(window.JMB_ROOT) + ';<\/script><script src="' + window.JMB_ROOT + 'router.js?v=' + v + '"><\/script>' +
+    '<script src="' + window.JMB_ROOT + 'extras.js?v=' + v + '"><\/script>';   // 홈 화면 손보기 + 티츄 버튼 (extras.js)
   html = /<\/body>/i.test(html) ? html.replace(/<\/body>(?![\s\S]*<\/body>)/i, function (m) { return route + m; }) : html + route;
   if (CFG.env && CFG.env !== 'prod') html = html.replace(/<\/body>(?![\s\S]*<\/body>)/i, function (m) { return '<div style="position:fixed;left:8px;bottom:8px;z-index:9999;background:#e11d48;color:#fff;font:700 12px sans-serif;padding:4px 8px;border-radius:6px;pointer-events:none">TEST · ' + escHtml(CFG.env) + '</div>' + m; });
   if (shell.title) html = html.replace(/<title>[^<]*<\/title>/i, function () { return '<title>' + escHtml(shell.title) + '</title>'; });

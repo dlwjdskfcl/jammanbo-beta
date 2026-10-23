@@ -1,4 +1,4 @@
-/*! 잠만보 티츄 — 화면 v1.0.0
+/*! 잠만보 티츄 — 화면 v1.1.0
  * 서버: Apps Script (config.js 의 api) · 규칙 판정: engine.js(TE, 서버와 같은 코드)
  * 화면 주소: #/ 로비 · #/rank 랭킹 · #/me 내 전적 · #/rules 규칙 · #/room/<방ID> 방
  */
@@ -42,20 +42,70 @@
   }
   function initial(name) { name = String(name || '?').replace(/봇$/, ''); return esc(Array.from(name)[0] || '?'); }
 
-  /* ----- 소리 (WebAudio, 파일 없음) ----- */
+  /* ----- 소리 (WebAudio로 즉석 합성, 파일 없음) ----- */
   var actx = null;
-  function beep(kind) {
-    if (!S.sound) return;
-    try {
-      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
-      var o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime;
-      var f = { turn: [660, 880], play: [420, 380], bomb: [140, 60], tichu: [523, 784], end: [523, 1046] }[kind] || [500, 500];
-      o.type = kind === 'bomb' ? 'sawtooth' : 'sine';
-      o.frequency.setValueAtTime(f[0], t); o.frequency.exponentialRampToValueAtTime(f[1], t + (kind === 'bomb' ? 0.35 : 0.15));
-      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(kind === 'play' ? 0.05 : 0.12, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + (kind === 'bomb' ? 0.45 : 0.25));
-      o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t + 0.5);
-    } catch (e) {}
-    if (kind === 'turn' && navigator.vibrate) { try { navigator.vibrate(60); } catch (e) {} }
+  function ac() {
+    if (!S.sound) return null;
+    try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); return actx; } catch (e) { return null; }
+  }
+  function tone(c, f, t, d, type, vol, f2) {
+    var o = c.createOscillator(), g = c.createGain();
+    o.type = type || 'sine';
+    o.frequency.setValueAtTime(f, t);
+    if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + d);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol || 0.08, t + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + d + 0.05);
+  }
+  var noiseBuf = null;
+  function noise(c, t, d, vol, cutoff) {
+    if (!noiseBuf) { noiseBuf = c.createBuffer(1, c.sampleRate, c.sampleRate); var ch = noiseBuf.getChannelData(0); for (var i = 0; i < ch.length; i++) ch[i] = Math.random() * 2 - 1; }
+    var src = c.createBufferSource(), fl = c.createBiquadFilter(), g = c.createGain();
+    src.buffer = noiseBuf; fl.type = 'lowpass'; fl.frequency.value = cutoff || 1200;
+    g.gain.setValueAtTime(vol || 0.1, t); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    src.connect(fl); fl.connect(g); g.connect(c.destination); src.start(t); src.stop(t + d + 0.05);
+  }
+  function seq(c, t, notes, step, dur, type, vol) { notes.forEach(function (f, i) { tone(c, f, t + i * step, dur, type, vol); }); }
+  var N = { G4: 392, C5: 523.25, E5: 659.25, G5: 783.99, A5: 880, B5: 987.77, C6: 1046.5, D6: 1174.7, E6: 1318.5, G6: 1568 };
+  function sfx(name, delay) {
+    var c = ac(); if (!c) return;
+    var t = c.currentTime + (delay || 0);
+    switch (name) {
+      case 'tap': tone(c, 1300, t, 0.03, 'square', 0.012); break;
+      case 'play': noise(c, t, 0.06, 0.05, 2600); tone(c, 360, t, 0.08, 'triangle', 0.05, 260); break;            // 카드 내려놓는 소리
+      case 'pass': tone(c, 230, t, 0.12, 'sine', 0.025, 180); break;
+      case 'combo': noise(c, t, 0.05, 0.04, 2600); seq(c, t, [N.C5, N.E5, N.G5, N.C6], 0.055, 0.18, 'triangle', 0.05); break;   // 트리플·스트레이트·연속 페어
+      case 'bigcombo': noise(c, t, 0.05, 0.05, 2600); seq(c, t, [N.C5, N.E5, N.G5, N.B5, N.D6, N.E6, N.G6], 0.045, 0.2, 'triangle', 0.05); break;   // 긴 스트레이트·풀하우스
+      case 'dragon': tone(c, 110, t, 0.7, 'sawtooth', 0.06, 60); noise(c, t, 0.6, 0.07, 700); seq(c, t + 0.28, [N.G5, N.B5, N.D6, N.G6], 0.07, 0.3, 'triangle', 0.05); break;
+      case 'phoenix': seq(c, t, [N.A5, 1108.7, N.E6, 1760], 0.05, 0.35, 'sine', 0.045); tone(c, 2200, t + 0.2, 0.4, 'sine', 0.02, 3300); break;
+      case 'dog': tone(c, 520, t, 0.08, 'square', 0.035, 340); tone(c, 560, t + 0.13, 0.1, 'square', 0.035, 330); break;
+      case 'bird': tone(c, 2000, t, 0.06, 'sine', 0.04, 2700); tone(c, 2300, t + 0.09, 0.08, 'sine', 0.04, 3000); break;
+      case 'bomb': noise(c, t, 0.9, 0.3, 380); tone(c, 95, t, 0.8, 'sawtooth', 0.12, 32); tone(c, 60, t + 0.05, 0.9, 'sine', 0.15, 30); break;
+      case 'turn': tone(c, N.E5, t, 0.15, 'sine', 0.08); tone(c, N.A5, t + 0.12, 0.25, 'sine', 0.08); if (navigator.vibrate) { try { navigator.vibrate(60); } catch (e) {} } break;
+      case 'trickUs': seq(c, t, [N.E5, N.G5], 0.07, 0.16, 'sine', 0.05); break;
+      case 'trickBig': seq(c, t, [N.C5, N.E5, N.G5, N.C6], 0.06, 0.25, 'sine', 0.06); break;
+      case 'tichu': seq(c, t, [N.G4, N.C5, N.E5], 0.1, 0.18, 'square', 0.035); tone(c, N.G5, t + 0.3, 0.5, 'square', 0.04); break;
+      case 'out': seq(c, t, [N.G5, N.B5, N.D6, N.G6], 0.08, 0.3, 'triangle', 0.06); break;
+      case 'round': [N.C5, N.E5, N.G5].forEach(function (f) { tone(c, f, t, 0.7, 'sine', 0.04); }); break;
+      case 'onetwo': seq(c, t, [N.C5, N.E5, N.G5, N.C6, N.G5, N.C6, N.E6], 0.09, 0.3, 'square', 0.035); break;
+      case 'win': seq(c, t, [N.C5, N.E5, N.G5, N.C6, N.E6, N.G6], 0.12, 0.4, 'triangle', 0.06); [N.C5, N.E5, N.G5].forEach(function (f) { tone(c, f * 2, t + 0.75, 0.9, 'sine', 0.035); }); break;
+      case 'lose': seq(c, t, [N.G5, N.E5, N.C5, N.G4], 0.18, 0.4, 'triangle', 0.05); break;
+      case 'tick': tone(c, 1500, t, 0.04, 'square', 0.02); break;
+      case 'chat': tone(c, 900, t, 0.06, 'sine', 0.035, 1250); break;
+    }
+  }
+  // 낸 조합에 맞는 소리
+  function comboSound(c, bomb) {
+    if (bomb) return 'bomb';
+    if (!c) return 'play';
+    if (c.t === 'dog') return 'dog';
+    if (c.t === 'single' && c.r === 15) return 'dragon';
+    if (c.t === 'single' && c.ph) return 'phoenix';
+    if (c.c && c.c.indexOf('MA') >= 0) return 'bird';
+    if ((c.t === 'straight' && c.n >= 8) || (c.t === 'pairs' && c.n >= 6) || c.t === 'full') return 'bigcombo';
+    if (c.t === 'straight' || c.t === 'pairs' || c.t === 'triple') return 'combo';
+    return 'play';
   }
 
   /* ----- 서버 호출 ----- */
@@ -262,7 +312,7 @@
 
   function practice(btn) {
     btn.disabled = true;
-    api('create', { practice: true, target: 1000, timer: 0 }).then(function (r) { applyRoom(r, true); location.hash = '#/room/' + r.id; }, function (e) { btn.disabled = false; toast(e.message, true); });
+    api('create', { practice: true, target: 500, timer: 0 }).then(function (r) { applyRoom(r, true); location.hash = '#/room/' + r.id; }, function (e) { btn.disabled = false; toast(e.message, true); });
   }
 
   function optSeg(name, vals, cur, fmt) {
@@ -271,21 +321,34 @@
   function bindSeg(root) {
     $$('[data-seg]', root).forEach(function (sg) { $$('button', sg).forEach(function (b) { b.onclick = function () { $$('button', sg).forEach(function (x) { x.classList.remove('on'); }); b.classList.add('on'); }; }); });
   }
+  // 목표 점수: 직접 입력이 있으면 그 값, 없으면 고른 버튼
+  function targetVal(root) {
+    var inp = $('#oTarget', root), v = inp && inp.value.trim();
+    if (v) return Math.max(100, Math.min(3000, Math.round(+v / 10) * 10)) || 500;
+    return +segVal(root, 'target') || 500;
+  }
+  function bindTarget(root) {
+    var inp = $('#oTarget', root); if (!inp) return;
+    inp.oninput = function () { if (inp.value) $$('[data-seg="target"] button', root).forEach(function (x) { x.classList.remove('on'); }); };
+    $$('[data-seg="target"] button', root).forEach(function (b) { b.addEventListener('click', function () { inp.value = ''; }); });
+  }
   function segVal(root, name) { var b = $('[data-seg="' + name + '"] button.on', root); return b ? b.getAttribute('data-v') : null; }
 
   function roomOptForm(o) {
-    o = o || { name: '', target: 1000, timer: 45, pw: '' };
+    o = o || { name: '', target: 500, timer: 45, pw: '' };
+    var preset = [200, 400, 500].indexOf(+o.target) >= 0;
     return '<div class="field"><label>방 이름</label><input class="input" id="oName" maxlength="24" placeholder="' + esc(S.user.name) + '님의 방" value="' + esc(o.name) + '"></div>' +
-      '<div class="field"><label>목표 점수</label>' + optSeg('target', [500, 1000, 1500, 2000], o.target, function (v) { return v + '점'; }) + '</div>' +
+      '<div class="field"><label>목표 점수</label>' + optSeg('target', [200, 400, 500], preset ? o.target : '', function (v) { return v + '점'; }) +
+        '<input class="input" id="oTarget" type="number" inputmode="numeric" min="100" max="3000" step="10" placeholder="직접 입력 (100~3000점)" value="' + (preset ? '' : esc(o.target)) + '" style="margin-top:6px"></div>' +
       '<div class="field"><label>턴 시간 (넘기면 자동 진행)</label>' + optSeg('timer', [0, 20, 30, 45, 60, 90], o.timer, function (v) { return v ? v + '초' : '없음'; }) + '</div>' +
       '<div class="field"><label>방 비밀번호 (선택, 숫자·영문)</label><input class="input" id="oPw" maxlength="8" inputmode="text" autocomplete="off" value="' + esc(o.pw || '') + '"></div>';
   }
   function createRoomSheet() {
     openModal('<h2>방 만들기<button class="x" data-x>✕</button></h2>' + roomOptForm() + '<button class="btn primary block" id="oGo">만들기</button>');
-    bindSeg(modalEl);
+    bindSeg(modalEl); bindTarget(modalEl);
     $('#oGo').onclick = function () {
       var b = $('#oGo'); b.disabled = true;
-      api('create', { name: $('#oName').value, target: +segVal(modalEl, 'target'), timer: +segVal(modalEl, 'timer'), pw: $('#oPw').value }).then(function (r) {
+      api('create', { name: $('#oName').value, target: targetVal(modalEl), timer: +segVal(modalEl, 'timer'), pw: $('#oPw').value }).then(function (r) {
         closeModal(); applyRoom(r, true); location.hash = '#/room/' + r.id;
       }, function (e) { b.disabled = false; toast(e.message, true); });
     };
@@ -344,7 +407,7 @@
   function rulesBody() {
     return '<div class="rules">' +
       '<div class="sec-title">티츄 규칙 한눈에</div>' +
-      '<p>마주 앉은 두 사람이 한 팀(2 대 2)입니다. 손패를 먼저 비우고, 점수 카드를 모아 <b>목표 점수(기본 1000점)</b>에 먼저 도달하는 팀이 이깁니다.</p>' +
+      '<p>마주 앉은 두 사람이 한 팀(2 대 2)입니다. 손패를 먼저 비우고, 점수 카드를 모아 <b>목표 점수(방마다 정함, 기본 500점)</b>에 먼저 도달하는 팀이 이깁니다.</p>' +
       '<h3>1. 라운드 준비</h3><ul><li>처음 8장을 보고 <b>라지 티츄</b>(±200점)를 선언할 수 있어요.</li><li>나머지 6장을 받은 뒤 첫 카드를 내기 전까지 <b>스몰 티츄</b>(±100점)를 선언할 수 있어요.</li>' +
       '<li>왼쪽 상대·파트너·오른쪽 상대에게 한 장씩, 3장을 동시에 교환해요.</li><li><b>참새(1)</b>를 가진 사람이 먼저 시작해요.</li></ul>' +
       '<h3>2. 낼 수 있는 조합</h3>' + ex(['T9'], '싱글') + ex(['J8', 'S8'], '페어') + ex(['J12', 'P12', 'T12'], '트리플') + ex(['J5', 'S5', 'P5', 'T11', 'J11'], '풀하우스') +
@@ -469,7 +532,7 @@
       var news = r.chat.filter(function (c) { return c.i > S.lastChat; });
       if (S.chatOpen) paintChat();
       else {
-        news.forEach(function (c) { if (c.s !== -2 && c.n !== (S.user && S.user.name)) { S.unread++; toast('💬 ' + c.n + ': ' + c.m); } });
+        news.forEach(function (c) { if (c.s !== -2 && c.n !== (S.user && S.user.name)) { S.unread++; toast('💬 ' + c.n + ': ' + c.m); sfx('chat'); } });
       }
     }
     S.lastChat = lastChat;
@@ -480,23 +543,27 @@
     var me = r.me, myTurnBefore = false, order = 0;
     S.flash = {};
     evs.forEach(function (e) {
+      var at = order * 0.28;
       if (e.k === 'play') {
         S.flash[e.s] = order++;
-        if (e.bomb) { banner('💣 폭탄!', 'bomb'); beep('bomb'); S.shake = true; }
-        else beep('play');
-      } else if (e.k === 'pass') S.flash[e.s] = order++;
-      else if (e.k === 'tichu') { banner(seatName(e.s) + (e.kind === 2 ? ' 라지 티츄!' : ' 티츄!')); beep('tichu'); }
-      else if (e.k === 'wish') toast('🐦 ' + seatName(e.s) + ': 참새 콜 [' + TE.rankLabel(e.r) + ']');
+        if (e.bomb) { banner('💣 폭탄!', 'bomb'); S.shake = true; }
+        sfx(comboSound(e.c, e.bomb), at);
+      } else if (e.k === 'pass') { S.flash[e.s] = order++; sfx('pass', at); }
+      else if (e.k === 'tichu') { banner(seatName(e.s) + (e.kind === 2 ? ' 라지 티츄!' : ' 티츄!')); sfx('tichu', at); }
+      else if (e.k === 'trick' && me >= 0 && team(e.to) === team(me) && e.p > 0) sfx(e.p >= 20 ? 'trickBig' : 'trickUs', at + 0.1);
+      else if (e.k === 'out' && e.place === 1) sfx('out', at + 0.15);
+      else if (e.k === 'round') sfx(e.res && e.res.dbl ? 'onetwo' : 'round', at + 0.3);
+      else if (e.k === 'gameEnd') sfx(me < 0 || team(me) === e.winner ? 'win' : 'lose', at + 0.6);
+      if (e.k === 'wish') toast('🐦 ' + seatName(e.s) + ': 참새 콜 [' + TE.rankLabel(e.r) + ']');
       else if (e.k === 'wishDone') toast('참새 콜 [' + TE.rankLabel(e.r) + '] 완료 (' + seatName(e.s) + ')');
       else if (e.k === 'out') toast((e.place === 1 ? '🥇 ' : '') + seatName(e.s) + ' ' + e.place + '등으로 나감!');
       else if (e.k === 'dog') toast('🐕 개 → ' + seatName(e.to) + ' 선');
       else if (e.k === 'trick' && e.to !== e.s) toast('🐉 용 트릭 → ' + seatName(e.to) + ' (' + e.p + '점)');
       else if (e.k === 'trick' && e.p) toast(seatName(e.s) + ' 트릭 +' + e.p + '점');
-      else if (e.k === 'gameEnd') beep('end');
     });
     var g = r.g;
     var mine = g && me >= 0 && ((g.phase === 'play' && g.turn === me) || (g.phase === 'dragon' && g.dragon && g.dragon.seat === me));
-    if (mine && evs.length && !evs.every(function (e) { return e.s === me; })) beep('turn');
+    if (mine && evs.length && !evs.every(function (e) { return e.s === me; })) sfx('turn', order * 0.28 + 0.15);
   }
 
   /* ----- 그리기 ----- */
@@ -562,8 +629,8 @@
     var r = S.room;
     openModal('<h2>방 설정<button class="x" data-x>✕</button></h2>' + roomOptForm({ name: r.name, target: r.opt.target, timer: r.opt.timer, pw: '' }) +
       '<div class="small">비밀번호 칸을 비우면 공개방이 돼요.</div><button class="btn primary block" id="oGo">저장</button>');
-    bindSeg(modalEl);
-    $('#oGo').onclick = function () { roomCall('opt', { name: $('#oName').value, target: +segVal(modalEl, 'target'), timer: +segVal(modalEl, 'timer'), pw: $('#oPw').value }, $('#oGo')).then(closeModal); };
+    bindSeg(modalEl); bindTarget(modalEl);
+    $('#oGo').onclick = function () { roomCall('opt', { name: $('#oName').value, target: targetVal(modalEl), timer: +segVal(modalEl, 'timer'), pw: $('#oPw').value }, $('#oGo')).then(closeModal); };
   }
   function copyInvite() {
     // ?reset: 잠만보 앱의 예전 서비스 워커(v2.2)가 남은 기기에서도 티츄 페이지가 바로 열리게 (티츄는 이 값을 쓰지 않고 지움)
@@ -697,8 +764,8 @@
     if (!st || (g.phase !== 'play' && g.phase !== 'dragon')) return '';
     var fl = S.flash[s] !== undefined ? ' flash' : '', delay = fl ? ' style="animation-delay:' + (S.flash[s] * 0.28) + 's"' : '';
     if (st.pass) return '<div class="front pass p' + p + fl + '"' + delay + '><span class="lbl">패스</span></div>';
-    var size = p === 0 || p === 2 ? 'sm' : 'xs';
-    if (window.innerWidth >= 700) size = 'sm';
+    var size = p === 0 || p === 2 || st.play.c.length <= 6 ? 'md' : 'sm';   // 옆자리는 긴 조합만 작게
+    if (window.innerWidth >= 700) size = 'md';
     return '<div class="front p' + p + (isTop ? ' top' : '') + fl + '"' + delay + '>' + cardsHTML(st.play.c, size) + '<span class="lbl">' + esc(TE.comboName(st.play)) + '</span></div>';
   }
   function centerHTML(g, me, pend) {
@@ -819,6 +886,7 @@
       return;
     }
     var i = S.sel.indexOf(c);
+    sfx('tap');
     if (i >= 0) S.sel.splice(i, 1); else S.sel.push(c);
     $$('#hand .card').forEach(function (el) { el.classList.toggle('sel', S.sel.indexOf(el.getAttribute('data-c')) >= 0); });
     updateSelInfo();
@@ -963,6 +1031,8 @@
       var mine = pendingSeats(g).indexOf(r.me) >= 0;
       mt.style.width = mine && dl && g.phase !== 'roundEnd' ? (frac * 100).toFixed(1) + '%' : '0';
       mt.classList.toggle('low', left < 6000);
+      var sec = Math.ceil(left / 1000);
+      if (mine && dl && g.phase !== 'roundEnd' && left > 0 && sec <= 5 && sec !== S.tickSec) { S.tickSec = sec; sfx('tick'); }
     }
     var rc = $('#rCount'); if (rc) rc.textContent = r.nextAt && g.phase === 'roundEnd' ? '(' + Math.ceil(Math.max(0, r.nextAt - now()) / 1000) + ')' : '';
   }

@@ -196,17 +196,23 @@ a { color: var(--gold2); }
 .card.DO { color: #6d28d9; background: linear-gradient(160deg, #fffcf3 60%, #e9e1fb); }
 .card.PH { color: #ea580c; background: linear-gradient(160deg, #fffcf3 55%, #ffe0c2); }
 .card.DR { color: #b91c1c; background: linear-gradient(160deg, #fffcf3 50%, #ffd7d7); box-shadow: inset 0 0 0 2px #e8b73a, 0 2px 5px rgba(0,0,0,.35); }
-.card.sm { --cw: 28px; --ch: 40px; border-radius: 5px; }
+.card.sm { --cw: 30px; --ch: 43px; border-radius: 5px; }
 .card.sm .r { font-size: 12px; left: 2px; top: 1px; }
 .card.sm .su { width: 9px; height: 9px; left: 2px; top: 14px; }
 .card.sm .big, .card.sm .han { display: none; }
+.card.md { --cw: 38px; --ch: 54px; border-radius: 6px; }
+.card.md .r { font-size: 15px; left: 3px; top: 2px; }
+.card.md .su { width: 11px; height: 11px; left: 3px; top: 18px; }
+.card.md .big { width: 16px; height: 16px; right: 2px; bottom: 2px; }
+.card.md .han { font-size: 16px; }
+.cards.md .card + .card { margin-left: -17px; }
 .card.xs { --cw: 22px; --ch: 31px; border-radius: 4px; }
 .card.xs .r { font-size: 10px; left: 2px; top: 1px; }
 .card.xs .su { width: 8px; height: 8px; left: 2px; top: 12px; }
 .card.xs .big, .card.xs .han { display: none; }
 .cards { display: flex; }
 .cards .card + .card { margin-left: -12px; }
-.cards.sm .card + .card { margin-left: -14px; }
+.cards.sm .card + .card { margin-left: -15px; }
 .cards.xs .card + .card { margin-left: -11px; }
 .cardback { width: 16px; height: 22px; border-radius: 3px; background: repeating-linear-gradient(45deg, #1e5a43 0 3px, #174a37 3px 6px); border: 1px solid #e8dcc0; display: inline-block; }
 
