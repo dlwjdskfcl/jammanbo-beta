@@ -1,4 +1,4 @@
-/*! 잠만보 티츄 — 화면 v1.1.0
+/*! 잠만보 티츄 — 화면 v1.2.0
  * 서버: Apps Script (config.js 의 api) · 규칙 판정: engine.js(TE, 서버와 같은 코드)
  * 화면 주소: #/ 로비 · #/rank 랭킹 · #/me 내 전적 · #/rules 규칙 · #/room/<방ID> 방
  */
@@ -14,7 +14,7 @@
   var S = {
     token: null, user: null, route: { name: 'boot' }, lobby: null, rank: null, rec: null, notice: '',
     room: null, roomId: null, roomPw: '', sel: [], exch: [null, null, null], exSlot: 0, exRound: 0,
-    lastSeq: 0, seqMatch: '', lastChat: 0, unread: 0, offset: 0, busy: false, pollT: 0, lobbyT: 0,
+    lastSeq: 0, seqMatch: '', polling: false, pollSeq: 0, optim: null, backAt: 0, guard: false, lastChat: 0, unread: 0, offset: 0, busy: false, pollT: 0, lobbyT: 0,
     modal: null, resultShown: '', recvShown: '', sound: lsGet(LS_SOUND) !== '0', chatOpen: false, flash: {}
   };
 
@@ -109,10 +109,10 @@
   }
 
   /* ----- 서버 호출 ----- */
-  function api(fn, a) {
+  function api(fn, a, timeoutMs) {
     if (!CFG.api || /^YOUR_/.test(CFG.api)) return Promise.reject(new Error('티츄 서버 주소(tichu/config.js)가 아직 설정되지 않았어요'));
     var ctl = typeof AbortController === 'function' ? new AbortController() : null;
-    var timer = ctl ? setTimeout(function () { ctl.abort(); }, 25000) : 0;
+    var timer = ctl ? setTimeout(function () { ctl.abort(); }, (timeoutMs || 0) + 25000) : 0;
     return fetch(CFG.api, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: fn, t: S.token || '', a: a || {} }), signal: ctl ? ctl.signal : undefined })
       .then(function (r) { if (!r.ok) throw new Error('서버 응답 오류 (' + r.status + ')'); return r.json(); })
       .then(function (j) {
@@ -229,7 +229,7 @@
     if (!S.token) return renderLogin();
     var r = parseHash();
     closeModal();
-    if (r.name !== 'room') { stopPoll(); S.room = null; S.roomId = null; }
+    if (r.name !== 'room') { stopPoll(); S.room = null; S.roomId = null; S.guard = false; S.pollSeq++; S.polling = false; }
     S.route = r;
     clearInterval(S.lobbyT);
     if (r.name === 'room') return enterRoom(r.id);
@@ -239,6 +239,24 @@
     if (r.name === 'me') loadRecords();
   }
   window.addEventListener('hashchange', route);
+  // 방 안에서 휴대폰 뒤로가기: 창이 열려 있으면 창만 닫고, 아니면 '한 번 더 누르면 나가요' → 2초 안에 또 누르면 로비로
+  function armGuard() {
+    if (S.route.name !== 'room' || S.guard) return;
+    try { history.pushState({ tichuGuard: 1 }, '', location.href); S.guard = true; } catch (e) {}
+  }
+  window.addEventListener('popstate', function () {
+    if (!S.guard || S.route.name !== 'room') return;
+    S.guard = false;
+    if (S.modal) { closeModal(); armGuard(); return; }
+    if (Date.now() - S.backAt < 2000) { S.backAt = 0; location.hash = '#/'; return; }
+    S.backAt = Date.now();
+    toast('한 번 더 누르면 로비로 나가요');
+    armGuard();
+  });
+  window.addEventListener('beforeunload', function (e) {
+    var r = S.room;
+    if (S.route.name === 'room' && r && r.status === 'play' && r.me >= 0) { e.preventDefault(); e.returnValue = ''; }
+  });
 
   /* ================= 로비 ================= */
   function header() {
@@ -447,28 +465,35 @@
   function enterRoom(id) {
     if (S.roomId !== id) { S.room = null; S.lastSeq = 0; S.sel = []; S.exch = [null, null, null]; S.resultShown = ''; S.lastChat = 0; S.unread = 0; }
     S.roomId = id;
+    setTimeout(armGuard, 0);
     if (S.room && S.room.id === id) render(); else app.innerHTML = '<div class="boot"><div class="logo-mark">T</div><div>방에 들어가는 중…</div></div>';
     startPoll(0);
   }
   function stopPoll() { clearTimeout(S.pollT); S.pollT = 0; }
   function startPoll(delay) { stopPoll(); S.pollT = setTimeout(poll, delay || 0); }
+  // 서버가 바뀔 때까지 최대 7초 기다렸다가 답함(롱 폴링) → 답이 오면 바로 다시 요청
+  function pollWait() { return document.hidden ? 0 : 7000; }
   function pollDelay() {
     if (document.hidden) return 5000;
     var r = S.room;
-    if (!r) return 1500;
-    if (r.status === 'play') return 700;
-    return 2000;
+    if (!r) return 1000;
+    if (r.status === 'end') return 1500;
+    return 30;
   }
   function poll() {
     if (S.route.name !== 'room' || !S.roomId) return;
-    if (S.busy) return startPoll(400);
-    var id = S.roomId;
-    api('poll', { room: id, v: S.room && S.room.id === id ? S.room.v : 0, pw: S.roomPw }).then(function (r) {
-      if (S.roomId !== id) return;
+    if (S.busy) return startPoll(150);
+    if (S.polling) return;
+    var id = S.roomId, mySeq = ++S.pollSeq;
+    S.polling = true;
+    api('poll', { room: id, v: S.room && S.room.id === id ? S.room.v : 0, pw: S.roomPw, wait: pollWait() }, 12000).then(function (r) {
+      S.polling = false;
+      if (S.roomId !== id || mySeq !== S.pollSeq) return startPoll(pollDelay());
       if (r.same) { if (S.room && r.on) { var ch = false; r.on.forEach(function (o, i) { if (S.room.seats[i] && S.room.seats[i].on !== o) { S.room.seats[i].on = o; ch = true; } }); if (ch) render(); } }
       else applyRoom(r);
       startPoll(pollDelay());
     }, function (e) {
+      S.polling = false;
       if (S.roomId !== id) return;
       if (e.code === 'gone') { toast(e.message, true); location.hash = '#/'; return; }
       if (e.code === 'pw') { joinRoom(id, true); return; }
@@ -477,14 +502,23 @@
       startPoll(3000);
     });
   }
-  document.addEventListener('visibilitychange', function () { if (!document.hidden && S.route.name === 'room') startPoll(0); });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && S.route.name === 'room') { S.pollSeq++; S.polling = false; startPoll(0); } });
 
   function act(k, extra, btn) {
     if (S.busy) return Promise.resolve();
     S.busy = true;
     if (btn) btn.disabled = true;
     var a = extra || {}; a.room = S.roomId; a.k = k;
-    return api('act', a).then(function (r) { S.busy = false; applyRoom(r); }, function (e) { S.busy = false; if (btn) btn.disabled = false; toast(e.message, true); render(); });
+    // 서버 답을 기다리지 않고 내 화면에 먼저 보여 줌 (답이 오면 서버 상태로 바뀜)
+    var g = S.room && S.room.g;
+    if (g && (k === 'play' || k === 'pass' || k === 'grand' || k === 'exch' || k === 'dragon')) {
+      var top = g.trick.plays.length ? g.trick.plays[g.trick.plays.length - 1].c : null;
+      S.optim = { k: k, cards: k === 'play' ? a.cards.slice() : k === 'exch' ? a.cards.slice() : [], c: k === 'play' ? TE.bestPlay(a.cards, top) : null };
+      if (k === 'play') sfx(comboSound(S.optim.c, TE.isBomb(S.optim.c)));
+      else if (k === 'pass') sfx('pass');
+      render();
+    }
+    return api('act', a).then(function (r) { S.busy = false; S.optim = null; applyRoom(r, false, true); }, function (e) { S.busy = false; S.optim = null; if (btn) btn.disabled = false; toast(e.message, true); render(); });
   }
   function roomCall(fn, a, btn) {
     if (btn) btn.disabled = true;
@@ -498,7 +532,7 @@
   function seatName(s) { var st = S.room.seats[s]; return st ? st.name : '?'; }
 
   // 서버 상태가 새로 왔을 때: 효과(배너·소리) → 선택 정리 → 그리기
-  function applyRoom(r, fresh) {
+  function applyRoom(r, fresh, mine) {
     var prev = S.room;
     if (prev && prev.id === r.id && r.v < prev.v && !fresh) return;
     S.room = r; S.roomId = r.id;
@@ -507,7 +541,7 @@
       var key = r.matchId;
       if (S.seqMatch !== key) { S.seqMatch = key; S.lastSeq = fresh || !prev ? g.seq : 0; }
       var evs = g.log.filter(function (e) { return e.n > S.lastSeq; });
-      if (S.lastSeq) effects(evs, r);
+      if (S.lastSeq) effects(evs, r, mine);
       S.lastSeq = g.seq;
       // 선택 정리
       var hand = g.hand || [];
@@ -539,16 +573,16 @@
     render();
   }
 
-  function effects(evs, r) {
+  function effects(evs, r, mine) {
     var me = r.me, myTurnBefore = false, order = 0;
     S.flash = {};
     evs.forEach(function (e) {
       var at = order * 0.28;
       if (e.k === 'play') {
-        S.flash[e.s] = order++;
+        if (!(mine && e.s === me)) S.flash[e.s] = order++;
         if (e.bomb) { banner('💣 폭탄!', 'bomb'); S.shake = true; }
-        sfx(comboSound(e.c, e.bomb), at);
-      } else if (e.k === 'pass') { S.flash[e.s] = order++; sfx('pass', at); }
+        if (!(mine && e.s === me)) sfx(comboSound(e.c, e.bomb), at);
+      } else if (e.k === 'pass') { if (!(mine && e.s === me)) S.flash[e.s] = order++; if (!(mine && e.s === me)) sfx('pass', at); }
       else if (e.k === 'tichu') { banner(seatName(e.s) + (e.kind === 2 ? ' 라지 티츄!' : ' 티츄!')); sfx('tichu', at); }
       else if (e.k === 'trick' && me >= 0 && team(e.to) === team(me) && e.p > 0) sfx(e.p >= 20 ? 'trickBig' : 'trickUs', at + 0.1);
       else if (e.k === 'out' && e.place === 1) sfx('out', at + 0.15);
@@ -700,7 +734,9 @@
     if (!g) return;
     var pend = pendingSeats(g), myTeam = team(view);
     var top = g.trick.plays.length ? g.trick.plays[g.trick.plays.length - 1] : null;
-    var ts = trickState(g);
+    var ts = trickState(g), op = S.optim;
+    if (op && me >= 0 && op.k === 'play' && op.c) { ts[me] = { play: op.c }; S.flash[me] = 0; top = { s: me, c: op.c }; }
+    if (op && me >= 0 && op.k === 'pass') { ts[me] = { pass: 1 }; S.flash[me] = 0; }
     var myTurn = me >= 0 && g.phase === 'play' && g.turn === me;
     var scoreUs = g.scores[myTeam], scoreThem = g.scores[1 - myTeam];
     var nmUs = [view, (view + 2) % 4].map(seatName).join('·'), nmThem = [(view + 1) % 4, (view + 3) % 4].map(seatName).join('·');
@@ -791,6 +827,7 @@
   }
   function panelHTML(g, me) {
     if (me < 0) return '';
+    if (S.optim && (S.optim.k === 'grand' || S.optim.k === 'exch' || S.optim.k === 'dragon')) return '';
     var r = S.room;
     if (g.phase === 'grand' && g.grand[me] === null) {
       return '<div class="panel"><h3>처음 8장 — 라지 티츄?</h3><p>1등으로 나가면 +200, 못 하면 -200점. 나머지 6장은 결정 뒤에 받아요.</p>' +
@@ -825,6 +862,7 @@
       acts += '<button class="btn" id="bPass" ' + (myTurn && top && !must ? '' : 'disabled') + '>패스</button>';
       acts += '<button class="btn primary" id="bPlay" disabled>내기</button>';
     }
+    if (S.optim) acts = '<span class="small">보내는 중…</span>';
     if (g.phase === 'exchange' && g.myExch) acts += '<span class="small">교환 대기 중…</span>';
     if (g.phase === 'grand' && g.grand[me] !== null) acts += '<span class="small">다른 사람 결정 대기…</span>';
     return '<div class="mybar"><div class="me"><div class="av ' + t + (pend.indexOf(me) >= 0 ? ' turn' : '') + '">' + initial(st.name) + (pend.indexOf(me) >= 0 ? ringSVG() : '') + '</div>' +
@@ -858,6 +896,7 @@
   function layoutHand() {
     var el = $('#hand'); if (!el || !S.room || !S.room.g) return;
     var g = S.room.g, hand = g.hand || [], me = S.room.me;
+    if (S.optim && S.optim.k === 'play') hand = hand.filter(function (c) { return S.optim.cards.indexOf(c) < 0; });
     var recvSet = {};
     if (g.phase === 'play' && g.recv && !g.played[me]) g.recv.forEach(function (x) { recvSet[x.c] = 1; });
     var inEx = {}; S.exch.forEach(function (c) { if (c) inEx[c] = 1; });
