@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>잠만보 순서 룰렛</title>
+<meta name="description" content="구슬을 굴려 순서·당첨자를 정하는 잠만보 미니게임">
+<meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1014" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="순서 룰렛">
+<link rel="icon" type="image/png" href="../icon-192.png">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="style.css?v=2.5.0">
+</head>
+<body>
+<div id="app">
+  <!-- 설정 화면 -->
+  <section id="setup" class="screen on" aria-label="순서 룰렛 설정">
+    <header class="bar">
+      <a class="ibtn" id="homeLink" href="../" aria-label="잠만보로"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></a>
+      <div class="ttl"><b>순서 룰렛</b><small>구슬이 먼저 들어온 순서대로</small></div>
+      <button class="ibtn" id="sndBtn" type="button" aria-label="소리 켜기/끄기"></button>
+    </header>
+
+    <div class="wrap">
+      <div class="hero" aria-hidden="true"><canvas id="heroCv" width="600" height="180"></canvas></div>
+
+      <div class="card">
+        <div class="lab"><span>참가자</span><small id="cnt">0명</small></div>
+        <textarea id="names" rows="4" spellcheck="false" autocomplete="off"
+          placeholder="이름을 쉼표(,)나 줄바꿈으로 구분해 주세요&#10;예) 푸푸린, 잠만보, 꼬부기*2"></textarea>
+        <div class="chips" id="chips"></div>
+        <div class="row tools">
+          <button type="button" class="sbtn" id="btnMeet" hidden>📅 최근 모임 참가자</button>
+          <button type="button" class="sbtn" id="btnPick" hidden>👥 회원에서 고르기</button>
+          <button type="button" class="sbtn" id="btnClear">지우기</button>
+        </div>
+        <div class="recent" id="recent"></div>
+        <p class="hint"><b>이름*3</b> 처럼 쓰면 구슬 3개 (확률 3배) · 최대 100개</p>
+      </div>
+
+      <div class="card">
+        <div class="lab"><span>무엇을 정할까요?</span></div>
+        <div class="seg" id="segMode" role="radiogroup">
+          <button type="button" data-v="order" class="on">순서 정하기</button>
+          <button type="button" data-v="first">1등 뽑기</button>
+          <button type="button" data-v="last">꼴찌 뽑기</button>
+        </div>
+        <div class="lab mt"><span>코스</span><small id="courseInfo"></small></div>
+        <div class="seg" id="segCourse" role="radiogroup">
+          <button type="button" data-v="quick">빠름</button>
+          <button type="button" data-v="normal" class="on">보통</button>
+          <button type="button" data-v="long">길게</button>
+          <button type="button" data-v="random">랜덤</button>
+        </div>
+        <div class="route" id="route" aria-label="코스 구성"></div>
+      </div>
+
+      <button type="button" class="go" id="btnStart" disabled><span>구슬 굴리기</span><svg viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z"/></svg></button>
+      <p class="foot">아이디어 참고: <a href="https://github.com/lazygyu/roulette" target="_blank" rel="noopener">lazygyu/roulette</a> (MIT) · 코드·맵·그림은 잠만보용으로 새로 만듦</p>
+    </div>
+  </section>
+
+  <!-- 게임 화면 -->
+  <section id="play" class="screen" aria-label="순서 룰렛 진행">
+    <div class="stage" id="stage">
+      <canvas id="cv"></canvas>
+      <div class="hud top">
+        <button class="ibtn glass" id="btnQuit" type="button" aria-label="그만하기"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        <div class="pill glass" id="hudInfo"><span id="hudZone">출발</span><b id="hudTime">0.0</b></div>
+        <div class="pill glass" id="hudLeft">남은 0</div>
+      </div>
+      <div class="ranks" id="ranks" aria-live="polite"></div>
+      <div class="count" id="count" aria-hidden="true"></div>
+      <div class="pop" id="pop" aria-live="polite"></div>
+      <div class="banner" id="banner" aria-live="polite"></div>
+      <div class="hud bottom">
+        <button type="button" class="cbtn glass" id="btnShake"><i class="cd"></i><span>🫨 흔들기</span></button>
+        <button type="button" class="cbtn glass" id="btnCam"><span>🎥 따라가기</span></button>
+        <button type="button" class="cbtn glass" id="btnSpeed"><span>1×</span></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 결과 -->
+  <div class="sheet-bg" id="sheetBg" hidden>
+    <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="resTitle">
+      <div class="grab"></div>
+      <h3 id="resTitle">결과</h3>
+      <div id="resWin"></div>
+      <ol class="res" id="resList"></ol>
+      <div class="row acts">
+        <button type="button" class="sbtn" id="btnCopy">📋 결과 복사</button>
+        <button type="button" class="sbtn" id="btnEdit">명단 수정</button>
+        <button type="button" class="go sm" id="btnAgain">다시 굴리기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 회원 고르기 -->
+  <div class="sheet-bg" id="pickBg" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="pickTitle">
+      <div class="grab"></div>
+      <h3 id="pickTitle">회원에서 고르기</h3>
+      <input id="pickQ" class="inp" type="search" placeholder="닉네임 검색 (초성 가능)" autocomplete="off">
+      <div class="chips pick" id="pickList"></div>
+      <div class="row acts">
+        <button type="button" class="sbtn" id="pickNone">모두 해제</button>
+        <button type="button" class="go sm" id="pickOk">넣기</button>
+      </div>
+    </div>
+  </div>
+  <div class="toast" id="toast" role="status"></div>
+</div>
+<script src="engine.js?v=2.5.0"></script>
+<script src="app.js?v=2.5.0"></script>
+</body>
+</html>

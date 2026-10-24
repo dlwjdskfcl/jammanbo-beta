@@ -352,6 +352,7 @@ var TE = (function () {
       err(isBomb(top) ? '폭탄은 더 높은 폭탄으로만 이길 수 있어요' : '앞 조합과 같은 종류·같은 장수이면서 더 높아야 해요');
     }
     var bomb = isBomb(c);
+    if (g.trick.closing && !bomb) err('모두 패스했어요 · 지금은 폭탄만 낼 수 있어요');
     if (s !== g.turn) {
       if (!bomb) err('내 차례가 아니에요');
       if (!top) err('폭탄은 상대 조합 위에만 끼어들 수 있어요');
@@ -365,6 +366,7 @@ var TE = (function () {
     g.trick.plays.push({ s: s, c: c });
     g.trick.last = s;
     g.trick.passes = 0;
+    if (g.trick.closing) delete g.trick.closing;
     ev(g, { k: 'play', s: s, c: c, bomb: bomb ? 1 : 0, oot: s !== g.turn ? 1 : 0 });
     if (g.wish && hasNatural(ids, g.wish)) { ev(g, { k: 'wishDone', r: g.wish, s: s }); g.wish = 0; }
     if (u.MA) {
@@ -396,8 +398,20 @@ var TE = (function () {
     ev(g, { k: 'pass', s: s });
     var need = 0;
     for (var i = 0; i < 4; i++) if (i !== g.trick.last && active(g, i)) need++;
-    if (g.trick.passes >= need) return winTrick(g);
+    if (g.trick.passes >= need) {
+      // g.grace(서버가 켬): 바로 가져가지 않고 짧은 틈을 둠 → 그동안 누구나 폭탄 가능. 서버가 시간이 지나면 settle() 호출
+      if (g.grace) { g.trick.closing = 1; g.turn = -1; ev(g, { k: 'closing', s: g.trick.last }); return; }
+      return winTrick(g);
+    }
     g.turn = nextActive(g, s);
+  }
+
+  // 모두 패스 뒤의 틈이 끝남 → 트릭 가져감. 틈이 아니면 아무 일 없음(false)
+  function settle(g) {
+    if (g.phase !== 'play' || !g.trick || !g.trick.closing) return false;
+    delete g.trick.closing;
+    winTrick(g);
+    return true;
   }
 
   function winTrick(g) {
@@ -518,11 +532,11 @@ var TE = (function () {
     SUITS: SUITS, SUIT_NAME: SUIT_NAME, TYPE_NAME: TYPE_NAME,
     rank: rank, suit: suit, isSpecial: isSpecial, isCard: isCard, points: points, sumPoints: sumPoints,
     sortHand: sortHand, deck: deck, shuffle: shuffle, rankLabel: rankLabel, cardLabel: cardLabel,
-    analyze: analyze, resolve: resolve, beats: beats, bestPlay: bestPlay, isBomb: isBomb, bombPow: bombPow,
+    analyze: analyze, resolve: resolve, beats: beats, bestPlay: bestPlay, isBomb: isBomb, bombPow: bombPow, power: power,
     comboName: comboName, plays: plays, hasNatural: hasNatural,
     team: team, active: active, nextActive: nextActive, topCombo: topCombo,
     newGame: newGame, startRound: startRound, actGrand: actGrand, canTichu: canTichu, actTichu: actTichu,
-    actExchange: actExchange, wishPlays: wishPlays, actPlay: actPlay, actPass: actPass, actDragon: actDragon,
+    actExchange: actExchange, wishPlays: wishPlays, actPlay: actPlay, actPass: actPass, actDragon: actDragon, settle: settle,
     view: view
   };
   return api;

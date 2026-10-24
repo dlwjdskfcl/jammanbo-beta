@@ -4,10 +4,10 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.4.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.5.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
-  var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules';
+  var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay';
   var KAKAO_STORE = 'jmb_kakao_v2' + ENV_SFX, KAKAO_STATE = 'jmb_kakao_state' + ENV_SFX;
   var ROOT = (function () { var seg = location.pathname.split('/')[1] || ''; return /\.github\.io$/.test(location.hostname) && seg ? '/' + seg + '/' : '/'; })();
   var app = document.getElementById('app'), modalEl = document.getElementById('modal'), toastsEl = document.getElementById('toasts');
@@ -137,9 +137,18 @@
     try { var vs = speechSynthesis.getVoices(); voiceKo = vs.filter(function (v) { return /^ko/i.test(v.lang) && v.localService; })[0] || vs.filter(function (v) { return /^ko/i.test(v.lang); })[0] || null; } catch (e) {}
   }
   if (window.speechSynthesis) { pickVoice(); try { speechSynthesis.onvoiceschanged = pickVoice; } catch (e) {} }
+  var sayTimers = [];
+  // 지금 밀려 있는 말·예약된 말을 모두 끊음 (라운드·게임 끝, 방 나가기)
+  function hush() {
+    sayTimers.forEach(clearTimeout); sayTimers = [];
+    try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) {}
+    sayBusy = 0;
+  }
   function say(text, delay) {
     if (!S.voice || !text || !window.speechSynthesis || document.hidden) return;
-    setTimeout(function () {
+    var tm = setTimeout(function () {
+      sayTimers = sayTimers.filter(function (x) { return x !== tm; });
+      if (S.route.name !== 'room') return;
       try {
         if (sayBusy >= 2) { speechSynthesis.cancel(); sayBusy = 0; }   // 밀리면 지난 말은 끊고 최신 것만
         var u = new SpeechSynthesisUtterance(text);
@@ -148,6 +157,7 @@
         speechSynthesis.speak(u);
       } catch (e) {}
     }, Math.round((delay || 0) * 1000));
+    sayTimers.push(tm);
   }
   // 아이폰 등은 첫 터치 때 소리를 열어 둬야 해요
   function unlockAudio() {
@@ -280,7 +290,7 @@
     var r = parseHash();
     closeModal();
     if (r.name !== 'room' && S.room) { S.rank = null; S.rec = null; }   // 방에서 나오면 전적 새로 (레벨업 알림)
-    if (r.name !== 'room') { stopPoll(); S.room = null; S.roomId = null; S.guard = false; S.pollSeq++; S.polling = false; }
+    if (r.name !== 'room') { if (S.room) hush(); stopPoll(); S.room = null; S.roomId = null; S.guard = false; S.pollSeq++; S.polling = false; }
     S.route = r;
     clearInterval(S.lobbyT);
     if (r.name === 'room') return enterRoom(r.id);
@@ -397,7 +407,7 @@
 
   function practice(btn) {
     btn.disabled = true;
-    api('create', { practice: true, target: 500, timer: 0 }).then(function (r) { applyRoom(r, true); location.hash = '#/room/' + r.id; }, function (e) { btn.disabled = false; toast(e.message, true); });
+    api('create', { practice: true, target: 500, timer: 0, botDelay: botDelayPref() }).then(function (r) { applyRoom(r, true); location.hash = '#/room/' + r.id; }, function (e) { btn.disabled = false; toast(e.message, true); });
   }
 
   function optSeg(name, vals, cur, fmt) {
@@ -419,13 +429,23 @@
   }
   function segVal(root, name) { var b = $('[data-seg="' + name + '"] button.on', root); return b ? b.getAttribute('data-v') : null; }
 
+  // AI 한 수 간격(초) — 방 옵션 botDelay. 0 = 바로. 마지막 고른 값을 기억해 다음 방·연습에 씀
+  var BOT_DELAYS = [0, 0.5, 1, 1.5, 2, 3];
+  function botDelayPref() { var v = parseFloat(lsGet(LS_BOTD)); return isNaN(v) ? 1.5 : Math.max(0, Math.min(5, v)); }
+  function botDelayLabel(v) { v = +v || 0; return v ? v + '초' : '바로'; }
+  function botDelayOf(o) { return o && o.botDelay != null ? +o.botDelay : 1.5; }
+  function botDelaySeg(cur) {
+    return '<div class="field"><label>🤖 AI 한 수 간격 <span class="small">(길수록 폭탄 끼어들 틈이 넉넉)</span></label>' + optSeg('botDelay', BOT_DELAYS, cur, botDelayLabel) + '</div>';
+  }
+  function botDelayVal(root) { var v = segVal(root, 'botDelay'); v = v == null ? botDelayPref() : +v; lsSet(LS_BOTD, String(v)); return v; }
   function roomOptForm(o) {
-    o = o || { name: '', target: 500, timer: 45, pw: '' };
+    o = o || { name: '', target: 500, timer: 45, pw: '', botDelay: botDelayPref() };
     var preset = [200, 400, 500].indexOf(+o.target) >= 0;
     return '<div class="field"><label>방 이름</label><input class="input" id="oName" maxlength="24" placeholder="' + esc(S.user.name) + '님의 방" value="' + esc(o.name) + '"></div>' +
       '<div class="field"><label>목표 점수</label>' + optSeg('target', [200, 400, 500], preset ? o.target : '', function (v) { return v + '점'; }) +
         '<input class="input" id="oTarget" type="number" inputmode="numeric" min="100" max="3000" step="10" placeholder="직접 입력 (100~3000점)" value="' + (preset ? '' : esc(o.target)) + '" style="margin-top:6px"></div>' +
       '<div class="field"><label>턴 시간 (넘기면 자동 진행)</label>' + optSeg('timer', [0, 20, 30, 45, 60, 90], o.timer, function (v) { return v ? v + '초' : '없음'; }) + '</div>' +
+      botDelaySeg(botDelayOf(o)) +
       '<div class="field"><label>방 비밀번호 (선택, 숫자·영문)</label><input class="input" id="oPw" maxlength="8" inputmode="text" autocomplete="off" value="' + esc(o.pw || '') + '"></div>';
   }
   function createRoomSheet() {
@@ -433,7 +453,7 @@
     bindSeg(modalEl); bindTarget(modalEl);
     $('#oGo').onclick = function () {
       var b = $('#oGo'); b.disabled = true;
-      api('create', { name: $('#oName').value, target: targetVal(modalEl), timer: +segVal(modalEl, 'timer'), pw: $('#oPw').value }).then(function (r) {
+      api('create', { name: $('#oName').value, target: targetVal(modalEl), timer: +segVal(modalEl, 'timer'), botDelay: botDelayVal(modalEl), pw: $('#oPw').value }).then(function (r) {
         closeModal(); applyRoom(r, true); location.hash = '#/room/' + r.id;
       }, function (e) { b.disabled = false; toast(e.message, true); });
     };
@@ -739,14 +759,23 @@
   function effects(evs, r, mine) {
     var me = r.me, myTurnBefore = false, order = 0;
     S.flash = {};
-    evs.forEach(function (e) {
-      var at = order * 0.28;
+    // 한 번에 라운드 끝까지 온 경우(내가 나간 뒤 봇끼리 마저 친 판 등): 그 사이 카드 소리·음성은 건너뛰고 결과만
+    var endAt = -1;
+    evs.forEach(function (e, i) { if (endAt < 0 && (e.k === 'round' || e.k === 'gameEnd')) endAt = i; });
+    if (endAt >= 0) hush();
+    evs.forEach(function (e, i) {
+      var at = order * 0.28, quiet = endAt >= 0 && i < endAt;
+      if (quiet) {
+        if (e.k === 'out') toast((e.place === 1 ? '🥇 ' : '') + seatName(e.s) + ' ' + e.place + '등으로 나감!');
+        return;
+      }
       if (e.k === 'play') {
         if (!(mine && e.s === me)) S.flash[e.s] = order++;
         if (e.bomb) { banner('💣 폭탄!', 'bomb'); S.shake = true; }
         if (!(mine && e.s === me)) { sfx(comboSound(e.c, e.bomb), at); say(comboVoice(e.c), at); }
       } else if (e.k === 'pass') { if (!(mine && e.s === me)) { S.flash[e.s] = order++; sfx('pass', at); say('패스', at); } }
       else if (e.k === 'tichu') { banner(seatName(e.s) + (e.kind === 2 ? ' 라지 티츄!' : ' 티츄!')); sfx('tichu', at); say(e.kind === 2 ? '라지 티츄' : '티츄', at); }
+      else if (e.k === 'closing') { if (me >= 0 && myBombs().length) { sfx('turn', at); say('폭탄 기회', at); } }
       else if (e.k === 'trick' && me >= 0 && team(e.to) === team(me)) sfx('trickUs', at + 0.1);
       else if (e.k === 'out' && e.place === 1) sfx('out', at + 0.15);
       else if (e.k === 'round') { sfx(e.res && e.res.dbl ? 'onetwo' : 'round', at + 0.3); if (e.res && e.res.dbl) say('원투', at + 0.3); }
@@ -790,7 +819,7 @@
     var h = '<div class="shell"><div class="hdr"><button class="iconbtn" id="wBack" aria-label="로비">←</button><div class="title" style="min-width:0"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (r.opt.lock ? '🔒 ' : '') + esc(r.name) + '</span></div>' +
       '<button class="iconbtn" id="wChat" aria-label="채팅">💬' + (S.unread ? '<span class="badge-dot">' + S.unread + '</span>' : '') + '</button></div>' +
       '<div class="content wait-wrap">' +
-      '<div class="wait-info"><span class="chip">🎯 목표 ' + r.opt.target + '점</span><span class="chip">⏱ ' + (r.opt.timer ? '턴 ' + r.opt.timer + '초' : '시간 제한 없음') + '</span>' + (r.opt.lock ? '<span class="chip">🔒 비밀방</span>' : '') + '</div>' +
+      '<div class="wait-info"><span class="chip">🎯 목표 ' + r.opt.target + '점</span><span class="chip">⏱ ' + (r.opt.timer ? '턴 ' + r.opt.timer + '초' : '시간 제한 없음') + '</span><span class="chip">🤖 AI ' + botDelayLabel(botDelayOf(r.opt)) + '</span>' + (r.opt.lock ? '<span class="chip">🔒 비밀방</span>' : '') + '</div>' +
       '<div class="wait-table">' + seats + '<div class="wait-center"><b style="font-size:20px">' + r.seats.filter(Boolean).length + ' / 4</b><br>마주 앉은<br>두 사람이 한 팀</div></div>' +
       (r.host ? '<button class="btn primary block" id="wStart" ' + (full ? '' : 'disabled') + '>' + (full ? '게임 시작' : '네 자리가 차면 시작할 수 있어요') + '</button>' +
         '<div class="row" style="display:flex;gap:8px"><button class="btn block" id="wFill" ' + (full ? 'disabled' : '') + '>빈자리 봇으로 채우기</button><button class="btn block" id="wOpt">방 설정</button></div>'
@@ -823,10 +852,10 @@
   }
   function optSheet() {
     var r = S.room;
-    openModal('<h2>방 설정<button class="x" data-x>✕</button></h2>' + roomOptForm({ name: r.name, target: r.opt.target, timer: r.opt.timer, pw: '' }) +
+    openModal('<h2>방 설정<button class="x" data-x>✕</button></h2>' + roomOptForm({ name: r.name, target: r.opt.target, timer: r.opt.timer, botDelay: botDelayOf(r.opt), pw: '' }) +
       '<div class="small">비밀번호 칸을 비우면 공개방이 돼요.</div><button class="btn primary block" id="oGo">저장</button>');
     bindSeg(modalEl); bindTarget(modalEl);
-    $('#oGo').onclick = function () { roomCall('opt', { name: $('#oName').value, target: targetVal(modalEl), timer: +segVal(modalEl, 'timer'), pw: $('#oPw').value }, $('#oGo')).then(closeModal); };
+    $('#oGo').onclick = function () { roomCall('opt', { name: $('#oName').value, target: targetVal(modalEl), timer: +segVal(modalEl, 'timer'), botDelay: botDelayVal(modalEl), pw: $('#oPw').value }, $('#oGo')).then(closeModal); };
   }
   function copyInvite() {
     // ?reset: 잠만보 앱의 예전 서비스 워커(v2.2)가 남은 기기에서도 티츄 페이지가 바로 열리게 (티츄는 이 값을 쓰지 않고 지움)
@@ -906,7 +935,7 @@
     if (!g) return;
     var pend = pendingSeats(g), myTeam = team(view);
     var top = g.trick.plays.length ? g.trick.plays[g.trick.plays.length - 1] : null;
-    var ts = trickState(g), op = S.optim;
+    var ts = trickState(g), op = S.optim, closing = isClosing(g);
     if (op && me >= 0 && op.k === 'play' && op.c) { ts[me] = { play: op.c }; S.flash[me] = 0; top = { s: me, c: op.c }; }
     if (op && me >= 0 && op.k === 'pass') { ts[me] = { pass: 1 }; S.flash[me] = 0; }
     var myTurn = me >= 0 && g.phase === 'play' && g.turn === me;
@@ -929,7 +958,7 @@
     for (var s = 0; s < 4; s++) {
       var p = pos(s, view), st = r.seats[s];
       if (p !== 0) h += seatHTML(g, s, p, st, pend);
-      fronts[p] = frontHTML(g, s, p, ts[s], top && top.s === s);
+      fronts[p] = frontHTML(g, s, p, ts[s], top && top.s === s, pend.indexOf(s) >= 0 && !closing && (g.phase === 'play' || g.phase === 'dragon') && !(op && s === me));
     }
     // 낸 카드 판: 위(맞은편) · 왼쪽 · 오른쪽 · 가운데 안내 · 아래(나) — 네 사람 카드가 서로 겹치지 않게 칸을 나눔
     h += '<div class="board">' + fronts[2] + fronts[3] + fronts[1] + '<div class="center">' + centerHTML(g, me, pend) + '</div>' + fronts[0] + '</div>';
@@ -966,23 +995,30 @@
     if (st && st.afk) tags += '<span class="tag afk">자동</span>';
     if (st && !st.on) tags += '<span class="tag afk">끊김</span>';
     if (s === S.topSeat) tags = '<span class="tag lead">👑 최고</span>' + tags;
-    return '<div class="seat p' + p + (s === S.topSeat ? ' lead' : '') + '" data-seat="' + s + '"><div class="av ' + t + (isPend ? ' turn' : '') + (st && !st.on ? ' off' : '') + '">' + initial(st ? st.name : '?') +
+    return '<div class="seat p' + p + (s === S.topSeat ? ' lead' : '') + (isPend && (g.phase === 'play' || g.phase === 'dragon') ? ' turn' : '') + '" data-seat="' + s + '"><div class="av ' + t + (isPend ? ' turn' : '') + (st && !st.on ? ' off' : '') + '">' + initial(st ? st.name : '?') +
       (isPend ? ringSVG() : '') + (st && st.bot ? '<span class="bot">🤖</span>' : '') + '</div>' +
       '<div class="nm ' + (t === 'A' ? 'tA' : 'tB') + '">' + esc(st ? st.name : '') + '</div><div class="info">' + tags + '</div></div>';
   }
   function ringSVG() { return '<svg class="ring" viewBox="0 0 40 40"><circle cx="20" cy="20" r="18" stroke-dasharray="113.1" stroke-dashoffset="0" data-ring="1"/></svg>'; }
-  function frontHTML(g, s, p, st, isTop) {
-    if (!st || (g.phase !== 'play' && g.phase !== 'dragon')) return '<div class="front p' + p + ' none"></div>';
+  // 바닥(낸 카드 칸). isTurn = 지금 이 사람 차례 → 금색 테두리 + '차례' 표시
+  function frontHTML(g, s, p, st, isTop, isTurn) {
+    var who = p === 0 ? '나' : esc(seatName(s)), tc = team(s) ? 'B' : 'A', tn = isTurn ? ' turn' : '';
+    var turnLbl = isTurn ? '<span class="turnlbl">' + (g.phase === 'dragon' ? '🐉 ' : '⏳ ') + (p === 0 ? '내 차례' : who + ' 차례') + '</span>' : '';
+    if (g.phase !== 'play' && g.phase !== 'dragon') return '<div class="front p' + p + ' none"></div>';
+    if (!st) return isTurn ? '<div class="front p' + p + ' t' + tc + ' wait' + tn + '">' + turnLbl + '</div>' : '<div class="front p' + p + ' none"></div>';
     var fl = S.flash[s] !== undefined ? ' flash' : '', delay = fl ? ' style="animation-delay:' + (S.flash[s] * 0.28) + 's"' : '';
-    var who = p === 0 ? '나' : esc(seatName(s)), tc = team(s) ? 'B' : 'A';
-    if (st.pass) return '<div class="front pass p' + p + fl + '"' + delay + '><span class="lbl">' + who + ' · 패스</span></div>';
+    if (st.pass) return '<div class="front pass p' + p + fl + tn + '"' + delay + '><span class="lbl">' + who + ' · 패스</span>' + turnLbl + '</div>';
     var size = 'md';   // 크기는 같게, 칸이 좁으면 fitFronts 가 겹침만 늘림
-    return '<div class="front p' + p + ' t' + tc + (isTop ? ' top' : ' old') + fl + '"' + delay + '>' + cardsHTML(st.play.c, size) + '<span class="lbl">' + (isTop ? '👑 ' : '') + who + ' · ' + esc(TE.comboName(st.play)) + '</span></div>';
+    return '<div class="front p' + p + ' t' + tc + (isTop ? ' top' : ' old') + fl + tn + '"' + delay + '>' + cardsHTML(st.play.c, size) + '<span class="lbl">' + (isTop ? '👑 ' : '') + who + ' · ' + esc(TE.comboName(st.play)) + '</span>' + turnLbl + '</div>';
   }
   function centerHTML(g, me, pend) {
     var h = '', msg = '', isMe = false;
     if (g.phase === 'grand') msg = '라지 티츄 결정 중 · ' + g.grand.filter(function (x) { return x !== null; }).length + '/4';
     else if (g.phase === 'exchange') msg = '카드 교환 중 · ' + g.exDone.filter(Boolean).length + '/4';
+    else if (g.phase === 'play' && isClosing(g)) {
+      var tw = g.trick.plays[g.trick.plays.length - 1].s;
+      msg = '모두 패스 · ' + (tw === me ? '내가' : seatName(tw)) + ' 가져가는 중' + (tw !== me && myBombs().length ? ' · 💣 지금 폭탄 가능!' : '');
+    }
     else if (g.phase === 'play') {
       isMe = g.turn === me;
       msg = isMe ? (g.trick.plays.length ? '내 차례' : '내 차례 · 선') : seatName(g.turn) + (g.trick.plays.length ? ' 차례' : ' 선');
@@ -1040,6 +1076,7 @@
       if (r.canTichu) acts += '<button class="btn tichu" id="bTichu">티츄<small>+100</small></button>';
       acts += '<button class="btn pass" id="bPass" ' + (myTurn && top && !must ? '' : 'disabled') + '>패스</button>';
       acts += '<button class="btn primary play" id="bPlay" disabled>내기</button>';
+      if (myBombs().length) acts += '<button class="btn bomb" id="bBomb" title="단축키 B">💣<small>폭탄 B</small></button>';
     } else if (g.phase === 'play' && place >= 0) wait = '손패를 다 냈어요 · ' + (place + 1) + '등';
     else if (g.phase === 'exchange') wait = g.myExch ? '다른 사람 교환 기다리는 중…' : '위 칸을 고르고 카드를 넣어 주세요';
     else if (g.phase === 'grand') wait = g.grand[me] !== null ? '다른 사람 결정 기다리는 중…' : '라지 티츄를 할지 골라 주세요';
@@ -1052,6 +1089,36 @@
       '<span class="dk-msg" id="selinfo">' + (myTurn ? '<b class="myturn">내 차례</b>' : '') + '</span><span class="dk-sec" id="mySec"></span></div>' +
       (acts ? '<div class="dk-acts">' + acts + '</div>' : '<div class="dk-wait"><span>' + esc(wait) + '</span>' + tbtn + '</div>') + '</div>';
   }
+  // 모두 패스했지만 트릭을 아직 안 가져간 짧은 틈 (서버 v1.5+ 의 g.trick.closing). 이때도 폭탄 가능
+  function isClosing(g) { return !!(g && g.phase === 'play' && g.trick && g.trick.closing && g.trick.plays.length); }
+  // 지금 테이블 위에 낼 수 있는 내 폭탄 (약한 것부터)
+  function myBombs() {
+    var r = S.room, g = r && r.g, me = r ? r.me : -1;
+    if (!g || me < 0 || g.phase !== 'play' || !g.hand || !g.hand.length || !g.trick.plays.length) return [];
+    if (S.optim && S.optim.k === 'play') return [];
+    var top = g.trick.plays[g.trick.plays.length - 1];
+    if (top.s === me) return [];   // 내가 최고면 폭탄 낼 이유 없음
+    return TE.plays(g.hand, top.c).filter(TE.isBomb).sort(function (a, b) { return TE.power(a) - TE.power(b); });
+  }
+  // 💣 버튼 / B 키: 고른 카드가 폭탄이면 그걸, 아니면 가장 약한 폭탄을 바로 냄
+  function quickBomb(btn) {
+    if (S.busy) return;
+    var list = myBombs();
+    if (!list.length) { toast('지금 낼 수 있는 폭탄이 없어요'); return; }
+    var st = selState(), pick = st && st.ok && st.c && TE.isBomb(st.c) ? S.sel.slice() : list[0].c.slice();
+    S.sel = [];
+    act('play', { cards: pick, wish: 0 }, btn);
+  }
+  // 키보드 단축키 (PC): B 폭탄 · Enter 내기 · P 패스 · H 추천
+  document.addEventListener('keydown', function (e) {
+    if (S.route.name !== 'room' || !S.room || !S.room.g || S.modal || e.ctrlKey || e.metaKey || e.altKey) return;
+    var t = e.target; if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    var k = (e.key || '').toLowerCase(), b;
+    if (k === 'b' || k === 'ㅠ') { e.preventDefault(); quickBomb($('#bBomb')); }
+    else if (k === 'enter') { b = $('#bPlay'); if (b && !b.disabled) { e.preventDefault(); playSelected(b); } }
+    else if (k === 'p' || k === 'ㅔ') { b = $('#bPass'); if (b && !b.disabled) { e.preventDefault(); S.sel = []; act('pass', {}, b); } }
+    else if (k === 'h' || k === 'ㅗ') { b = $('#bHint'); if (b) { e.preventDefault(); useHint(); } }
+  });
   // 💡 추천: 낼 수 있는 조합을 낮은 것부터 하나씩 골라 줌 (누를 때마다 다음 것)
   function hintList() {
     var r = S.room, g = r.g, me = r.me, top = g.trick.plays.length ? g.trick.plays[g.trick.plays.length - 1].c : null;
@@ -1081,6 +1148,7 @@
     var bt = $('#bTichu'); if (bt) bt.onclick = function () { if (confirm('스몰 티츄를 선언할까요?\n1등으로 나가면 +100, 못 하면 -100점')) act('tichu', {}, bt); };
     var bp = $('#bPass'); if (bp) bp.onclick = function () { S.sel = []; act('pass', {}, bp); };
     var bh = $('#bHint'); if (bh) bh.onclick = useHint;
+    var bb = $('#bBomb'); if (bb) bb.onclick = function () { quickBomb(bb); };
     var bpl = $('#bPlay'); if (bpl) bpl.onclick = function () { playSelected(bpl); };
     $$('[data-slot]').forEach(function (el) {
       el.onclick = function () { var i = +el.getAttribute('data-slot'); if (S.exSlot === i && S.exch[i]) S.exch[i] = null; S.exSlot = i; render(); };
@@ -1180,8 +1248,7 @@
         var any = (must || TE.plays(g.hand, top)).length;
         res.msg = must ? '참새 콜 [' + TE.rankLabel(g.wish) + '] 를 포함해서 내야 해요' : !any ? '낼 수 있는 조합이 없어요 → 패스' : top ? '더 높은 같은 조합을 고르거나 패스하세요' : '선이에요! 낼 조합을 골라 주세요';
       } else if (top) {
-        var bombs = TE.plays(g.hand, top).filter(TE.isBomb);
-        res.msg = bombs.length ? '💣 폭탄을 고르면 차례가 아니어도 낼 수 있어요' : '';
+        res.msg = myBombs().length ? '💣 폭탄은 차례가 아니어도 낼 수 있어요 (B 키)' : '';
       }
       return res;
     }
@@ -1237,10 +1304,19 @@
       '<button class="btn block" id="mInvite">🔗 관전 링크 복사</button>' +
 
       (r.host && r.status === 'play' ? offline.map(function (s) { return '<button class="btn block" data-rep="' + s + '">🤖 ' + esc(seatName(s)) + ' (끊김) → 봇으로</button>'; }).join('') : '') +
+      (r.host ? botDelaySeg(botDelayOf(r.opt)) : '') +
       (r.admin ? '<button class="btn danger block" id="mClose">운영진: 방 닫기</button>' : '') +
       '<button class="btn block" id="mLobby">로비로 (방은 그대로)</button>' +
       (r.me >= 0 ? '<button class="btn danger block" id="mLeave">방에서 나가기</button>' : '') + '</div>' + soundRows() + verLine());
     bindSoundRows();
+    $$('[data-seg="botDelay"] button', modalEl).forEach(function (b) {   // 게임 중에도 방장이 바로 바꿈
+      b.onclick = function () {
+        var v = +b.getAttribute('data-v');
+        $$('button', b.parentNode).forEach(function (x) { x.classList.toggle('on', x === b); });
+        lsSet(LS_BOTD, String(v));
+        api('botDelay', { room: S.roomId, botDelay: v }).then(function (rr) { if (rr && rr.id) applyRoom(rr); toast('AI 한 수 간격: ' + botDelayLabel(v)); }, function (e) { toast(e.message, true); });
+      };
+    });
     $('#mRules').onclick = function () { openModal('<h2>규칙<button class="x" data-x>✕</button></h2>' + rulesBody()); };
     $('#mInvite').onclick = function () { closeModal(); copyInvite(); };
     $('#mLobby').onclick = function () { closeModal(); location.hash = '#/'; };
