@@ -378,3 +378,54 @@ body.ingame .toasts { top: auto; bottom: calc(var(--ch) + 150px); }
   .board .front .lbl { font-size: 10px; }
   .board .center { gap: 2px; } .board .center .topwho { margin-top: 0; padding: 1px 8px; }
 }
+
+/* =========== v1.4 : 휴대폰 조작 다듬기 =========== */
+/* 아래 조작판 */
+.dock { background: var(--bg2); border-top: 1px solid var(--line); padding: 6px 10px 8px; display: flex; flex-direction: column; gap: 6px; transition: background .2s, box-shadow .2s; }
+.dock.turn { background: linear-gradient(180deg, rgba(245,179,1,.14), var(--bg2) 70%); box-shadow: inset 0 2px 0 var(--gold); }
+.dk-top { display: flex; align-items: center; gap: 6px; min-height: 24px; min-width: 0; }
+.av.sm { width: 24px; height: 24px; font-size: 11px; border-width: 0; flex: none; }
+.dk-name { font-size: 13px; max-width: 72px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: none; }
+.dk-top .tag { flex: none; }
+.dk-msg { flex: 1; min-width: 0; font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
+.dk-msg .ok { color: #86efac; font-weight: 700; } .dk-msg .no { color: #fda4af; font-weight: 700; }
+.dk-msg .myturn { color: var(--gold2); margin-right: 6px; font-size: 13px; }
+.dk-sec { flex: none; font-size: 13px; font-weight: 900; color: var(--gold2); font-variant-numeric: tabular-nums; min-width: 0; }
+.dk-sec.low { color: var(--danger); }
+.dk-acts { display: flex; gap: 8px; }
+.dk-acts .btn { min-height: 52px; border-radius: 14px; font-size: 16px; font-weight: 800; flex-direction: column; gap: 0; line-height: 1.15; padding: 4px 8px; }
+.dk-acts .btn small { font-size: 10.5px; font-weight: 700; opacity: .85; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dk-acts .hint { flex: 0 0 52px; font-size: 18px; }
+.dk-acts .tichu { flex: 0 0 64px; border-color: var(--gold); color: var(--gold2); background: rgba(245,179,1,.08); }
+.dk-acts .pass { flex: 1 1 0; }
+.dk-acts .play { flex: 1.6 1 0; min-width: 0; }
+.dk-acts .btn:disabled { opacity: .38; }
+.dk-acts .pass.suggest { background: var(--gold); border-color: var(--gold); color: #1d1600; animation: pulse 1.4s infinite; }
+.dk-acts .play.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+.dk-wait { min-height: 52px; display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--muted); font-size: 14px; font-weight: 700; }
+.dk-wait .tichu { border-color: var(--gold); color: var(--gold2); }
+.timerbar { height: 4px; }
+/* 손패: 크게, 쓸어서 여러 장 */
+.hand { touch-action: none; }
+.handwrap { padding-top: 14px; }
+.hand .card.sel { transform: translateY(-16px); }
+@media (min-height: 760px) and (max-width: 699px) { :root { --cw: 52px; --ch: 76px; } .card .r { font-size: 19px; } .card .su { top: 23px; } }
+/* 설정 스위치 · 버전 */
+.setlist { display: flex; flex-direction: column; margin: 10px 0; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.setrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; background: var(--bg2); cursor: pointer; }
+.setrow + .setrow { border-top: 1px solid var(--line); }
+.setrow span { display: flex; flex-direction: column; } .setrow small { color: var(--muted); font-size: 12px; }
+.sw { appearance: none; -webkit-appearance: none; width: 46px; height: 28px; border-radius: 999px; background: var(--line2); position: relative; flex: none; cursor: pointer; transition: background .15s; margin: 0; }
+.sw::after { content: ""; position: absolute; left: 3px; top: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; transition: left .15s; box-shadow: 0 1px 3px rgba(0,0,0,.4); }
+.sw:checked { background: var(--ok); } .sw:checked::after { left: 21px; }
+.verline { margin-top: 12px; text-align: center; font-size: 12px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.verline .warn { color: #fda4af; font-weight: 800; }
+/* 대기실: 겹치지 않는 십자 배치 */
+.wait-table { height: auto; display: grid; grid-template-columns: 1fr 1fr 1fr; grid-template-areas: ". p2 ." "p3 c p1" ". p0 ."; gap: 8px; padding: 12px 8px; align-items: center; justify-items: center; }
+.wseat { position: static; transform: none; width: 100%; max-width: 124px; }
+.wseat.p0 { grid-area: p0; } .wseat.p1 { grid-area: p1; } .wseat.p2 { grid-area: p2; } .wseat.p3 { grid-area: p3; }
+.wait-center { position: static; transform: none; width: auto; grid-area: c; font-size: 12px; }
+.wseat .acts .btn { min-height: 36px; padding: 6px 8px; font-size: 13px; }
+/* 공통: 탭하기 쉬운 크기 */
+.iconbtn { width: 42px; height: 42px; }
+.gbar { gap: 6px; }

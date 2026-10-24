@@ -4,9 +4,10 @@
  */
 (function () {
   'use strict';
+  var APP_VER = '1.4.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
-  var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_SEEN = 'tichu_seen_rules';
+  var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules';
   var KAKAO_STORE = 'jmb_kakao_v2' + ENV_SFX, KAKAO_STATE = 'jmb_kakao_state' + ENV_SFX;
   var ROOT = (function () { var seg = location.pathname.split('/')[1] || ''; return /\.github\.io$/.test(location.hostname) && seg ? '/' + seg + '/' : '/'; })();
   var app = document.getElementById('app'), modalEl = document.getElementById('modal'), toastsEl = document.getElementById('toasts');
@@ -15,7 +16,7 @@
     token: null, user: null, route: { name: 'boot' }, lobby: null, rank: null, rec: null, notice: '',
     room: null, roomId: null, roomPw: '', sel: [], exch: [null, null, null], exSlot: 0, exRound: 0,
     lastSeq: 0, seqMatch: '', polling: false, pollSeq: 0, optim: null, backAt: 0, guard: false, lastChat: 0, unread: 0, offset: 0, busy: false, pollT: 0, lobbyT: 0,
-    modal: null, resultShown: '', recvShown: '', sound: lsGet(LS_SOUND) !== '0', chatOpen: false, flash: {}
+    modal: null, resultShown: '', recvShown: '', sound: lsGet(LS_SOUND) !== '0', voice: lsGet(LS_VOICE) !== '0', sv: '', hintI: -1, chatOpen: false, flash: {}
   };
 
   /* ================= 공통 ================= */
@@ -75,6 +76,12 @@
       case 'tap': tone(c, 1300, t, 0.03, 'square', 0.012); break;
       case 'play': noise(c, t, 0.06, 0.05, 2600); tone(c, 360, t, 0.08, 'triangle', 0.05, 260); break;            // 카드 내려놓는 소리
       case 'pass': tone(c, 230, t, 0.12, 'sine', 0.025, 180); break;
+      case 'pair': noise(c, t, 0.05, 0.05, 2600); tone(c, 380, t, 0.08, 'triangle', 0.05, 280); noise(c, t + 0.07, 0.05, 0.05, 2600); tone(c, N.E5, t + 0.07, 0.14, 'triangle', 0.045); break;
+      case 'triple': [0, 0.06, 0.12].forEach(function (d, i) { noise(c, t + d, 0.04, 0.05, 2600); tone(c, [N.C5, N.E5, N.G5][i], t + d, 0.16, 'triangle', 0.045); }); break;
+      case 'full': noise(c, t, 0.05, 0.05, 2600); seq(c, t, [N.C5, N.E5, N.G5], 0.05, 0.2, 'triangle', 0.045); [N.G5, N.C6].forEach(function (f) { tone(c, f, t + 0.2, 0.35, 'sine', 0.04); }); tone(c, 130.8, t + 0.2, 0.35, 'triangle', 0.05); break;
+      case 'straight': noise(c, t, 0.05, 0.04, 2600); seq(c, t, [N.C5, 587.3, N.E5, 698.5, N.G5, N.A5, N.B5].slice(0, 5), 0.045, 0.16, 'triangle', 0.045); break;
+      case 'pairs': noise(c, t, 0.05, 0.04, 2600); seq(c, t, [N.C5, N.C5, N.E5, N.E5, N.G5, N.G5], 0.05, 0.12, 'square', 0.025); break;
+      case 'sf': noise(c, t, 1.0, 0.3, 500); tone(c, 80, t, 0.9, 'sawtooth', 0.12, 30); seq(c, t + 0.15, [N.C5, N.E5, N.G5, N.C6, N.E6, N.G6], 0.05, 0.25, 'square', 0.035); break;
       case 'combo': noise(c, t, 0.05, 0.04, 2600); seq(c, t, [N.C5, N.E5, N.G5, N.C6], 0.055, 0.18, 'triangle', 0.05); break;   // 트리플·스트레이트·연속 페어
       case 'bigcombo': noise(c, t, 0.05, 0.05, 2600); seq(c, t, [N.C5, N.E5, N.G5, N.B5, N.D6, N.E6, N.G6], 0.045, 0.2, 'triangle', 0.05); break;   // 긴 스트레이트·풀하우스
       case 'dragon': tone(c, 110, t, 0.7, 'sawtooth', 0.06, 60); noise(c, t, 0.6, 0.07, 700); seq(c, t + 0.28, [N.G5, N.B5, N.D6, N.G6], 0.07, 0.3, 'triangle', 0.05); break;
@@ -95,18 +102,60 @@
       case 'chat': tone(c, 900, t, 0.06, 'sine', 0.035, 1250); break;
     }
   }
-  // 낸 조합에 맞는 소리
+  // 낸 조합에 맞는 소리 — 조합마다 다른 소리
   function comboSound(c, bomb) {
-    if (bomb) return 'bomb';
+    if (bomb) return c && c.t === 'sf' ? 'sf' : 'bomb';
     if (!c) return 'play';
     if (c.t === 'dog') return 'dog';
     if (c.t === 'single' && c.r === 15) return 'dragon';
     if (c.t === 'single' && c.ph) return 'phoenix';
     if (c.c && c.c.indexOf('MA') >= 0) return 'bird';
-    if ((c.t === 'straight' && c.n >= 8) || (c.t === 'pairs' && c.n >= 6) || c.t === 'full') return 'bigcombo';
-    if (c.t === 'straight' || c.t === 'pairs' || c.t === 'triple') return 'combo';
-    return 'play';
+    if (c.t === 'single') return 'play';
+    if (c.t === 'straight') return c.n >= 8 ? 'bigcombo' : 'straight';
+    if (c.t === 'pairs') return c.n >= 6 ? 'bigcombo' : 'pairs';
+    return c.t;   // pair · triple · full
   }
+
+  /* ----- 음성 안내 (휴대폰 내장 TTS: '케이 페어', '패스', '마이 턴') ----- */
+  var VOICE_R = { 1: '원', 11: '제이', 12: '큐', 13: '케이', 14: '에이' };
+  function vr(r) { return VOICE_R[r] || String(r); }
+  function comboVoice(c) {
+    if (!c) return '';
+    if (c.t === 'dog') return '개';
+    if (c.t === 'single') return c.r === 15 ? '용' : c.ph ? '봉황' : c.r === 1 ? '참새' : vr(c.r);
+    if (c.t === 'pair') return vr(c.r) + ' 페어';
+    if (c.t === 'triple') return vr(c.r) + ' 트리플';
+    if (c.t === 'full') return vr(c.r) + ' 풀하우스';
+    if (c.t === 'straight') return c.n + '장 스트레이트';
+    if (c.t === 'pairs') return (c.n / 2) + '연속 페어';
+    if (c.t === 'bomb') return vr(c.r) + ' 포카드 폭탄';
+    if (c.t === 'sf') return '스트레이트 플러시 폭탄';
+    return '';
+  }
+  var voiceKo = null, sayBusy = 0;
+  function pickVoice() {
+    try { var vs = speechSynthesis.getVoices(); voiceKo = vs.filter(function (v) { return /^ko/i.test(v.lang) && v.localService; })[0] || vs.filter(function (v) { return /^ko/i.test(v.lang); })[0] || null; } catch (e) {}
+  }
+  if (window.speechSynthesis) { pickVoice(); try { speechSynthesis.onvoiceschanged = pickVoice; } catch (e) {} }
+  function say(text, delay) {
+    if (!S.voice || !text || !window.speechSynthesis || document.hidden) return;
+    setTimeout(function () {
+      try {
+        if (sayBusy >= 2) { speechSynthesis.cancel(); sayBusy = 0; }   // 밀리면 지난 말은 끊고 최신 것만
+        var u = new SpeechSynthesisUtterance(text);
+        u.lang = 'ko-KR'; if (voiceKo) u.voice = voiceKo; u.rate = 1.15; u.volume = 1;
+        sayBusy++; u.onend = u.onerror = function () { sayBusy = Math.max(0, sayBusy - 1); };
+        speechSynthesis.speak(u);
+      } catch (e) {}
+    }, Math.round((delay || 0) * 1000));
+  }
+  // 아이폰 등은 첫 터치 때 소리를 열어 둬야 해요
+  function unlockAudio() {
+    document.removeEventListener('pointerdown', unlockAudio, true);
+    ac();
+    try { if (window.speechSynthesis && S.voice) { var u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); } } catch (e) {}
+  }
+  document.addEventListener('pointerdown', unlockAudio, true);
 
   /* ----- 서버 호출 ----- */
   function api(fn, a, timeoutMs) {
@@ -118,6 +167,7 @@
       .then(function (j) {
         clearTimeout(timer);
         if (j && j.now) S.offset = j.now - Date.now();
+        if (j) S.sv = j.sv || 'old';   // 옛 서버는 버전을 안 보냄
         if (!j || !j.ok) {
           var e = new Error((j && j.e) || '알 수 없는 오류');
           e.code = j && j.code;
@@ -290,12 +340,27 @@
   function accountMenu() {
     openModal('<h2>' + esc(S.user.name) + '<button class="x" data-x>✕</button></h2>' +
       '<div class="small">' + esc(S.user.kind) + ' 계정' + (CFG.env !== 'prod' ? ' · ' + esc(CFG.env) + ' 환경' : '') + '</div>' +
+      soundRows() +
       '<div class="menu-list">' +
-      '<button class="btn block" id="mSound">소리 ' + (S.sound ? '끄기' : '켜기') + '</button>' +
       '<a class="btn block" href="' + ROOT + '">잠만보 홈으로</a>' +
-      '<button class="btn danger block" id="mOut">로그아웃</button></div>');
-    $('#mSound').onclick = function () { S.sound = !S.sound; lsSet(LS_SOUND, S.sound ? '1' : '0'); closeModal(); toast('소리를 ' + (S.sound ? '켰어요' : '껐어요')); };
+      '<button class="btn danger block" id="mOut">로그아웃</button></div>' + verLine());
+    bindSoundRows();
     $('#mOut').onclick = function () { lsSet(LS_NOAUTO, '1'); closeModal(); logout(); toast('로그아웃했어요'); };
+  }
+
+  // 소리 설정 (효과음 · 음성 안내) — 스위치
+  function soundRows() {
+    return '<div class="setlist">' +
+      '<label class="setrow"><span><b>효과음</b><small>카드·조합·차례 알림 소리</small></span><input type="checkbox" class="sw" id="swSound"' + (S.sound ? ' checked' : '') + '></label>' +
+      '<label class="setrow"><span><b>음성 안내</b><small>"케이 페어", "패스", "마이 턴"</small></span><input type="checkbox" class="sw" id="swVoice"' + (S.voice ? ' checked' : '') + '></label></div>';
+  }
+  function bindSoundRows() {
+    var a = $('#swSound'), b = $('#swVoice');
+    if (a) a.onchange = function () { S.sound = a.checked; lsSet(LS_SOUND, S.sound ? '1' : '0'); if (S.sound) sfx('turn'); };
+    if (b) b.onchange = function () { S.voice = b.checked; lsSet(LS_VOICE, S.voice ? '1' : '0'); if (S.voice) say('음성 안내를 켰어요'); else try { speechSynthesis.cancel(); } catch (e) {} };
+  }
+  function verLine() {
+    return '<div class="verline">화면 v' + APP_VER + ' · 서버 ' + (S.sv === 'old' ? '1.4 이전' : S.sv ? 'v' + esc(S.sv) : '확인 중') + (S.sv && S.sv !== APP_VER ? ' <span class="warn">' + (S.sv === 'old' ? '서버 새로 배포 필요' : '버전 다름') + '</span>' : '') + (CFG.env && CFG.env !== 'prod' ? ' · ' + esc(CFG.env) : '') + '</div>';
   }
 
   function loadLobby(manual) {
@@ -611,8 +676,9 @@
     if (g && (k === 'play' || k === 'pass' || k === 'grand' || k === 'exch' || k === 'dragon')) {
       var top = g.trick.plays.length ? g.trick.plays[g.trick.plays.length - 1].c : null;
       S.optim = { k: k, cards: k === 'play' ? a.cards.slice() : k === 'exch' ? a.cards.slice() : [], c: k === 'play' ? TE.bestPlay(a.cards, top) : null };
-      if (k === 'play') sfx(comboSound(S.optim.c, TE.isBomb(S.optim.c)));
-      else if (k === 'pass') sfx('pass');
+      if (k === 'play') { sfx(comboSound(S.optim.c, TE.isBomb(S.optim.c))); say(comboVoice(S.optim.c)); }
+      else if (k === 'pass') { sfx('pass'); say('패스'); }
+      S.hintI = -1;
       render();
     }
     return api('act', a).then(function (r) { S.busy = false; S.optim = null; applyRoom(r, false, true); }, function (e) { S.busy = false; S.optim = null; if (btn) btn.disabled = false; toast(e.message, true); render(); });
@@ -678,12 +744,12 @@
       if (e.k === 'play') {
         if (!(mine && e.s === me)) S.flash[e.s] = order++;
         if (e.bomb) { banner('💣 폭탄!', 'bomb'); S.shake = true; }
-        if (!(mine && e.s === me)) sfx(comboSound(e.c, e.bomb), at);
-      } else if (e.k === 'pass') { if (!(mine && e.s === me)) S.flash[e.s] = order++; if (!(mine && e.s === me)) sfx('pass', at); }
-      else if (e.k === 'tichu') { banner(seatName(e.s) + (e.kind === 2 ? ' 라지 티츄!' : ' 티츄!')); sfx('tichu', at); }
+        if (!(mine && e.s === me)) { sfx(comboSound(e.c, e.bomb), at); say(comboVoice(e.c), at); }
+      } else if (e.k === 'pass') { if (!(mine && e.s === me)) { S.flash[e.s] = order++; sfx('pass', at); say('패스', at); } }
+      else if (e.k === 'tichu') { banner(seatName(e.s) + (e.kind === 2 ? ' 라지 티츄!' : ' 티츄!')); sfx('tichu', at); say(e.kind === 2 ? '라지 티츄' : '티츄', at); }
       else if (e.k === 'trick' && me >= 0 && team(e.to) === team(me)) sfx('trickUs', at + 0.1);
       else if (e.k === 'out' && e.place === 1) sfx('out', at + 0.15);
-      else if (e.k === 'round') sfx(e.res && e.res.dbl ? 'onetwo' : 'round', at + 0.3);
+      else if (e.k === 'round') { sfx(e.res && e.res.dbl ? 'onetwo' : 'round', at + 0.3); if (e.res && e.res.dbl) say('원투', at + 0.3); }
       else if (e.k === 'gameEnd') sfx(me < 0 || team(me) === e.winner ? 'win' : 'lose', at + 0.6);
       if (e.k === 'wish') toast('🐦 ' + seatName(e.s) + ': 참새 콜 [' + TE.rankLabel(e.r) + ']');
       else if (e.k === 'wishDone') toast('참새 콜 [' + TE.rankLabel(e.r) + '] 완료 (' + seatName(e.s) + ')');
@@ -693,7 +759,7 @@
     });
     var g = r.g;
     var mine = g && me >= 0 && ((g.phase === 'play' && g.turn === me) || (g.phase === 'dragon' && g.dragon && g.dragon.seat === me));
-    if (mine && evs.length && !evs.every(function (e) { return e.s === me; })) sfx('turn', order * 0.28 + 0.15);
+    if (mine && evs.length && !evs.every(function (e) { return e.s === me; })) { sfx('turn', order * 0.28 + 0.15); say(g.phase === 'dragon' ? '용 트릭 줄 사람을 고르세요' : '마이 턴', order * 0.28 + 0.15); S.hintI = -1; }
   }
 
   /* ----- 그리기 ----- */
@@ -819,9 +885,19 @@
   function trickState(g) {
     var st = {}, start = 0;
     for (var i = g.log.length - 1; i >= 0; i--) { var k = g.log[i].k; if (k === 'trick' || k === 'dog' || k === 'exchDone' || k === 'deal' || k === 'round') { start = i + 1; break; } }
-    for (i = start; i < g.log.length; i++) { var e = g.log[i]; if (e.k === 'play') st[e.s] = { play: e.c }; else if (e.k === 'pass') st[e.s] = { pass: 1 }; }
+    var played = {};
+    for (i = start; i < g.log.length; i++) {
+      var e = g.log[i];
+      if (e.k === 'play') { played[e.s] = { play: e.c }; st[e.s] = played[e.s]; for (var k in st) if (st[k].pass) delete st[k]; }   // 새 카드가 나오면 그 전 패스는 지움
+      else if (e.k === 'pass') st[e.s] = { pass: 1 };
+    }
     // 로그가 잘렸을 때 대비: 트릭 기록으로 보충
     g.trick.plays.forEach(function (p) { if (!st[p.s]) st[p.s] = { play: p.c }; });
+    // 패스했던 사람: 앞서 낸 카드가 있으면 그 카드를 계속 보여 줌. 지금 차례인 사람의 패스는 지움
+    for (var s2 = 0; s2 < 4; s2++) {
+      if (st[s2] && st[s2].pass && (g.phase !== 'play' || g.turn === s2)) delete st[s2];
+      if (!st[s2] && played[s2]) st[s2] = played[s2];
+    }
     return st;
   }
 
@@ -864,9 +940,8 @@
     if (me >= 0) {
       var mst = r.seats[me];
       if (mst && mst.afk) h += '<div class="afkbar">자리 비움 · 자동 진행 중 <button class="btn sm primary" id="gBack">돌아왔어요</button></div>';
-      h += myBarHTML(g, me, pend, myTurn, top);
-      h += '<div class="selinfo" id="selinfo"></div>';
       h += '<div class="timerbar"><i id="myTimer" style="width:0"></i></div>';
+      h += myBarHTML(g, me, pend, myTurn, top);
       h += '<div class="handwrap"><div class="hand" id="hand"></div></div>';
     } else {
       h += '<div class="spect">👀 관전 중 · ' + esc(r.name) + (r.status === 'play' ? '' : ' (게임 끝)') + '</div>';
@@ -950,24 +1025,49 @@
     }
     return '';
   }
+  // 아래 조작판: 1줄 = 내 이름·상태 + 안내 글, 2줄 = 큰 버튼 (엄지로 누르기 쉽게)
   function myBarHTML(g, me, pend, myTurn, top) {
-    var r = S.room, st = r.seats[me], t = team(me) ? 'B' : 'A', place = g.out.indexOf(me);
+    var r = S.room, st = r.seats[me], t = team(me) ? 'B' : 'A', place = g.out.indexOf(me), isPend = pend.indexOf(me) >= 0;
     var tags = '';
+    if (S.topSeat === me) tags += '<span class="tag lead">👑 최고</span>';
     if (g.tichu[me]) tags += '<span class="tag ' + (g.tichu[me] === 2 ? 'gt">라지' : 'ti">티츄') + '</span>';
     if (place >= 0 && g.phase === 'play') tags += '<span class="tag place">' + (place + 1) + '등</span>';
-    if (S.topSeat === me) tags = '<span class="tag lead">👑 최고</span>' + tags;
-    var acts = '';
-    if (r.canTichu) acts += '<button class="btn sm" id="bTichu" style="border-color:var(--gold);color:var(--gold2)">티츄</button>';
-    if (g.phase === 'play' && g.counts[me] > 0) {
+    var acts = '', wait = '';
+    if (S.optim) wait = '보내는 중…';
+    else if (g.phase === 'play' && g.counts[me] > 0) {
       var must = myTurn && TE.wishPlays(fakeG(g, me), me);
-      acts += '<button class="btn" id="bPass" ' + (myTurn && top && !must ? '' : 'disabled') + '>패스</button>';
-      acts += '<button class="btn primary" id="bPlay" disabled>내기</button>';
-    }
-    if (S.optim) acts = '<span class="small">보내는 중…</span>';
-    if (g.phase === 'exchange' && g.myExch) acts += '<span class="small">교환 대기 중…</span>';
-    if (g.phase === 'grand' && g.grand[me] !== null) acts += '<span class="small">다른 사람 결정 대기…</span>';
-    return '<div class="mybar"><div class="me"><div class="av ' + t + (pend.indexOf(me) >= 0 ? ' turn' : '') + '">' + initial(st.name) + (pend.indexOf(me) >= 0 ? ringSVG() : '') + '</div>' +
-      '<div class="who"><b>' + esc(st.name) + '</b><div class="info">' + tags + '</div></div></div><div class="acts">' + acts + '</div></div>';
+      if (myTurn) acts += '<button class="btn hint" id="bHint" aria-label="추천 조합">💡<small>추천</small></button>';
+      if (r.canTichu) acts += '<button class="btn tichu" id="bTichu">티츄<small>+100</small></button>';
+      acts += '<button class="btn pass" id="bPass" ' + (myTurn && top && !must ? '' : 'disabled') + '>패스</button>';
+      acts += '<button class="btn primary play" id="bPlay" disabled>내기</button>';
+    } else if (g.phase === 'play' && place >= 0) wait = '손패를 다 냈어요 · ' + (place + 1) + '등';
+    else if (g.phase === 'exchange') wait = g.myExch ? '다른 사람 교환 기다리는 중…' : '위 칸을 고르고 카드를 넣어 주세요';
+    else if (g.phase === 'grand') wait = g.grand[me] !== null ? '다른 사람 결정 기다리는 중…' : '라지 티츄를 할지 골라 주세요';
+    else if (g.phase === 'dragon') wait = isPend ? '용 트릭 줄 상대를 고르세요' : '용 트릭 주는 중…';
+    else if (g.phase === 'roundEnd') wait = '라운드 끝 · 곧 다음 라운드';
+    else if (g.phase === 'gameEnd') wait = '게임 끝';
+    var tbtn = '';
+    if (r.canTichu && g.phase !== 'play') { tbtn = '<button class="btn sm tichu" id="bTichu">스몰 티츄 +100</button>'; acts = acts.replace(/<button class="btn tichu" id="bTichu">[^]*?<\/button>/, ''); }
+    return '<div class="dock' + (isPend ? ' turn' : '') + '"><div class="dk-top"><span class="av sm ' + t + '">' + initial(st.name) + '</span><b class="dk-name">' + esc(st.name) + '</b>' + tags +
+      '<span class="dk-msg" id="selinfo">' + (myTurn ? '<b class="myturn">내 차례</b>' : '') + '</span><span class="dk-sec" id="mySec"></span></div>' +
+      (acts ? '<div class="dk-acts">' + acts + '</div>' : '<div class="dk-wait"><span>' + esc(wait) + '</span>' + tbtn + '</div>') + '</div>';
+  }
+  // 💡 추천: 낼 수 있는 조합을 낮은 것부터 하나씩 골라 줌 (누를 때마다 다음 것)
+  function hintList() {
+    var r = S.room, g = r.g, me = r.me, top = g.trick.plays.length ? g.trick.plays[g.trick.plays.length - 1].c : null;
+    var list = TE.wishPlays(fakeG(g, me), me) || TE.plays(g.hand || [], top);
+    return list.slice().sort(function (a, b) {
+      return (TE.isBomb(a) ? 1 : 0) - (TE.isBomb(b) ? 1 : 0) || (a.ph ? 1 : 0) - (b.ph ? 1 : 0) || (top ? 0 : b.n - a.n) || a.r - b.r;
+    });
+  }
+  function useHint() {
+    var list = hintList();
+    if (!list.length) { toast('낼 수 있는 조합이 없어요 · 패스하세요'); return; }
+    S.hintI = (S.hintI + 1) % list.length;
+    S.sel = list[S.hintI].c.slice();
+    sfx('tap');
+    $$('#hand .card').forEach(function (el) { el.classList.toggle('sel', S.sel.indexOf(el.getAttribute('data-c')) >= 0); });
+    updateSelInfo();
   }
 
   function bindGame() {
@@ -980,6 +1080,7 @@
     var t2 = $('#gtCall'); if (t2) t2.onclick = function () { if (confirm('라지 티츄를 선언할까요? (±200점)')) act('grand', { call: true }, t2); };
     var bt = $('#bTichu'); if (bt) bt.onclick = function () { if (confirm('스몰 티츄를 선언할까요?\n1등으로 나가면 +100, 못 하면 -100점')) act('tichu', {}, bt); };
     var bp = $('#bPass'); if (bp) bp.onclick = function () { S.sel = []; act('pass', {}, bp); };
+    var bh = $('#bHint'); if (bh) bh.onclick = useHint;
     var bpl = $('#bPlay'); if (bpl) bpl.onclick = function () { playSelected(bpl); };
     $$('[data-slot]').forEach(function (el) {
       el.onclick = function () { var i = +el.getAttribute('data-slot'); if (S.exSlot === i && S.exch[i]) S.exch[i] = null; S.exSlot = i; render(); };
@@ -1009,7 +1110,34 @@
       var cls = (S.sel.indexOf(c) >= 0 ? 'sel' : '') + (recvSet[c] ? ' new' : '') + (inEx[c] ? ' sel dim' : '');
       return cardHTML(c, cls).replace('class="card', 'style="left:' + (i * step).toFixed(1) + 'px" class="card');
     }).join('') || '<div class="small" style="text-align:center;padding-top:28px">' + (g.phase === 'play' && g.out.indexOf(me) >= 0 ? '손패를 다 냈어요! 🎉' : '') + '</div>';
-    $$('.card', el).forEach(function (c) { c.onclick = function () { tapCard(c.getAttribute('data-c')); }; });
+    bindHandDrag(el);
+  }
+  // 손패: 탭 = 한 장, 손가락으로 쓸면 여러 장 한 번에 고르기/풀기
+  function bindHandDrag(el) {
+    var drag = null;
+    function cardAt(x, y) { var t = document.elementFromPoint(x, y); t = t && t.closest ? t.closest('#hand .card') : null; return t; }
+    el.onpointerdown = function (e) {
+      var c = cardAt(e.clientX, e.clientY); if (!c) return;
+      var id = c.getAttribute('data-c'), g = S.room.g;
+      if (g.phase === 'exchange' || g.phase !== 'play') { tapCard(id); return; }
+      e.preventDefault();
+      drag = { on: S.sel.indexOf(id) < 0, seen: {} };
+      drag.seen[id] = 1; setSel(id, drag.on);
+    };
+    el.onpointermove = function (e) {
+      if (!drag) return;
+      var c = cardAt(e.clientX, e.clientY); if (!c) return;
+      var id = c.getAttribute('data-c'); if (drag.seen[id]) return;
+      drag.seen[id] = 1; setSel(id, drag.on);
+    };
+    el.onpointerup = el.onpointercancel = el.onpointerleave = function () { drag = null; };
+  }
+  function setSel(id, on) {
+    var i = S.sel.indexOf(id);
+    if (on && i < 0) S.sel.push(id); else if (!on && i >= 0) S.sel.splice(i, 1); else return;
+    sfx('tap'); S.hintI = -1;
+    $$('#hand .card').forEach(function (el) { el.classList.toggle('sel', S.sel.indexOf(el.getAttribute('data-c')) >= 0); });
+    updateSelInfo();
   }
   // 낸 카드가 칸 너비를 넘지 않게 카드 겹침 간격 조절 (짧으면 넉넉히, 길면 촘촘히)
   function fitFronts() {
@@ -1072,14 +1200,19 @@
     return res;
   }
   function updateSelInfo() {
-    var el = $('#selinfo'), b = $('#bPlay');
+    var el = $('#selinfo'), b = $('#bPlay'), bp = $('#bPass');
     var st = selState();
-    if (el) { el.textContent = st ? st.msg : ''; el.className = 'selinfo ' + (st ? st.cls : ''); }
+    if (el) {
+      var turn = st && st.myTurn ? '<b class="myturn">내 차례</b>' : '';
+      el.innerHTML = turn + (st && st.msg ? '<span class="' + (st.cls || '') + '">' + esc(st.msg.replace(/^✓ /, '')) + '</span>' : '');
+    }
     if (b && st) {
       b.disabled = !st.ok || S.busy;
-      b.textContent = st.ok && !st.myTurn ? '폭탄!' : '내기';
+      b.innerHTML = st.ok ? (st.myTurn ? '내기' : '💣 폭탄!') + '<small>' + esc(TE.comboName(st.c)) + '</small>' : '내기';
       b.classList.toggle('danger', st.ok && !st.myTurn);
     }
+    // 낼 게 없으면 패스 버튼을 강조
+    if (bp && st) bp.classList.toggle('suggest', !!(st.myTurn && st.top && !S.sel.length && !(st.must || TE.plays(S.room.g.hand || [], st.top)).length));
   }
   function playSelected(btn) {
     var st = selState();
@@ -1102,14 +1235,14 @@
     openModal('<h2>메뉴<button class="x" data-x>✕</button></h2><div class="menu-list">' +
       '<button class="btn block" id="mRules">📖 규칙 보기</button>' +
       '<button class="btn block" id="mInvite">🔗 관전 링크 복사</button>' +
-      '<button class="btn block" id="mSound">' + (S.sound ? '🔇 소리 끄기' : '🔊 소리 켜기') + '</button>' +
+
       (r.host && r.status === 'play' ? offline.map(function (s) { return '<button class="btn block" data-rep="' + s + '">🤖 ' + esc(seatName(s)) + ' (끊김) → 봇으로</button>'; }).join('') : '') +
       (r.admin ? '<button class="btn danger block" id="mClose">운영진: 방 닫기</button>' : '') +
       '<button class="btn block" id="mLobby">로비로 (방은 그대로)</button>' +
-      (r.me >= 0 ? '<button class="btn danger block" id="mLeave">방에서 나가기</button>' : '') + '</div>');
+      (r.me >= 0 ? '<button class="btn danger block" id="mLeave">방에서 나가기</button>' : '') + '</div>' + soundRows() + verLine());
+    bindSoundRows();
     $('#mRules').onclick = function () { openModal('<h2>규칙<button class="x" data-x>✕</button></h2>' + rulesBody()); };
     $('#mInvite').onclick = function () { closeModal(); copyInvite(); };
-    $('#mSound').onclick = function () { S.sound = !S.sound; lsSet(LS_SOUND, S.sound ? '1' : '0'); closeModal(); };
     $('#mLobby').onclick = function () { closeModal(); location.hash = '#/'; };
     var ml = $('#mLeave'); if (ml) ml.onclick = function () { closeModal(); leaveRoom(); };
     var mc = $('#mClose'); if (mc) mc.onclick = function () { if (confirm('이 방을 닫을까요?')) api('adminClose', { room: S.roomId }).then(function () { closeModal(); location.hash = '#/'; }, function (e) { toast(e.message, true); }); };
@@ -1180,7 +1313,9 @@
       var mine = pendingSeats(g).indexOf(r.me) >= 0;
       mt.style.width = mine && dl && g.phase !== 'roundEnd' ? (frac * 100).toFixed(1) + '%' : '0';
       mt.classList.toggle('low', left < 6000);
-      var sec = Math.ceil(left / 1000);
+      var sec = Math.ceil(left / 1000), ms = $('#mySec');
+      if (ms) ms.textContent = mine && dl && g.phase !== 'roundEnd' && left > 0 ? sec + '초' : '';
+      if (ms) ms.classList.toggle('low', left < 6000);
       if (mine && dl && g.phase !== 'roundEnd' && left > 0 && sec <= 5 && sec !== S.tickSec) { S.tickSec = sec; sfx('tick'); }
     }
     var rc = $('#rCount'); if (rc) rc.textContent = r.nextAt && g.phase === 'roundEnd' ? '(' + Math.ceil(Math.max(0, r.nextAt - now()) / 1000) + ')' : '';
