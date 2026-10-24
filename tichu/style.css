@@ -335,3 +335,46 @@ body.ingame .toasts { top: auto; bottom: calc(var(--ch) + 150px); }
 .ach-lv b { font-size: 26px; color: var(--gold2); } .ach-lv span { font-size: 15px; font-weight: 800; }
 .ach-b { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 12px; border: 1px solid var(--gold); background: rgba(245,179,1,.08); }
 .wseat .small .lv { font-size: 10px; }
+
+/* ---- 테이블 칸 나누기 (v1.3.1): 자리는 작게, 낸 카드는 사람마다 한 줄씩 겹치지 않게 ---- */
+.seat { width: 56px; gap: 2px; }
+.seat .av, .wait-table .av { }
+.felt .seat .av { width: 32px; height: 32px; font-size: 13px; border-width: 2px; }
+.felt .seat .av .bot { width: 16px; height: 16px; font-size: 10px; right: -5px; bottom: -5px; }
+.felt .seat .av .ring { inset: -5px; width: calc(100% + 10px); height: calc(100% + 10px); }
+.seat .nm { font-size: 11px; max-width: 56px; }
+.seat .tag { font-size: 10px; padding: 0 4px; }
+.seat.p2 { top: 4px; left: 50%; transform: translateX(-50%); width: auto; max-width: calc(100% - 130px); flex-direction: row; gap: 6px; }
+.seat.p2 .nm { max-width: 96px; }
+.seat.p2 .info { flex-wrap: nowrap; }
+.seat.p1 { right: 2px; top: 50%; transform: translateY(-50%); }
+.seat.p3 { left: 2px; top: 50%; transform: translateY(-50%); }
+.board { position: absolute; top: 44px; bottom: 6px; left: 60px; right: 60px; display: grid; grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 2px; }
+.board .front { position: static; transform: none; min-width: 0; width: 100%; display: flex; flex-direction: column; gap: 2px; z-index: 1; --tx: 0; --ty: 0; }
+.board .front.p2, .board .front.p0 { align-items: center; }
+.board .front.p3 { align-items: flex-start; }
+.board .front.p1 { align-items: flex-end; }
+.board .front.none { min-height: 0; }
+.board .front .cards { max-width: 100%; }
+.board .front.top { z-index: 2; }
+.board .front.old { opacity: .88; filter: none; }
+.board .front.old .cards .card { box-shadow: 0 1px 3px rgba(0,0,0,.4); }
+.board .front.pass .lbl { opacity: .8; }
+.board .center { position: static; transform: none; width: 100%; gap: 4px; }
+.board .center .turnmsg { font-size: 14px; } .board .center .turnmsg.me { font-size: 16px; }
+.board .front.p2 { grid-row: 1; } .board .front.p3 { grid-row: 2; } .board .front.p1 { grid-row: 3; } .board .center { grid-row: 4; } .board .front.p0 { grid-row: 5; }
+@media (min-width: 700px) {
+  .seat { width: 96px; } .seat .nm { max-width: 96px; font-size: 13px; }
+  .felt .seat .av { width: 42px; height: 42px; font-size: 16px; }
+  .board { left: 104px; right: 104px; top: 56px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) auto minmax(0, 1fr); }
+  .board .front.p2 { grid-row: 1; grid-column: 1 / 3; } .board .front.p3 { grid-row: 2; grid-column: 1; } .board .front.p1 { grid-row: 2; grid-column: 2; }
+  .board .center { grid-row: 3; grid-column: 1 / 3; } .board .front.p0 { grid-row: 4; grid-column: 1 / 3; }
+}
+@media (max-height: 700px) and (max-width: 699px) {
+  .board { top: 40px; }
+  .board .card.md { --cw: 33px; --ch: 47px; }
+  .board .card.md .r { font-size: 13px; } .board .card.md .su { top: 16px; width: 10px; height: 10px; } .board .card.md .big { width: 13px; height: 13px; }
+  .board .front .lbl { font-size: 10px; }
+  .board .center { gap: 2px; } .board .center .topwho { margin-top: 0; padding: 1px 8px; }
+}

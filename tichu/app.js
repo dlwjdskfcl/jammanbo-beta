@@ -849,12 +849,14 @@
     // 테이블
     h += '<div class="felt">';
     S.topSeat = top && (g.phase === 'play' || g.phase === 'dragon') ? top.s : -1;
+    var fronts = ['', '', '', ''];
     for (var s = 0; s < 4; s++) {
       var p = pos(s, view), st = r.seats[s];
       if (p !== 0) h += seatHTML(g, s, p, st, pend);
-      h += frontHTML(g, s, p, ts[s], top && top.s === s);
+      fronts[p] = frontHTML(g, s, p, ts[s], top && top.s === s);
     }
-    h += '<div class="center">' + centerHTML(g, me, pend) + '</div>';
+    // 낸 카드 판: 위(맞은편) · 왼쪽 · 오른쪽 · 가운데 안내 · 아래(나) — 네 사람 카드가 서로 겹치지 않게 칸을 나눔
+    h += '<div class="board">' + fronts[2] + fronts[3] + fronts[1] + '<div class="center">' + centerHTML(g, me, pend) + '</div>' + fronts[0] + '</div>';
     h += panelHTML(g, me);
     h += '</div>';
 
@@ -875,6 +877,7 @@
     S.flash = {};
     bindGame();
     layoutHand();
+    fitFronts();
     updateSelInfo();
     tickTimers();
   }
@@ -894,12 +897,11 @@
   }
   function ringSVG() { return '<svg class="ring" viewBox="0 0 40 40"><circle cx="20" cy="20" r="18" stroke-dasharray="113.1" stroke-dashoffset="0" data-ring="1"/></svg>'; }
   function frontHTML(g, s, p, st, isTop) {
-    if (!st || (g.phase !== 'play' && g.phase !== 'dragon')) return '';
+    if (!st || (g.phase !== 'play' && g.phase !== 'dragon')) return '<div class="front p' + p + ' none"></div>';
     var fl = S.flash[s] !== undefined ? ' flash' : '', delay = fl ? ' style="animation-delay:' + (S.flash[s] * 0.28) + 's"' : '';
     var who = p === 0 ? '나' : esc(seatName(s)), tc = team(s) ? 'B' : 'A';
     if (st.pass) return '<div class="front pass p' + p + fl + '"' + delay + '><span class="lbl">' + who + ' · 패스</span></div>';
-    var size = p === 0 || p === 2 || st.play.c.length <= 6 ? 'md' : 'sm';   // 옆자리는 긴 조합만 작게
-    if (window.innerWidth >= 700) size = 'md';
+    var size = 'md';   // 크기는 같게, 칸이 좁으면 fitFronts 가 겹침만 늘림
     return '<div class="front p' + p + ' t' + tc + (isTop ? ' top' : ' old') + fl + '"' + delay + '>' + cardsHTML(st.play.c, size) + '<span class="lbl">' + (isTop ? '👑 ' : '') + who + ' · ' + esc(TE.comboName(st.play)) + '</span></div>';
   }
   function centerHTML(g, me, pend) {
@@ -1009,7 +1011,16 @@
     }).join('') || '<div class="small" style="text-align:center;padding-top:28px">' + (g.phase === 'play' && g.out.indexOf(me) >= 0 ? '손패를 다 냈어요! 🎉' : '') + '</div>';
     $$('.card', el).forEach(function (c) { c.onclick = function () { tapCard(c.getAttribute('data-c')); }; });
   }
-  window.addEventListener('resize', function () { if (S.route.name === 'room') layoutHand(); });
+  // 낸 카드가 칸 너비를 넘지 않게 카드 겹침 간격 조절 (짧으면 넉넉히, 길면 촘촘히)
+  function fitFronts() {
+    $$('.board .front .cards').forEach(function (el) {
+      var cs = el.children, n = cs.length; if (n < 2) return;
+      var W = el.parentNode.clientWidth - 2, cw = cs[0].offsetWidth || 38;
+      var step = Math.max(9, Math.min(cw * 0.62, (W - cw) / (n - 1)));
+      for (var i = 1; i < n; i++) cs[i].style.marginLeft = (step - cw).toFixed(1) + 'px';
+    });
+  }
+  window.addEventListener('resize', function () { if (S.route.name === 'room') { layoutHand(); fitFronts(); } });
 
   function tapCard(c) {
     var g = S.room.g;
