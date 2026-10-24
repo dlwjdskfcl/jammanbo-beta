@@ -20,7 +20,8 @@
 })();
 </script>
 <title>잠만보 보드게임 모임</title>
-<meta name="theme-color" content="#4f46e5">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#181b21" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -28,12 +29,12 @@
 <link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
 <link rel="dns-prefetch" href="https://kauth.kakao.com">
 <style>
- html,body{margin:0;height:100%;background:#f6f7fb;color:#1b1f2a;font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif}
- @media (prefers-color-scheme: dark){html,body{background:#0f1117;color:#eceef4}}
+ html,body{margin:0;height:100%;background:#f5f6f8;color:#191f28;font-family:"Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif}
+ @media (prefers-color-scheme: dark){html,body{background:#0e1014;color:#eef0f4}}
  #boot{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:14px;padding:0 16px;text-align:center}
- #boot img{width:72px;height:72px;border-radius:16px}
- #boot .msg{font-size:15px;opacity:.75}
- #boot button{font:inherit;padding:8px 16px;border-radius:10px;border:1px solid #c9cde0;background:#fff;cursor:pointer}
+ #boot img{width:64px;height:64px;border-radius:16px;box-shadow:0 6px 18px rgba(30,42,90,.25)}
+ #boot .msg{font-size:14px;color:#8b95a1;letter-spacing:-.01em}
+ #boot button{font:inherit;font-weight:600;padding:10px 18px;border-radius:10px;border:0;background:#3b5bdb;color:#fff;cursor:pointer}
 </style>
 <script src="config.js"></script>
 <script>
@@ -162,7 +163,8 @@ function boot(shell) {
       '<script src="auth.js?v=' + v + '" defer><\/script>'
     : '';
   var head =
-    '<meta name="theme-color" content="#4f46e5">' +
+    '<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">' +
+    '<meta name="theme-color" content="#181b21" media="(prefers-color-scheme: dark)">' +
     '<link rel="manifest" href="manifest.webmanifest">' +
     '<link rel="icon" type="image/png" href="icon-192.png">' +
     '<link rel="apple-touch-icon" href="apple-touch-icon.png">' +
@@ -175,7 +177,8 @@ function boot(shell) {
   var html = shell.html.replace(/<head[^>]*>/i, function (m) { return m + head; });
   // [주소] 탭마다 주소 + 뒤로가기 — 화면 코드가 다 실행된 뒤(맨 끝)에 붙임
   var route = '<script>window.JMB_ROOT=' + JSON.stringify(window.JMB_ROOT) + ';<\/script><script src="' + window.JMB_ROOT + 'router.js?v=' + v + '"><\/script>' +
-    '<script src="' + window.JMB_ROOT + 'extras.js?v=' + v + '"><\/script>';   // 홈 화면 손보기 + 티츄 버튼 (extras.js)
+    '<link rel="stylesheet" href="' + window.JMB_ROOT + 'theme.css?v=' + v + '">' +   // 디자인 테마 (화면 코드 스타일 뒤에 넣어야 이김)
+    '<script src="' + window.JMB_ROOT + 'extras.js?v=' + v + '"><\/script>';   // 홈 화면 손보기 + 티츄 버튼 + 아이콘 (extras.js)
   html = /<\/body>/i.test(html) ? html.replace(/<\/body>(?![\s\S]*<\/body>)/i, function (m) { return route + m; }) : html + route;
   if (CFG.env && CFG.env !== 'prod') html = html.replace(/<\/body>(?![\s\S]*<\/body>)/i, function (m) { return '<div style="position:fixed;left:8px;bottom:8px;z-index:9999;background:#e11d48;color:#fff;font:700 12px sans-serif;padding:4px 8px;border-radius:6px;pointer-events:none">TEST · ' + escHtml(CFG.env) + '</div>' + m; });
   if (shell.title) html = html.replace(/<title>[^<]*<\/title>/i, function () { return '<title>' + escHtml(shell.title) + '</title>'; });
