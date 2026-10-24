@@ -85,7 +85,7 @@ a { color: var(--gold2); }
 .table-list th, .table-list td { padding: 9px 6px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
 .table-list th { color: var(--muted); font-size: 12px; font-weight: 700; }
 .table-list th:nth-child(2), .table-list td:nth-child(2) { text-align: left; }
-.table-list td.n { text-align: left; max-width: 120px; overflow: hidden; text-overflow: ellipsis; font-weight: 700; }
+.table-list td.n { text-align: left; max-width: 170px; overflow: hidden; text-overflow: ellipsis; font-weight: 700; }
 .table-list tr.me td { background: rgba(245,179,1,.08); }
 .medal { font-size: 16px; }
 .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -290,3 +290,48 @@ body.ingame .toasts { top: auto; bottom: calc(var(--ch) + 150px); }
   .front.p2 { top: 86px; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+/* ---- 누가 낸 카드인지 (v1.3) ---- */
+.front .lbl { white-space: nowrap; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; }
+.front.tA .lbl { border-left: 3px solid var(--teamA); }
+.front.tB .lbl { border-left: 3px solid var(--teamB); }
+.front.top .lbl { background: var(--gold); color: #1d1600; font-size: 12px; padding: 2px 8px; }
+.front.old { opacity: .5; filter: saturate(.6); }
+.front.top { z-index: 3; }
+.seat.lead .av { box-shadow: 0 0 0 3px var(--gold), 0 0 14px rgba(245,179,1,.55); }
+.seat.lead .nm { color: var(--gold2) !important; }
+.tag.lead { background: var(--gold); color: #1d1600; border-color: var(--gold); }
+.topwho { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; padding: 3px 10px; border-radius: 999px; background: rgba(0,0,0,.4); font-size: 12px; font-weight: 800; color: #fff; max-width: 70vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topwho .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.topwho.A .dot { background: var(--teamA); } .topwho.B .dot { background: var(--teamB); }
+
+/* ---- 레벨 · 칭호 · 배지 (v1.3) ---- */
+.lv { display: inline-block; padding: 0 6px; border-radius: 6px; background: rgba(245,179,1,.14); border: 1px solid rgba(245,179,1,.45); color: var(--gold2); font-size: 11px; font-weight: 800; line-height: 18px; white-space: nowrap; vertical-align: middle; }
+.chip .lv { margin-right: 2px; }
+.seg.mini { display: inline-flex; gap: 4px; }
+.seg.mini button { min-height: 30px; padding: 2px 10px; font-size: 12px; border-radius: 999px; }
+.lvcard { background: linear-gradient(135deg, var(--panel2), var(--panel)); border: 1px solid var(--line2); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 4px; }
+.lvtop { display: flex; align-items: center; gap: 12px; }
+.lvbig { width: 56px; height: 56px; flex: none; border-radius: 16px; display: grid; place-items: center; font-size: 30px; background: rgba(245,179,1,.12); border: 2px solid var(--gold); }
+.lvnum { font-size: 22px; color: var(--gold2); }
+.lvtitle { font-weight: 800; }
+.xpbar { height: 10px; border-radius: 999px; background: rgba(0,0,0,.35); border: 1px solid var(--line); overflow: hidden; margin: 5px 0 3px; }
+.xpbar i { display: block; height: 100%; background: linear-gradient(90deg, var(--gold), var(--gold2)); border-radius: 999px; }
+.xpbar.sm { height: 6px; margin: 3px 0; }
+.nextb { display: flex; align-items: center; gap: 10px; margin-top: 8px; padding: 8px 10px; border-radius: 12px; background: rgba(0,0,0,.2); }
+.nextb .bi, .ach-b .bi { font-size: 24px; }
+.xpd { margin-top: 6px; } .xpd summary { cursor: pointer; font-size: 13px; color: var(--muted); font-weight: 700; }
+.xpd table { width: 100%; margin-top: 6px; }
+.badges { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
+.bdg { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 2px; padding: 10px 6px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); opacity: .7; }
+.bdg .bi { font-size: 26px; filter: grayscale(1); opacity: .55; }
+.bdg b { font-size: 12px; }
+.bdg .small { font-size: 11px; line-height: 1.3; }
+.bdg .xpbar { width: 100%; }
+.bdg.got { opacity: 1; border-color: var(--gold); background: rgba(245,179,1,.08); }
+.bdg.got .bi { filter: none; opacity: 1; }
+.ach { display: flex; flex-direction: column; gap: 10px; margin: 6px 0 14px; }
+.ach-lv { display: flex; flex-direction: column; align-items: center; font-size: 44px; animation: pop .5s both; }
+.ach-lv b { font-size: 26px; color: var(--gold2); } .ach-lv span { font-size: 15px; font-weight: 800; }
+.ach-b { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 12px; border: 1px solid var(--gold); background: rgba(245,179,1,.08); }
+.wseat .small .lv { font-size: 10px; }
