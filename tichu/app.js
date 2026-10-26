@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.8.5';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.8.6';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
   var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay';
@@ -1076,7 +1076,7 @@
     return list.map(function (c) {
       if (c.s === -2) return '<div class="m sys">' + esc(c.m) + '</div>';
       var cls = c.s >= 0 ? (team(c.s) ? 'tB' : 'tA') : '';
-      return '<div class="m"><b class="' + cls + '">' + esc(c.n) + '</b>' + esc(c.m) + '</div>';
+      return '<div class="m' + (c.pending ? ' pending' : '') + '"><b class="' + cls + '">' + esc(c.n) + '</b>' + esc(c.m) + '</div>';
     }).join('') || '<div class="m sys">아직 메시지가 없어요</div>';
   }
   var QUICK = ['좋아요 👍', '나이스! 👏', '미안해요 🙏', 'ㅋㅋㅋ', '티츄 화이팅!', '폭탄 조심 💣', '잠깐만요', '한 판 더?'];
@@ -1095,7 +1095,13 @@
     var m = text || (input && input.value.trim());
     if (!m) return;
     if (input) input.value = '';
-    api('chat', { room: S.roomId, m: m }).then(function (r) { applyRoom(r); }, function (e) { toast(e.message, true); });
+    // [속도] 내 메시지는 서버 답을 기다리지 않고 바로 보여 줌 (흐리게) → 답이 오면 서버 목록으로 바뀜
+    var r0 = S.room, tmp = r0 ? { s: r0.me, n: S.user && S.user.name, m: m, i: 0, pending: 1 } : null;
+    if (tmp) { r0.chat = (r0.chat || []).concat([tmp]); if (S.chatOpen) paintChat(); render(); }
+    api('chat', { room: S.roomId, m: m }).then(function (r) { applyRoom(r); }, function (e) {
+      if (tmp && S.room) { S.room.chat = S.room.chat.filter(function (c) { return c !== tmp; }); if (S.chatOpen) paintChat(); render(); }
+      toast(e.message, true);
+    });
   }
 
   /* ----- 게임 화면 ----- */

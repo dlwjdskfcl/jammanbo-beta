@@ -474,3 +474,4 @@ body.ingame .toasts { top: auto; bottom: calc(var(--ch) + 150px); }
 .spect .seat.p0 { position: static; transform: none; flex-direction: row; width: auto; gap: 6px; }
 .spect .seat.p0 .nm { max-width: 140px; }
 .spect .takes { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.chatlist .m.pending { opacity: .55; }
