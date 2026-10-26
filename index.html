@@ -102,7 +102,7 @@ function shim(API, STORE) {
     addPost: { n: 4, who: 1, anon: true }, addPlays: { n: 5, who: 1, list: true },
     toggleOwner: { n: 4, who: 1 }, toggleWish: { n: 3, who: 1 }, rateGame: { n: 5, who: 1 },
     addAgitGame: { n: 4, who: 1 }, takeAgitGame: { n: 3, who: 1 }, borrowGame: { n: 5, who: 1 },
-    returnGame: { n: 3, who: 1 }, requestRename: { n: 4, who: 0 }
+    returnGame: { n: 3, who: 1 }, requestRename: { n: 4, who: 0 }, setTangzzol: { n: 3, who: 0 }
   };
   function session() { try { var s = JSON.parse(localStorage.getItem(STORE) || 'null'); return s && s.token ? s : null; } catch (e) { return null; } }
   function askLogin() { setTimeout(function () { if (window.JMB_AUTH) window.JMB_AUTH.open(); }, 600); }
