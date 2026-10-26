@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.6.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.6.1';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
   var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay';
@@ -170,10 +170,14 @@
   /* ----- 서버 호출 ----- */
   function api(fn, a, timeoutMs) {
     if (!CFG.api || /^YOUR_/.test(CFG.api)) return Promise.reject(new Error('티츄 서버 주소(tichu/config.js)가 아직 설정되지 않았어요'));
+    // 응답이 없으면 끊고 다시 시도 (카톡 인앱 브라우저·사파리에서 요청이 멈춰 버리는 경우 대비)
     var ctl = typeof AbortController === 'function' ? new AbortController() : null;
-    var timer = ctl ? setTimeout(function () { ctl.abort(); }, (timeoutMs || 0) + 25000) : 0;
-    return fetch(CFG.api, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: fn, t: S.token || '', a: a || {} }), signal: ctl ? ctl.signal : undefined })
-      .then(function (r) { if (!r.ok) throw new Error('서버 응답 오류 (' + r.status + ')'); return r.json(); })
+    var timer = ctl ? setTimeout(function () { ctl.abort(); }, timeoutMs || 20000) : 0;
+    return fetch(CFG.api, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: fn, t: S.token || '', a: a || {} }), signal: ctl ? ctl.signal : undefined, cache: 'no-store' })
+      .then(function (r) {
+        if (!r.ok) throw new Error('서버 응답 오류 (' + r.status + ')');
+        return r.text().then(function (t) { try { return JSON.parse(t); } catch (x) { throw new Error('서버가 바빠요. 잠시 후 다시 시도해 주세요'); } });
+      })
       .then(function (j) {
         clearTimeout(timer);
         if (j && j.now) S.offset = j.now - Date.now();
@@ -187,8 +191,11 @@
         return j.r;
       }, function (e) {
         clearTimeout(timer);
-        if (e && e.code) throw e;
-        throw new Error(e && e.name === 'AbortError' ? '응답이 너무 늦어요. 잠시 후 다시 시도해 주세요' : (e && /서버 응답/.test(e.message) ? e.message : '인터넷 연결을 확인해 주세요'));
+        if (e && typeof e.code === 'string' && e.code) throw e;          // 서버가 보낸 오류 코드(auth·gone 등). 브라우저 오류(DOMException)의 숫자 code 는 제외
+        var ne = new Error(e && (e.name === 'AbortError' || /abort/i.test(e.message || '')) ? '응답이 늦어 다시 연결하는 중이에요'
+          : (e && /서버/.test(e.message || '') ? e.message : '연결이 잠깐 끊겼어요. 다시 연결하는 중이에요'));
+        ne.net = true;
+        throw ne;
       });
   }
 
@@ -370,7 +377,7 @@
     if (b) b.onchange = function () { S.voice = b.checked; lsSet(LS_VOICE, S.voice ? '1' : '0'); if (S.voice) say('음성 안내를 켰어요'); else try { speechSynthesis.cancel(); } catch (e) {} };
   }
   function verLine() {
-    return '<div class="verline">화면 v' + APP_VER + ' · 서버 ' + (S.sv === 'old' ? '1.4 이전' : S.sv ? 'v' + esc(S.sv) : '확인 중') + (S.sv && S.sv !== APP_VER ? ' <span class="warn">' + (S.sv === 'old' ? '서버 새로 배포 필요' : '버전 다름') + '</span>' : '') + (CFG.env && CFG.env !== 'prod' ? ' · ' + esc(CFG.env) : '') + '</div>';
+    return '<div class="verline">화면 v' + APP_VER + ' · 서버 ' + (S.sv === 'old' ? '1.4 이전' : S.sv ? 'v' + esc(S.sv) : '확인 중') + (S.sv && S.sv.split('.').slice(0, 2).join('.') !== APP_VER.split('.').slice(0, 2).join('.') ?' <span class="warn">' + (S.sv === 'old' ? '서버 새로 배포 필요' : '버전 다름') + '</span>' : '') + (CFG.env && CFG.env !== 'prod' ? ' · ' + esc(CFG.env) : '') + '</div>';
   }
 
   function loadLobby(manual) {
@@ -667,23 +674,40 @@
     if (S.busy) return startPoll(150);
     if (S.polling) return;
     var id = S.roomId, mySeq = ++S.pollSeq;
-    S.polling = true;
-    api('poll', { room: id, v: S.room && S.room.id === id ? S.room.v : 0, pw: S.roomPw, wait: pollWait() }, 12000).then(function (r) {
+    S.polling = true; S.pollStart = Date.now(); S.pollT = 0;
+    var wait = pollWait();
+    api('poll', { room: id, v: S.room && S.room.id === id ? S.room.v : 0, pw: S.roomPw, wait: wait }, wait + 9000).then(function (r) {
+      if (mySeq !== S.pollSeq) return;            // 그 사이 새 poll 이 시작됨 (화면 복귀·재시도) → 이 답은 버림
       S.polling = false;
-      if (S.roomId !== id || mySeq !== S.pollSeq) return startPoll(pollDelay());
+      netOk();
+      if (S.roomId !== id) return startPoll(pollDelay());
       if (r.same) { if (S.room && r.on) { var ch = false; r.on.forEach(function (o, i) { if (S.room.seats[i] && S.room.seats[i].on !== o) { S.room.seats[i].on = o; ch = true; } }); if (ch) render(); } }
       else applyRoom(r);
       startPoll(pollDelay());
     }, function (e) {
+      if (mySeq !== S.pollSeq) return;
       S.polling = false;
       if (S.roomId !== id) return;
       if (e.code === 'gone') { toast(e.message, true); location.hash = '#/'; return; }
       if (e.code === 'pw') { joinRoom(id, true); return; }
       if (e.code === 'auth' || e.code === 'maint') return;
       if (!S.room) app.innerHTML = '<div class="boot"><div>' + esc(e.message) + '</div><button class="btn" onclick="location.reload()">다시 시도</button><a class="btn ghost" href="#/">로비로</a></div>';
-      startPoll(3000);
+      netFail();
+      startPoll(Math.min(5000, 800 * S.netFails));   // 끊기면 금방 다시 (0.8초 → 최대 5초)
     });
   }
+  // 연결 상태 표시: 연속으로 실패하면 화면 위에 '다시 연결하는 중…' 띠를 띄움
+  function netFail() {
+    S.netFails = (S.netFails || 0) + 1;
+    if (S.netFails >= 2 && !$('#netbar')) { var d = document.createElement('div'); d.id = 'netbar'; d.className = 'netbar'; d.textContent = '서버와 다시 연결하는 중…'; document.body.appendChild(d); }
+  }
+  function netOk() { S.netFails = 0; var d = $('#netbar'); if (d) d.remove(); }
+  // 화면이 멈춘 것 같을 때 대비: 20초 넘게 poll 이 돌지 않으면 강제로 다시 시작
+  setInterval(function () {
+    if (S.route.name !== 'room' || !S.roomId || document.hidden) return;
+    if (!S.pollT && !S.polling && !S.busy) startPoll(0);
+    else if (S.polling && Date.now() - (S.pollStart || 0) > 25000) { S.pollSeq++; S.polling = false; startPoll(0); }
+  }, 5000);
   document.addEventListener('visibilitychange', function () { if (!document.hidden && S.route.name === 'room') { S.pollSeq++; S.polling = false; startPoll(0); } });
 
   function act(k, extra, btn) {
@@ -701,7 +725,12 @@
       S.hintI = -1;
       render();
     }
-    return api('act', a).then(function (r) { S.busy = false; S.optim = null; applyRoom(r, false, true); }, function (e) { S.busy = false; S.optim = null; if (btn) btn.disabled = false; toast(e.message, true); render(); });
+    return api('act', a).then(function (r) { S.busy = false; S.optim = null; netOk(); applyRoom(r, false, true); }, function (e) {
+      S.busy = false; S.optim = null; if (btn) btn.disabled = false;
+      toast(e.net ? '전송이 안 됐어요. 다시 눌러 주세요' : e.message, true);
+      render();
+      S.pollSeq++; S.polling = false; startPoll(0);   // 실패하면 바로 서버 상태를 다시 받아 화면을 맞춤
+    });
   }
   function roomCall(fn, a, btn) {
     if (btn) btn.disabled = true;
@@ -717,7 +746,13 @@
   // 서버 상태가 새로 왔을 때: 효과(배너·소리) → 선택 정리 → 그리기
   function applyRoom(r, fresh, mine) {
     var prev = S.room;
-    if (prev && prev.id === r.id && r.v < prev.v && !fresh) return;
+    // 예전 상태(낮은 버전)가 오면 한 번은 무시(요청 순서가 뒤바뀐 경우). 연속으로 오면 서버가 되돌아간 것이므로 서버 상태를 따름
+    if (prev && prev.id === r.id && r.v < prev.v && !fresh) {
+      S.lowV = (S.lowV || 0) + 1;
+      if (S.lowV < 2) return;
+      S.lastSeq = 0;
+    }
+    S.lowV = 0;
     S.room = r; S.roomId = r.id;
     var g = r.g, me = r.me;
     if (g) {
@@ -1399,10 +1434,21 @@
   setInterval(tickTimers, 250);
 
   /* ================= 시작 ================= */
+  // 카카오톡 안의 브라우저는 화면이 꺼지거나 앱을 잠깐 나가면 연결이 자주 끊김 → 기본 브라우저로 열도록 안내 (닫으면 이번 접속 동안 안 띄움)
+  function kakaoInAppNotice() {
+    if (!/KAKAOTALK/i.test(navigator.userAgent || '')) return;
+    try { if (sessionStorage.getItem('tichu_kakao_hide')) return; } catch (e) {}
+    var d = document.createElement('div');
+    d.className = 'kakaobar';
+    d.innerHTML = '<span>카톡 안 브라우저에서는 게임이 멈출 수 있어요</span><a href="kakaotalk://web/openExternal?url=' + encodeURIComponent(location.href) + '">기본 브라우저로 열기</a><button type="button" aria-label="닫기">✕</button>';
+    d.querySelector('button').onclick = function () { d.remove(); try { sessionStorage.setItem('tichu_kakao_hide', '1'); } catch (e) {} };
+    document.body.appendChild(d);
+  }
   function boot() {
     if (location.search) try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}
     if (CFG.env && CFG.env !== 'prod') { var b = document.createElement('div'); b.className = 'env-badge'; b.textContent = 'TEST · ' + CFG.env; document.body.appendChild(b); }
     if (!window.TE) { app.innerHTML = '<div class="boot">엔진 파일(engine.js)을 불러오지 못했어요</div>'; return; }
+    kakaoInAppNotice();
     var t = lsGet(LS_TOKEN), info = t && tokenInfo(t);
     if (info && info.x > Date.now()) { S.token = t; S.user = { uid: info.u, name: info.n, kind: info.k, admin: info.k === '운영진' }; return route(); }
     lsSet(LS_TOKEN, null);
