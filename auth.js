@@ -86,6 +86,21 @@
     try { window.dispatchEvent(new CustomEvent('jmb:auth', { detail: user() })); } catch (e) {}
   }
   function mergeUser(u) { u.image = u.image || (user() && user().image) || ''; return u; }
+
+  /* ---------- 카카오 계정 운영진 ----------
+   * 서버 설정 '운영진계정'에 있는 닉네임으로 로그인하면 user.admin = true → 비밀번호 대신 'kk.' + 토큰을 ADMIN_PW 로 씀
+   * (서버가 요청마다 토큰·목록을 다시 확인). '운영진 모드 끄기'를 누르면 이번 접속 동안은 끔 */
+  var KK = 'kk.';
+  function kkOff() { try { return sessionStorage.getItem('jmb_kk_off') === '1'; } catch (e) { return false; } }
+  function setKkOff(v) { try { if (v) sessionStorage.setItem('jmb_kk_off', '1'); else sessionStorage.removeItem('jmb_kk_off'); } catch (e) {} }
+  function isKkAdmin() { return typeof window.ADMIN_PW === 'string' && window.ADMIN_PW.indexOf(KK) === 0; }
+  function reloadApp(msg) { var ld = fn('load'); (ld ? ld() : Promise.resolve()).then(function () { changed(); if (msg) say(msg); }, function () { changed(); }); }
+  function syncAdmin() {
+    var u = user(), want = !!(session && u && u.admin && !kkOff());
+    if (want && !window.ADMIN_PW) { window.ADMIN_PW = KK + session.token; reloadApp('운영진 계정으로 로그인했어요 · 운영진 모드'); }
+    else if (want && isKkAdmin()) window.ADMIN_PW = KK + session.token;   // 토큰이 바뀐 경우
+    else if (!want && isKkAdmin()) { window.ADMIN_PW = null; reloadApp(''); }
+  }
   function expire(silent) { session = null; writeSession(); changed(); if (!silent) say('로그인이 만료됐어요. 다시 로그인해 주세요.'); }
 
   /* ---------- 우측 상단 버튼 ---------- */
@@ -192,9 +207,10 @@
       h += '<div class="jmb-prof"><span class="jmb-av jmb-av0 big" aria-hidden="true"></span><div><b>운영진</b><small>카카오 계정은 로그인하지 않았어요</small></div></div>';
     }
     h += '<div class="jmb-list">';
-    if (admin) h += '<span class="badge b-good">운영진 모드</span>';
+    if (admin) h += '<span class="badge b-good">운영진 모드' + (isKkAdmin() ? ' · 카카오 계정' : '') + '</span>';
     h += '</div><div class="jmb-menu">';
-    if (admin) h += '<button class="btn jmb-wide" id="jmbAdminMenu">운영진 메뉴</button><button class="btn jmb-wide" id="jmbLinkMgr">카카오 연동 관리</button><button class="btn jmb-wide" id="jmbAdminOut">운영진 로그아웃</button>';
+    if (admin) h += '<button class="btn jmb-wide" id="jmbAdminMenu">운영진 메뉴</button><button class="btn jmb-wide" id="jmbLinkMgr">카카오 연동 관리</button><button class="btn jmb-wide" id="jmbAdminOut">' + (isKkAdmin() ? '운영진 모드 끄기 (이번 접속)' : '운영진 로그아웃') + '</button>';
+    else if (u && u.admin) h += '<button class="btn jmb-wide" id="jmbKkOn">운영진 모드 켜기</button>';   // 운영진 계정인데 꺼 둔 경우
     else h += '<button class="btn jmb-wide" id="jmbAdminIn">운영진 로그인</button>';
     if (u) h += '<button class="btn jmb-wide" id="jmbOut">카카오 로그아웃</button><button class="jmb-link danger" id="jmbUnlink">닉네임 연결 해제</button>';
     else h += '<button class="jmb-kakao" id="jmbKakao">' + KAKAO_SVG + '<span>카카오 로그인</span></button>';
@@ -205,7 +221,8 @@
     on('jmbAdminIn', function () { viewLogin(); var t = $('jmbAdminToggle'); if (t) t.click(); });
     on('jmbAdminMenu', function () { var ol = fn('openLogin'); hideModal(); if (ol) ol(); });
     on('jmbLinkMgr', viewManage);
-    on('jmbAdminOut', function () { window.ADMIN_PW = null; hideModal(); var ld = fn('load'); (ld ? ld() : Promise.resolve()).then(function () { say('운영진 모드를 껐어요'); changed(); }); });
+    on('jmbAdminOut', function () { if (isKkAdmin()) setKkOff(true); window.ADMIN_PW = null; hideModal(); var ld = fn('load'); (ld ? ld() : Promise.resolve()).then(function () { say('운영진 모드를 껐어요'); changed(); }); });
+    on('jmbKkOn', function () { setKkOff(false); hideModal(); syncAdmin(); });
     on('jmbOut', function () { api_logout(); });
     on('jmbUnlink', function () {
       var b = $('jmbUnlink');
@@ -216,7 +233,12 @@
     });
   }
 
-  function api_logout() { session = null; writeSession(); hideModal(); changed(); say('로그아웃했어요'); }
+  function api_logout() {
+    var kk = isKkAdmin();
+    session = null; writeSession(); hideModal();
+    if (kk) { window.ADMIN_PW = null; reloadApp('로그아웃했어요'); return; }   // 카카오 계정 운영진이면 운영진 모드도 함께 끔
+    changed(); say('로그아웃했어요');
+  }
 
   /* ---------- 화면: 운영진 · 카카오 연동 관리 (v1.1) ---------- */
   function viewManage() {
@@ -324,7 +346,7 @@
     call('kakaoMe', [session.token]).then(function (r) {
       session.user = mergeUser(r.user);
       if (fresh) delete session.fresh;
-      writeSession(); changed(); syncMe();
+      writeSession(); syncAdmin(); changed(); syncMe();
       if (fresh) say(session.user.nickname ? session.user.nickname + '님, 환영해요!' : '카카오 로그인 성공! 닉네임을 연결해 주세요.');
       var shown = false; try { shown = sessionStorage.getItem('jmb_link_prompt') === '1'; } catch (e) {}
       if (!session.user.nickname && (fresh || !shown) && !isModalOpen()) { try { sessionStorage.setItem('jmb_link_prompt', '1'); } catch (e) {} viewLink(); }
