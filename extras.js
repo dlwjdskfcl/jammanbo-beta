@@ -144,7 +144,10 @@
       return Promise.all(ks.filter(function (k) { return k.indexOf('jmb-static-') === 0 && k.slice(k.indexOf(':') + 1) === ROOT; })
         .map(function (k) { return caches.delete(k); }));
     }) : Promise.resolve();
-    clear.catch(function () {}).then(function () { location.reload(); });
+    // 브라우저도 GitHub 파일을 최대 10분 들고 있으므로, 시작 페이지·설정 파일은 서버에서 다시 받아 둔 뒤 열기
+    clear.catch(function () {}).then(function () {
+      return Promise.all(['', 'config.js'].map(function (u) { return fetch(ROOT + u, { cache: 'reload' }).catch(function () {}); }));
+    }).then(function () { location.reload(); });
     return true;
   }
 
