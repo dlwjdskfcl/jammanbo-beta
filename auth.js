@@ -153,7 +153,7 @@
       '<input class="input" type="password" id="jmbPw" placeholder="운영진 비밀번호" autocomplete="current-password" style="width:100%">' +
       '<div class="actions"><button class="btn primary" id="jmbPwGo" type="submit">확인</button></div></form>' +
       '<div class="jmb-more"><button class="jmb-link" id="jmbKakaoAgain" type="button">다른 카카오 계정으로 로그인</button></div>' +
-      '</div>');
+      '</div>' + verLine());
     $('jmbKakao').onclick = function () { startKakao(false); };
     $('jmbKakaoAgain').onclick = function () { startKakao(true); };
     var box = $('jmbAdminBox'), tg = $('jmbAdminToggle');
@@ -173,6 +173,16 @@
     }).catch(function (e) { if (btn) btn.disabled = false; say(String(e && e.message || e)); });
   }
 
+  /* ---------- 버전 표시 (계정 창 아래) ----------
+   * 시작 페이지 = GitHub 파일(config.js 의 version·date), 앱 = Apps Script 배포 버전(데이터의 app.ver·date) */
+  function verLine() {
+    var cfg = window.JMB_CONFIG || {}, d = window.D, app = d && d.app;
+    var env = cfg.env && cfg.env !== 'prod' ? ' · <b style="color:#e11d48">' + esc(String(cfg.env).toUpperCase()) + '</b>' : '';
+    return '<div style="margin-top:14px;padding-top:10px;border-top:1px solid var(--line,#e5e8ee);font-size:12px;color:var(--muted,#8b95a1);line-height:1.7;text-align:center">' +
+      '앱 ' + (app ? 'v' + esc(app.ver) + (app.date ? ' · ' + esc(app.date) : '') : '확인 중') +
+      ' &nbsp;|&nbsp; 시작 페이지 v' + esc(cfg.version || '?') + (cfg.date ? ' · ' + esc(cfg.date) : '') + env + '</div>';
+  }
+
   /* ---------- 화면: 내 계정 ---------- */
   function viewAccount() {
     var u = user(), admin = isAdmin(), h = '<h3>내 계정<button class="btn sm x" data-close>닫기</button></h3>';
@@ -188,7 +198,7 @@
     else h += '<button class="btn jmb-wide" id="jmbAdminIn">운영진 로그인</button>';
     if (u) h += '<button class="btn jmb-wide" id="jmbOut">카카오 로그아웃</button><button class="jmb-link danger" id="jmbUnlink">닉네임 연결 해제</button>';
     else h += '<button class="jmb-kakao" id="jmbKakao">' + KAKAO_SVG + '<span>카카오 로그인</span></button>';
-    h += '</div>';
+    h += '</div>' + verLine();
     showModal(h);
     var on = function (id, f) { var el = $(id); if (el) el.onclick = f; };
     on('jmbKakao', function () { startKakao(false); });
