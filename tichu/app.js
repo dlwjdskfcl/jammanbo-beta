@@ -656,7 +656,7 @@
     if (!S.rank.length) return h + '<div class="empty">아직 기록이 없어요. 첫 판의 주인공이 되어 보세요!</div>';
     var list = S.rank.slice();
     if (sort === 'level') list.sort(function (a, b) { return xpOf(stats(b)) - xpOf(stats(a)) || b.win - a.win; });
-    return h + '<div style="overflow-x:auto"><table class="table-list"><thead><tr><th>#</th><th>이름</th>' + (sort === 'level' ? '<th>XP</th>' : '<th>레이팅</th>') + '<th>👥 사람전<div class="small">승/패</div></th><th>🤖 AI전<div class="small">승/패</div></th><th>티츄</th><th>1등률</th></tr></thead><tbody>' +
+    return h + '<div style="overflow-x:auto"><table class="table-list"><thead><tr><th>#</th><th>이름</th>' + (sort === 'level' ? '<th>XP</th>' : '<th>레이팅</th>') + '<th>사람(승/패)</th><th>AI(승/패)</th><th>티츄</th><th>1등률</th></tr></thead><tbody>' +
       list.map(function (p, i) {
         var lead = sort === 'level' || p.ranked, med = i < 3 && lead ? '<span class="medal">' + ['🥇', '🥈', '🥉'][i] + '</span>' : String(i + 1);
         return '<tr class="prof' + (S.user && p.name === S.user.name ? ' me' : '') + '" data-pname="' + esc(p.name) + '"><td>' + med + '</td><td class="n">' + lvTag(p) + ' ' + esc(p.name) + '</td><td>' +
