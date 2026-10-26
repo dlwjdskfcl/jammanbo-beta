@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.8.1';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.8.2';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
   var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay';
@@ -81,6 +81,60 @@
     o.connect(fl); fl.connect(g); g.connect(c.destination); o.start(t); o.stop(t + 0.2);
     noise(c, t, 0.07, 0.05, 1800);
   }
+  // 참새 '짹' 한 번: 아주 높은 음이 순간적으로 치솟았다 떨어짐. p: 음 높이 배율
+  function chirp(c, t, p) {
+    var o = c.createOscillator(), g = c.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(3200 * p, t);
+    o.frequency.exponentialRampToValueAtTime(5200 * p, t + 0.025);
+    o.frequency.exponentialRampToValueAtTime(2800 * p, t + 0.06);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.08, t + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
+    o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + 0.1);
+  }
+  // 봉황 울음 '끼요오~': 높이 치솟았다가 떨리며(비브라토) 길게 내려옴. 한 옥타브 위 소리를 살짝 겹침
+  function cry(c, t) {
+    var g = c.createGain(), hi = c.createGain(), lfo = c.createOscillator(), depth = c.createGain(), oscs = [];
+    lfo.frequency.value = 7; depth.gain.value = 70; lfo.connect(depth);
+    [1, 2].forEach(function (m) {
+      var o = c.createOscillator();
+      o.type = m === 1 ? 'triangle' : 'sine';
+      o.frequency.setValueAtTime(1300 * m, t);
+      o.frequency.exponentialRampToValueAtTime(2300 * m, t + 0.12);
+      o.frequency.exponentialRampToValueAtTime(1500 * m, t + 0.9);
+      depth.connect(o.frequency);
+      o.connect(m === 1 ? g : hi);
+      oscs.push(o);
+    });
+    hi.gain.value = 0.3; hi.connect(g);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.07, t + 0.05);
+    g.gain.setValueAtTime(0.07, t + 0.35);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 1.0);
+    g.connect(c.destination);
+    oscs.concat([lfo]).forEach(function (o) { o.start(t); o.stop(t + 1.05); });
+  }
+  // 용 포효 '크아앙': 낮은 톱니파가 부풀었다 가라앉음 + 그르렁(소리 크기를 빠르게 흔듦) + 거친 숨(잡음)
+  function roar(c, t) {
+    var o = c.createOscillator(), fl = c.createBiquadFilter(), amp = c.createGain(), g = c.createGain(), trem = c.createOscillator(), tg = c.createGain();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(70, t);
+    o.frequency.exponentialRampToValueAtTime(150, t + 0.25);
+    o.frequency.exponentialRampToValueAtTime(55, t + 1.2);
+    fl.type = 'lowpass'; fl.Q.value = 4;
+    fl.frequency.setValueAtTime(400, t);
+    fl.frequency.exponentialRampToValueAtTime(1400, t + 0.25);
+    fl.frequency.exponentialRampToValueAtTime(300, t + 1.2);
+    trem.frequency.value = 28; tg.gain.value = 0.5; amp.gain.value = 0.6; trem.connect(tg); tg.connect(amp.gain);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.25, t + 0.15);
+    g.gain.setValueAtTime(0.25, t + 0.6);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 1.25);
+    o.connect(fl); fl.connect(amp); amp.connect(g); g.connect(c.destination);
+    [o, trem].forEach(function (x) { x.start(t); x.stop(t + 1.3); });
+    noise(c, t + 0.05, 1.1, 0.12, 900);
+  }
   function seq(c, t, notes, step, dur, type, vol) { notes.forEach(function (f, i) { tone(c, f, t + i * step, dur, type, vol); }); }
   var N = { G4: 392, C5: 523.25, E5: 659.25, G5: 783.99, A5: 880, B5: 987.77, C6: 1046.5, D6: 1174.7, E6: 1318.5, G6: 1568 };
   function sfx(name, delay) {
@@ -98,12 +152,12 @@
       case 'sf': noise(c, t, 1.0, 0.3, 500); tone(c, 80, t, 0.9, 'sawtooth', 0.12, 30); seq(c, t + 0.15, [N.C5, N.E5, N.G5, N.C6, N.E6, N.G6], 0.05, 0.25, 'square', 0.035); break;
       case 'combo': noise(c, t, 0.05, 0.04, 2600); seq(c, t, [N.C5, N.E5, N.G5, N.C6], 0.055, 0.18, 'triangle', 0.05); break;   // 트리플·스트레이트·연속 페어
       case 'bigcombo': noise(c, t, 0.05, 0.05, 2600); seq(c, t, [N.C5, N.E5, N.G5, N.B5, N.D6, N.E6, N.G6], 0.045, 0.2, 'triangle', 0.05); break;   // 긴 스트레이트·풀하우스
-      case 'dragon': tone(c, 110, t, 0.7, 'sawtooth', 0.06, 60); noise(c, t, 0.6, 0.07, 700); seq(c, t + 0.28, [N.G5, N.B5, N.D6, N.G6], 0.07, 0.3, 'triangle', 0.05); break;
-      case 'phoenix': seq(c, t, [N.A5, 1108.7, N.E6, 1760], 0.05, 0.35, 'sine', 0.045); tone(c, 2200, t + 0.2, 0.4, 'sine', 0.02, 3300); break;
+      case 'dragon': roar(c, t); break;                                                                       // 크아앙
+      case 'phoenix': cry(c, t); seq(c, t + 0.5, [2637, 3136, 3951], 0.07, 0.25, 'sine', 0.015); break;         // 끼요오~ + 반짝
       case 'dog': [0, 0.2, 0.42].forEach(function (d, i) { bark(c, t + d, [1, 1.08, 0.94][i]); }); break;   // 왈왈왈
       case 'join': tone(c, N.E5, t, 0.35, 'sine', 0.07); tone(c, N.C5, t + 0.22, 0.5, 'sine', 0.07); break;     // 딩동 — 누가 자리에 앉음
       case 'watch': tone(c, N.G5, t, 0.18, 'sine', 0.035, N.C6); break;                                     // 관전자 들어옴 (작게)
-      case 'bird': tone(c, 2000, t, 0.06, 'sine', 0.04, 2700); tone(c, 2300, t + 0.09, 0.08, 'sine', 0.04, 3000); break;
+      case 'bird': [0, 0.13, 0.22].forEach(function (d, i) { chirp(c, t + d, [1, 1.06, 0.97][i]); }); break;   // 짹 짹짹
       case 'bomb': noise(c, t, 0.9, 0.3, 380); tone(c, 95, t, 0.8, 'sawtooth', 0.12, 32); tone(c, 60, t + 0.05, 0.9, 'sine', 0.15, 30); break;
       case 'turn': tone(c, N.E5, t, 0.15, 'sine', 0.08); tone(c, N.A5, t + 0.12, 0.25, 'sine', 0.08); if (navigator.vibrate) { try { navigator.vibrate(60); } catch (e) {} } break;
       case 'trickUs': seq(c, t, [N.E5, N.G5], 0.07, 0.16, 'sine', 0.05); break;
