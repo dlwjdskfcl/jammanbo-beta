@@ -6,7 +6,7 @@
  *  비밀 값은 넣지 마세요 (토큰 서명 키는 Apps Script 스크립트 속성에만 있음)
  */
 var TICHU_API_PROD = 'https://script.google.com/macros/s/AKfycbzMLG2RxrxIlhT3aTYARhxGyfzINky2HGRlEmYIsku4EegWU8YDWHDSh_FXLPy6Ac4alQ/exec';
-var TICHU_API_BETA = '';
+var TICHU_API_BETA = 'https://script.google.com/macros/s/AKfycbwkad_b4Z1NxUu0lFshQFX-ngzSOf3zjpBP3DZylXF2dDctVAVDgq_vyTG8GvxtVCJWyw/exec';
 
 (function () {
   var main = window.JMB_CONFIG || {};
