@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.8.2';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.8.3';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
   var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay';
@@ -961,7 +961,7 @@
       '<button class="iconbtn" id="wChat" aria-label="채팅">💬' + (S.unread ? '<span class="badge-dot">' + S.unread + '</span>' : '') + '</button></div>' +
       '<div class="content wait-wrap">' +
       '<div class="wait-info"><span class="chip">🎯 목표 ' + r.opt.target + '점</span><span class="chip">⏱ ' + (r.opt.timer ? '턴 ' + r.opt.timer + '초' : '시간 제한 없음') + '</span><span class="chip">🤖 AI ' + botDelayLabel(botDelayOf(r.opt)) + '</span>' + (r.opt.lock ? '<span class="chip">🔒 비밀방</span>' : '') + '</div>' +
-      watchersHTML(r) +
+      watchersHTML(r) + '<div class="idle-note" id="wIdle" hidden></div>' +
       '<div class="wait-table">' + seats + '<div class="wait-center"><b style="font-size:20px">' + r.seats.filter(Boolean).length + ' / 4</b><br>마주 앉은<br>두 사람이 한 팀</div></div>' +
       (r.host ? '<button class="btn primary block" id="wStart" ' + (full ? '' : 'disabled') + '>' + (full ? '게임 시작' : '네 자리가 차면 시작할 수 있어요') + '</button>' +
         '<div class="row" style="display:flex;gap:8px"><button class="btn block" id="wFill" ' + (full ? 'disabled' : '') + '>🤖 봇 채우기</button>' +
@@ -1545,8 +1545,18 @@
   }
 
   /* ----- 타이머 (0.25초마다 링·막대만 갱신) ----- */
+  // 대기실: 아무 변화 없이 5분이 지나면 서버가 방을 닫음 → 마지막 1분은 남은 시간을 보여 줌 (채팅·자리 이동 등을 하면 다시 5분)
+  function idleTick(r) {
+    var el = $('#wIdle'); if (!el) return;
+    var left = r.idleEnd ? r.idleEnd - now() : Infinity;
+    if (left > 60000 || left <= 0) { el.hidden = true; return; }
+    var sec = Math.ceil(left / 1000);
+    el.hidden = false;
+    el.textContent = '⏳ 아무 움직임이 없어 ' + Math.floor(sec / 60) + ':' + ('0' + sec % 60).slice(-2) + ' 뒤에 방이 닫혀요 · 채팅을 보내면 연장돼요';
+  }
   function tickTimers() {
     var r = S.room;
+    if (r && S.route.name === 'room' && r.status === 'wait') idleTick(r);
     if (!r || S.route.name !== 'room' || !r.g) return;
     var dl = r.dl, total = r.opt.timer * 1000, g = r.g;
     if (g.phase === 'exchange') total = Math.max(total * 2, 40000);
