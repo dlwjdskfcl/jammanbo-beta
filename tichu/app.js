@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.6.2';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.7.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
   var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay';
@@ -298,6 +298,7 @@
     var r = parseHash();
     closeModal();
     if (r.name !== 'room' && S.room) { S.rank = null; S.rec = null; }   // 방에서 나오면 전적 새로 (레벨업 알림)
+    if (r.name !== 'room' && S.room && S.room.me < 0) api('leave', { room: S.room.id, watch: 1 }).catch(function () {});   // 관전자 목록에서 바로 빠짐
     if (r.name !== 'room') { if (S.room) hush(); stopPoll(); S.room = null; S.roomId = null; S.guard = false; S.pollSeq++; S.polling = false; }
     S.route = r;
     clearInterval(S.lobbyT);
@@ -352,8 +353,8 @@
     var bp = $('#bPractice'); if (bp) bp.onclick = function () { practice(bp); };
     var br = $('#bRefresh'); if (br) br.onclick = function () { loadLobby(true); };
     $$('[data-rsort]').forEach(function (b) { b.onclick = function () { S.rankSort = b.getAttribute('data-rsort'); renderLobby(); }; });
-    $$('[data-join]').forEach(function (b) { b.onclick = function () { joinRoom(b.getAttribute('data-join'), b.getAttribute('data-lock') === '1'); }; });
-    $$('[data-watch]').forEach(function (b) { b.onclick = function () { location.hash = '#/room/' + b.getAttribute('data-watch'); }; });
+    $$('[data-join]').forEach(function (b) { b.onclick = function () { S.roomPw = ''; joinRoom(b.getAttribute('data-join'), b.getAttribute('data-lock') === '1'); }; });
+    $$('[data-watch]').forEach(function (b) { b.onclick = function () { S.roomPw = ''; watchRoom(b.getAttribute('data-watch'), b.getAttribute('data-lock') === '1'); }; });
   }
   function accountMenu() {
     openModal('<h2>' + esc(S.user.name) + '<button class="x" data-x>✕</button></h2>' +
@@ -402,9 +403,10 @@
     if (!S.lobby.length) return h + '<div class="empty">열린 방이 없어요.<br>방을 만들고 단톡방에 초대 링크를 보내 보세요!</div>';
     h += '<div class="rooms">' + S.lobby.map(function (r) {
       var filled = r.seats.filter(Boolean).length, st = r.st === 'wait' ? '<span class="st wait">대기 ' + filled + '/4</span>' : r.st === 'play' ? '<span class="st play">진행 중 · ' + r.round + '라운드</span>' : '<span class="st end">끝남</span>';
+      // 관전은 시작 전(대기)에도 · 비밀방도 비밀번호를 알면 가능
       var btn = r.mine ? '<button class="btn sm primary" data-watch="' + r.id + '">돌아가기</button>' :
-        r.st === 'wait' && filled < 4 ? '<button class="btn sm primary" data-join="' + r.id + '" data-lock="' + (r.lock ? 1 : 0) + '">입장</button>' :
-        !r.lock ? '<button class="btn sm" data-watch="' + r.id + '">관전</button>' : '';
+        (r.st === 'wait' && filled < 4 ? '<button class="btn sm primary" data-join="' + r.id + '" data-lock="' + (r.lock ? 1 : 0) + '">입장</button> ' : '') +
+        '<button class="btn sm" data-watch="' + r.id + '" data-lock="' + (r.lock ? 1 : 0) + '">관전</button>';
       return '<div class="room-card' + (r.mine ? ' mine' : '') + '"><div class="top"><span class="name">' + (r.lock ? '🔒 ' : '') + esc(r.name) + '</span>' + st + '</div>' +
         '<div class="seats">' + seatLine(r.seats, 0) + seatLine(r.seats, 1) + seatLine(r.seats, 2) + seatLine(r.seats, 3) + '</div>' +
         '<div class="meta"><span>🎯 ' + r.target + '점</span><span>⏱ ' + (r.timer ? r.timer + '초' : '없음') + '</span>' +
@@ -478,7 +480,22 @@
       $('#jPw').focus();
       $('#jGo').onclick = function () { go($('#jPw').value); };
     }
-    if (lock) ask(); else go('');
+    if (lock && !S.roomPw) ask(); else go(S.roomPw || '');   // 관전하며 이미 비밀번호를 넣었으면 그대로 씀
+  }
+
+  // 관전: 자리에 앉지 않고 보기만. 비밀방이면 비밀번호를 먼저 물어봄 (대기 중이면 관전하다 빈자리를 눌러 앉을 수 있음)
+  function watchRoom(id, lock, wrong) {
+    if (!lock) return goRoom(id);
+    if (S.route.name === 'room' && (!S.room || S.room.id !== id)) app.innerHTML = '<div class="boot"><div>🔒 비밀방이에요</div><a class="btn ghost" href="#/">로비로</a></div>';   // 링크로 들어온 경우 (창을 닫아도 갈 곳)
+    openModal('<h2>' + (wrong ? '비밀번호가 맞지 않아요' : '비밀번호') + '<button class="x" data-x>✕</button></h2>' +
+      '<div class="small" style="margin-bottom:8px">비밀방이에요. 비밀번호를 알면 관전할 수 있어요.</div>' +
+      '<input class="input" id="jPw" maxlength="8" autocomplete="off"><button class="btn primary block" id="jGo" style="margin-top:8px">관전하기</button>');
+    $('#jPw').focus();
+    $('#jGo').onclick = function () { S.roomPw = $('#jPw').value; closeModal(); goRoom(id); };
+  }
+  function goRoom(id) {
+    if (location.hash === '#/room/' + id) { S.pollSeq++; S.polling = false; startPoll(0); }
+    else location.hash = '#/room/' + id;
   }
 
   /* ----- 레벨 · 칭호 · 배지 (잠만보 트레이너 레벨처럼, 전적 숫자로 계산) ----- */
@@ -682,7 +699,14 @@
       S.polling = false;
       netOk();
       if (S.roomId !== id) return startPoll(pollDelay());
-      if (r.same) { if (S.room && r.on) { var ch = false; r.on.forEach(function (o, i) { if (S.room.seats[i] && S.room.seats[i].on !== o) { S.room.seats[i].on = o; ch = true; } }); if (ch) render(); } }
+      if (r.same) {
+        if (S.room && r.on) {
+          var ch = false;
+          r.on.forEach(function (o, i) { if (S.room.seats[i] && S.room.seats[i].on !== o) { S.room.seats[i].on = o; ch = true; } });
+          if (r.w && r.w.join('\n') !== (S.room.watchers || []).join('\n')) { S.room.watchers = r.w; ch = true; }   // 관전자는 방 버전과 따로 옴
+          if (ch) render();
+        }
+      }
       else applyRoom(r);
       startPoll(pollDelay());
     }, function (e) {
@@ -690,7 +714,7 @@
       S.polling = false;
       if (S.roomId !== id) return;
       if (e.code === 'gone') { toast(e.message, true); location.hash = '#/'; return; }
-      if (e.code === 'pw') { joinRoom(id, true); return; }
+      if (e.code === 'pw') { watchRoom(id, true, !!S.roomPw); return; }   // 초대 링크로 비밀방을 열었을 때: 관전 비밀번호 (예전엔 바로 자리에 앉혔음)
       if (e.code === 'auth' || e.code === 'maint') return;
       if (!S.room) app.innerHTML = '<div class="boot"><div>' + esc(e.message) + '</div><button class="btn" onclick="location.reload()">다시 시도</button><a class="btn ghost" href="#/">로비로</a></div>';
       netFail();
@@ -856,6 +880,7 @@
       '<button class="iconbtn" id="wChat" aria-label="채팅">💬' + (S.unread ? '<span class="badge-dot">' + S.unread + '</span>' : '') + '</button></div>' +
       '<div class="content wait-wrap">' +
       '<div class="wait-info"><span class="chip">🎯 목표 ' + r.opt.target + '점</span><span class="chip">⏱ ' + (r.opt.timer ? '턴 ' + r.opt.timer + '초' : '시간 제한 없음') + '</span><span class="chip">🤖 AI ' + botDelayLabel(botDelayOf(r.opt)) + '</span>' + (r.opt.lock ? '<span class="chip">🔒 비밀방</span>' : '') + '</div>' +
+      watchersHTML(r) +
       '<div class="wait-table">' + seats + '<div class="wait-center"><b style="font-size:20px">' + r.seats.filter(Boolean).length + ' / 4</b><br>마주 앉은<br>두 사람이 한 팀</div></div>' +
       (r.host ? '<button class="btn primary block" id="wStart" ' + (full ? '' : 'disabled') + '>' + (full ? '게임 시작' : '네 자리가 차면 시작할 수 있어요') + '</button>' +
         '<div class="row" style="display:flex;gap:8px"><button class="btn block" id="wFill" ' + (full ? 'disabled' : '') + '>빈자리 봇으로 채우기</button><button class="btn block" id="wOpt">방 설정</button></div>'
@@ -880,6 +905,12 @@
     $('#wChatForm').onsubmit = function (e) { e.preventDefault(); sendChat($('#wMsg')); };
     var cl = $('#wChatList'); cl.scrollTop = cl.scrollHeight;
     S.unread = 0;
+  }
+  // 관전자 목록 한 줄 (없으면 빈 문자열 · always: 메뉴처럼 없을 때도 '없음'으로 보여 줄 곳)
+  function watchersHTML(r, always) {
+    var w = r.watchers || [];
+    if (!w.length && !always) return '';
+    return '<div class="watchers">👀 관전 ' + w.length + '명' + (w.length ? '<span>' + w.map(esc).join(', ') + '</span>' : '<span>없음</span>') + '</div>';
   }
   function fillBots(btn) {
     btn.disabled = true;
@@ -1009,7 +1040,7 @@
       h += myBarHTML(g, me, pend, myTurn, top);
       h += '<div class="handwrap"><div class="hand" id="hand"></div></div>';
     } else {
-      h += '<div class="spect">👀 관전 중 · ' + esc(r.name) + (r.status === 'play' ? '' : ' (게임 끝)') + '</div>';
+      h += '<div class="spect">👀 관전 중 · ' + esc(r.name) + (r.status === 'play' ? '' : ' (게임 끝)') + watchersHTML(r) + '</div>';
     }
     h += '</div>';
     app.innerHTML = h;
@@ -1337,6 +1368,7 @@
     r.seats.forEach(function (st, s) { if (st && !st.bot && !st.on && s !== r.me) offline.push(s); });
     openModal('<h2>메뉴<button class="x" data-x>✕</button></h2><div class="menu-list">' +
       '<button class="btn block" id="mRules">📖 규칙 보기</button>' +
+      watchersHTML(r, true) +
       '<button class="btn block" id="mInvite">🔗 관전 링크 복사</button>' +
 
       (r.host && r.status === 'play' ? offline.map(function (s) { return '<button class="btn block" data-rep="' + s + '">🤖 ' + esc(seatName(s)) + ' (끊김) → 봇으로</button>'; }).join('') : '') +
