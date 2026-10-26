@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.9.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.9.1';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
   var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay';
@@ -682,7 +682,7 @@
   function wlStat(label, w, g) {
     return '<div class="stat"><b>' + w + '승 ' + (g - w) + '패</b><span>' + label + (g ? ' · 승률 ' + Math.round(w / g * 100) + '%' : ' · 기록 없음') + '</span></div>';
   }
-  function wlCell(w, g) { return g ? w + '/' + (g - w) + '<div class="small">' + Math.round(w / g * 100) + '%</div>' : '<span class="small">-</span>'; }
+  function wlCell(w, g) { return g ? w + '/' + (g - w) : '<span class="small">-</span>'; }   // 한 줄로 (랭킹 줄 높이 그대로)
   // 다른 사람 전적·배지 보기 (랭킹에서 이름 누르기)
   function openProfile(name) {
     if (S.user && name === S.user.name) { location.hash = '#/me'; return; }
