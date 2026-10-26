@@ -456,3 +456,5 @@ body.ingame .toasts { top: auto; bottom: calc(var(--ch) + 150px); }
 .watchers span { font-weight: 400; overflow-wrap: anywhere; }
 .spect .watchers { justify-content: center; margin-top: 4px; }
 .menu-list .watchers { padding: 2px 2px 6px; }
+.wkick { font: inherit; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: inherit; cursor: pointer; }
+.wkick:hover { border-color: var(--danger); color: var(--danger); }
