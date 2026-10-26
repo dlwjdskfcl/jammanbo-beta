@@ -1,6 +1,6 @@
 /* 잠만보 화면 추가 기능 v3 — 화면 코드(Apps Script Index.html)는 고치지 않고 덧붙입니다.
  *  1) 홈의 '폰 홈 화면에 추가' 안내 카드 숨김
- *  2) 미니게임 들어가는 곳: 상단 바 '미니게임' 버튼 → 메뉴(티츄 · 순서 룰렛) + 홈 화면 카드 2개
+ *  2) 미니게임 들어가는 곳: 상단 바 '미니게임' 버튼 → 메뉴(티츄 · 순서 룰렛 · 탱쫄 판별기↗) + 홈 화면 카드
  *     (v3) 예전 '티츄' 버튼 자리. 새 미니게임은 아래 GAMES 에 한 줄 추가
  *  3) (v2) 디자인 테마(theme.css)용 손질: 탭·버튼 아이콘을 선 아이콘(SVG)으로, 로고 자리, 글꼴(Pretendard)
  * index.html 의 boot() 가 router.js 다음에 이 파일을 넣습니다. 화면 코드의 render 가 없으면 조용히 끔.
@@ -9,8 +9,12 @@
   // ?reset: 예전 서비스 워커(미니게임 폴더를 모르는 버전)를 거치지 않고 열기 — 각 게임 화면이 주소에서 지움
   var GAMES = [
     { id: 'tichu', href: ROOT + 'tichu/?reset', emoji: '🃏', name: '티츄', desc: '회원끼리 2 대 2 온라인 카드게임 · AI 연습', bg: 'linear-gradient(135deg,#fff4e6,#ffe8cc)', bgDark: 'linear-gradient(135deg,#3a2a12,#4a3315)' },
-    { id: 'roulette', href: ROOT + 'roulette/?reset', emoji: '🎯', name: '순서 룰렛', desc: '구슬을 굴려 순서 · 당첨자 정하기', bg: 'linear-gradient(135deg,#e7f5ff,#dbe4ff)', bgDark: 'linear-gradient(135deg,#142447,#1d2f5e)' }
+    { id: 'roulette', href: ROOT + 'roulette/?reset', emoji: '🎯', name: '순서 룰렛', desc: '구슬을 굴려 순서 · 당첨자 정하기', bg: 'linear-gradient(135deg,#e7f5ff,#dbe4ff)', bgDark: 'linear-gradient(135deg,#142447,#1d2f5e)' },
+    // ext: 외부 사이트 — 새 창으로 열고 ↗ 표시. 결과는 앱의 '내 기록 > 방탈출 탱쫄'에서 기록
+    { id: 'tangzzol', ext: true, href: 'https://bangpot-tangzzol-test.vercel.app/test/tangzzol', emoji: '🚪', name: '방탈출 탱쫄 판별기', desc: '나는 탱일까 쫄일까? 20종 유형 테스트', bg: 'linear-gradient(135deg,#f3f0ff,#e5dbff)', bgDark: 'linear-gradient(135deg,#2a1f47,#36295e)' }
   ];
+  function attrs(g) { return 'href="' + g.href + '" data-g="' + g.id + '"' + (g.ext ? ' target="_blank" rel="noopener"' : ''); }
+  function nm(g) { return g.name + (g.ext ? ' <span class="jmb-ext" aria-label="새 창">↗</span>' : ''); }
 
   // 글꼴: 늦게 와도 화면은 먼저 뜸 (시스템 글꼴로 보이다가 바뀜)
   if (!document.getElementById('jmbFont')) {
@@ -43,6 +47,8 @@
     '.jmb-mini-cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}' +
     '.jmb-mini-cards .jmb-tichu-card{margin:0;flex-direction:column;align-items:flex-start;gap:10px;position:relative}' +
     '.jmb-mini-cards .jmb-tichu-card .go{position:absolute;right:14px;top:14px}' +
+    '.jmb-ext{font-size:.8em;opacity:.55;font-weight:600}' +
+    '.jmb-mini-cards .jmb-ext-card{grid-column:1/-1;flex-direction:row;align-items:center}' +
     '@media (max-width:360px){.jmb-mini-cards{grid-template-columns:1fr}.jmb-mini-cards .jmb-tichu-card{flex-direction:row;align-items:center}}' +
     '@media (prefers-color-scheme: dark){.jmb-mini-menu{box-shadow:0 12px 32px rgba(0,0,0,.55)}}' +
     '@media (prefers-reduced-motion: reduce){.jmb-mini-menu{animation:none}}';
@@ -93,7 +99,7 @@
     menu.className = 'jmb-mini-menu'; menu.setAttribute('role', 'menu'); menu.id = 'jmbMiniMenu';
     var dark = isDark();
     menu.innerHTML = '<div class="hd">미니게임</div>' + GAMES.map(function (g) {
-      return '<a role="menuitem" href="' + g.href + '" data-g="' + g.id + '"><span class="ic" style="background:' + (dark ? g.bgDark : g.bg) + '">' + g.emoji + '</span><span><b>' + g.name + '</b><small>' + g.desc + '</small></span></a>';
+      return '<a role="menuitem" ' + attrs(g) + '><span class="ic" style="background:' + (dark ? g.bgDark : g.bg) + '">' + g.emoji + '</span><span><b>' + nm(g) + '</b><small>' + g.desc + '</small></span></a>';
     }).join('');
     document.body.appendChild(menu);
     var r = btn.getBoundingClientRect(), mw = menu.offsetWidth;
@@ -128,7 +134,7 @@
     var b = document.createElement('button');
     // id·class 는 예전 티츄 버튼 것을 그대로 씀 (theme.css 의 모양·좁은 화면 규칙 재사용)
     b.id = 'jmbTichuBtn'; b.className = 'btn sm jmb-tichu-btn jmb-mini-btn'; b.type = 'button';
-    b.title = '미니게임 (티츄 · 순서 룰렛)'; b.setAttribute('aria-label', '미니게임');
+    b.title = '미니게임 (티츄 · 순서 룰렛 · 탱쫄 판별기)'; b.setAttribute('aria-label', '미니게임');
     b.setAttribute('aria-haspopup', 'menu'); b.setAttribute('aria-expanded', 'false'); b.setAttribute('aria-controls', 'jmbMiniMenu');
     b.innerHTML = svg('play') + '<span class="lbl">미니게임</span>';
     b.onclick = function (e) { e.stopPropagation(); openMenu(b); };
@@ -146,7 +152,7 @@
     box.id = 'jmbMiniCards'; box.className = 'jmb-mini-cards';
     var dark = isDark();
     box.innerHTML = GAMES.map(function (g) {
-      return '<a class="card jmb-tichu-card" href="' + g.href + '" data-g="' + g.id + '"><span class="ic" style="background:' + (dark ? g.bgDark : g.bg) + '">' + g.emoji + '</span><span class="tx"><b>' + g.name + '</b><small>' + g.desc + '</small></span><span class="go" aria-hidden="true">›</span></a>';
+      return '<a class="card jmb-tichu-card' + (g.ext ? ' jmb-ext-card' : '') + '" ' + attrs(g) + '><span class="ic" style="background:' + (dark ? g.bgDark : g.bg) + '">' + g.emoji + '</span><span class="tx"><b>' + nm(g) + '</b><small>' + g.desc + '</small></span><span class="go" aria-hidden="true">›</span></a>';
     }).join('');
     if (tiles && tiles.nextSibling) view.insertBefore(box, tiles.nextSibling);
     else if (tiles) view.appendChild(box);
