@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.8.4';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.8.5';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
   var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay';
@@ -1001,6 +1001,19 @@
       : '<span>' + w.map(esc).join(', ') + '</span>';
     return '<div class="watchers">👀 관전 ' + w.length + '명' + list + '</div>';
   }
+  // 게임 중 봇 자리 이어받기 (관전자): 그 자리 손패로 바로 이어서 함. 이 판은 내 전적에 안 남음
+  function takeSeat(s, btn) {
+    var st = S.room.seats[s];
+    if (!st || !confirm(st.name + ' 자리를 이어받아 지금 게임에 참여할까요?\n(이 판은 내 전적에 남지 않아요)')) return;
+    if (btn) btn.disabled = true;
+    api('takeover', { room: S.roomId, seat: s, pw: S.roomPw || '' }).then(function (r) {
+      S.sel = []; applyRoom(r, true); toast('이어서 해요! 내 손패를 확인하세요'); sfx('turn');
+    }, function (e) {
+      if (btn) btn.disabled = false;
+      if (e.code === 'pw') return watchRoom(S.roomId, true, true);
+      toast(e.message, true);
+    });
+  }
   // 👥 참가자 · 관전자 한눈에: 팀별 자리(방장·나·봇·접속 상태) + 관전자(방장은 눌러서 내보내기)
   function openPeople() {
     var r = S.room; if (!r) return;
@@ -1163,7 +1176,13 @@
       h += myBarHTML(g, me, pend, myTurn, top);
       h += '<div class="handwrap"><div class="hand" id="hand"></div></div>';
     } else {
-      h += '<div class="spect">👀 관전 중 · ' + esc(r.name) + (r.status === 'play' ? '' : ' (게임 끝)') + watchersHTML(r) + '</div>';
+      // 관전: 아래 자리 사람(이름·남은 장수·티츄)은 테이블 위가 아니라 여기 표시 + 봇 자리 이어받기
+      var takes = r.status === 'play' && !r.solo ? r.seats.map(function (st, s) {
+        return st && st.bot ? '<button class="btn sm primary" data-take="' + s + '">🙋 ' + esc(st.name) + ' 자리 이어받기 (' + (team(s) ? 'B' : 'A') + '팀)</button>' : '';
+      }).join('') : '';
+      h += '<div class="spect">' + seatHTML(g, view, 0, r.seats[view], pend) +
+        '<div>👀 관전 중 · ' + esc(r.name) + (r.status === 'play' ? '' : ' (게임 끝)') + '</div>' + watchersHTML(r) +
+        (takes ? '<div class="takes">' + takes + '</div>' : '') + '</div>';
     }
     h += '</div>';
     app.innerHTML = h;
@@ -1192,8 +1211,9 @@
   function ringSVG() { return '<svg class="ring" viewBox="0 0 40 40"><circle cx="20" cy="20" r="18" stroke-dasharray="113.1" stroke-dashoffset="0" data-ring="1"/></svg>'; }
   // 바닥(낸 카드 칸). isTurn = 지금 이 사람 차례 → 금색 테두리 + '차례' 표시
   function frontHTML(g, s, p, st, isTop, isTurn) {
-    var who = p === 0 ? '나' : esc(seatName(s)), tc = team(s) ? 'B' : 'A', tn = isTurn ? ' turn' : '';
-    var turnLbl = isTurn ? '<span class="turnlbl">' + (g.phase === 'dragon' ? '🐉 ' : '⏳ ') + (p === 0 ? '내 차례' : who + ' 차례') + '</span>' : '';
+    var mine = p === 0 && myView() >= 0;   // 관전자에게 아래 자리는 '나'가 아님
+    var who = mine ? '나' : esc(seatName(s)), tc = team(s) ? 'B' : 'A', tn = isTurn ? ' turn' : '';
+    var turnLbl = isTurn ? '<span class="turnlbl">' + (g.phase === 'dragon' ? '🐉 ' : '⏳ ') + (mine ? '내 차례' : who + ' 차례') + '</span>' : '';
     if (g.phase !== 'play' && g.phase !== 'dragon') return '<div class="front p' + p + ' none"></div>';
     if (!st) return isTurn ? '<div class="front p' + p + ' t' + tc + ' wait' + tn + '">' + turnLbl + '</div>' : '<div class="front p' + p + ' none"></div>';
     var fl = S.flash[s] !== undefined ? ' flash' : '', delay = fl ? ' style="animation-delay:' + (S.flash[s] * 0.28) + 's"' : '';
@@ -1332,6 +1352,7 @@
     $('#gMenu').onclick = gameMenu;
     $('#gSheet').onclick = scoreSheet;
     $('#gPeople').onclick = openPeople;
+    $$('[data-take]').forEach(function (b) { b.onclick = function () { takeSeat(+b.getAttribute('data-take'), b); }; });
     $('#gChat').onclick = openChat;
     var gb = $('#gBack'); if (gb) gb.onclick = function () { act('back', {}, gb); };
     var t1 = $('#gtPass'); if (t1) t1.onclick = function () { act('grand', { call: false }, t1); };
