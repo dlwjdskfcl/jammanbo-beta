@@ -481,3 +481,5 @@ body.ingame .toasts { top: auto; bottom: calc(var(--ch) + 150px); }
 .gkind.hu { color: var(--gold2); }
 .gkind.ai { color: var(--muted); }
 .table-list th .small, .table-list td .small { font-weight: 400; }
+.table-list tr.prof { cursor: pointer; }
+.table-list tr.prof:hover td { background: rgba(255,255,255,.04); }

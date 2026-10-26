@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.8.7';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.9.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
   var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay';
@@ -423,6 +423,7 @@
     var bp = $('#bPractice'); if (bp) bp.onclick = function () { practice(bp); };
     var br = $('#bRefresh'); if (br) br.onclick = function () { loadLobby(true); };
     $$('[data-rsort]').forEach(function (b) { b.onclick = function () { S.rankSort = b.getAttribute('data-rsort'); renderLobby(); }; });
+    $$('[data-pname]').forEach(function (b) { b.onclick = function () { openProfile(b.getAttribute('data-pname')); }; });
     $$('[data-join]').forEach(function (b) { b.onclick = function () { S.roomPw = ''; joinRoom(b.getAttribute('data-join'), b.getAttribute('data-lock') === '1'); }; });
     $$('[data-watch]').forEach(function (b) { b.onclick = function () { S.roomPw = ''; watchRoom(b.getAttribute('data-watch'), b.getAttribute('data-lock') === '1'); }; });
   }
@@ -650,7 +651,7 @@
   function rankBody() {
     var sort = S.rankSort || 'rating';
     var h = '<div class="sec-title">랭킹 <div class="seg mini">' + [['rating', '레이팅'], ['level', '레벨']].map(function (x) { return '<button data-rsort="' + x[0] + '" class="' + (sort === x[0] ? 'on' : '') + '">' + x[1] + '</button>'; }).join('') + '</div></div>' +
-      '<div class="small">' + (sort === 'rating' ? '레이팅은 사람 4명이 끝까지 한 게임만 반영' : '레벨은 봇이 낀 판까지 모든 전적으로 쌓여요 (사람 4명 대전은 경험치 +20)') + '</div>';
+      '<div class="small">' + (sort === 'rating' ? '레이팅은 사람 4명이 끝까지 한 게임만 반영 · 점수 차와 팀 안 활약(1등·원투·티츄)에 따라 달라져요 · 이름을 누르면 전적' : '레벨은 봇이 낀 판까지 모든 전적으로 쌓여요 (사람 4명 대전은 경험치 +20)') + '</div>';
     if (!S.rank) return h + '<div class="empty">불러오는 중…</div>';
     if (!S.rank.length) return h + '<div class="empty">아직 기록이 없어요. 첫 판의 주인공이 되어 보세요!</div>';
     var list = S.rank.slice();
@@ -658,7 +659,7 @@
     return h + '<div style="overflow-x:auto"><table class="table-list"><thead><tr><th>#</th><th>이름</th>' + (sort === 'level' ? '<th>XP</th>' : '<th>레이팅</th>') + '<th>👥 사람전<div class="small">승/패</div></th><th>🤖 AI전<div class="small">승/패</div></th><th>티츄</th><th>1등률</th></tr></thead><tbody>' +
       list.map(function (p, i) {
         var lead = sort === 'level' || p.ranked, med = i < 3 && lead ? '<span class="medal">' + ['🥇', '🥈', '🥉'][i] + '</span>' : String(i + 1);
-        return '<tr class="' + (S.user && p.name === S.user.name ? 'me' : '') + '"><td>' + med + '</td><td class="n">' + lvTag(p) + ' ' + esc(p.name) + '</td><td>' +
+        return '<tr class="prof' + (S.user && p.name === S.user.name ? ' me' : '') + '" data-pname="' + esc(p.name) + '"><td>' + med + '</td><td class="n">' + lvTag(p) + ' ' + esc(p.name) + '</td><td>' +
           (sort === 'level' ? xpOf(stats(p)).toLocaleString() : p.ranked ? p.rating : '<span class="small">-</span>') + '</td>' + (p.wl ? '<td>' + wlCell(p.wl.hw, p.wl.hg) + '</td><td>' + wlCell(p.wl.aw, p.wl.ag) + '</td>' : '<td>' + p.win + '/' + p.lose + '</td><td>' + p.rate + '%</td>') + '<td>' + pct(p.st[0] + p.gt[0], p.st[1] + p.gt[1]) + '</td><td>' + p.first + '%</td></tr>';
       }).join('') + '</tbody></table></div>';
   }
@@ -682,11 +683,23 @@
     return '<div class="stat"><b>' + w + '승 ' + (g - w) + '패</b><span>' + label + (g ? ' · 승률 ' + Math.round(w / g * 100) + '%' : ' · 기록 없음') + '</span></div>';
   }
   function wlCell(w, g) { return g ? w + '/' + (g - w) + '<div class="small">' + Math.round(w / g * 100) + '%</div>' : '<span class="small">-</span>'; }
+  // 다른 사람 전적·배지 보기 (랭킹에서 이름 누르기)
+  function openProfile(name) {
+    if (S.user && name === S.user.name) { location.hash = '#/me'; return; }
+    openModal('<h2>' + esc(name) + '<button class="x" data-x>✕</button></h2><div id="pbody"><div class="empty">불러오는 중…</div></div>');
+    api('records', { name: name }).then(function (r) {
+      var b = $('#pbody'); if (b) b.innerHTML = recContent(r, false);
+    }, function (e) { var b = $('#pbody'); if (b) b.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; });
+  }
   function recBody() {
     var h = '<div class="sec-title">내 전적</div>';
     if (!S.rec) return h + '<div class="empty">불러오는 중…</div>';
-    var m = S.rec.me;
-    if (!m || !m.games) h += '<div class="empty">아직 끝까지 한 게임이 없어요. 한 판 끝내면 레벨과 배지가 열려요!</div>';
+    return h + recContent(S.rec, true);
+  }
+  // 전적 내용 (레벨·배지·기록·최근 게임) — 내 전적 탭과 다른 사람 전적 창이 같이 씀
+  function recContent(rec, mine) {
+    var h = '', m = rec.me;
+    if (!m || !m.games) h += '<div class="empty">' + (mine ? '아직 끝까지 한 게임이 없어요. 한 판 끝내면 레벨과 배지가 열려요!' : '아직 끝까지 한 게임이 없어요') + '</div>';
     else h += levelCard(m) + '<div class="sec-title">기록</div><div class="stat-grid">' +
       '<div class="stat"><b>' + (m.ranked ? m.rating : '-') + '</b><span>레이팅</span></div>' +
       (m.wl ? wlStat('👥 사람전', m.wl.hw, m.wl.hg) + wlStat('🤖 AI전', m.wl.aw, m.wl.ag)
@@ -695,8 +708,8 @@
       '<div class="stat"><b>' + pct(m.st[0], m.st[1]) + '</b><span>스몰 티츄 ' + m.st[0] + '/' + (m.st[0] + m.st[1]) + '</span></div>' +
       '<div class="stat"><b>' + pct(m.gt[0], m.gt[1]) + '</b><span>라지 티츄 ' + m.gt[0] + '/' + (m.gt[0] + m.gt[1]) + '</span></div>' +
       '<div class="stat"><b>' + m.onetwo + '</b><span>원투(1·2등)</span></div></div>';
-    if (S.rec.games.length) {
-      h += '<div class="sec-title">최근 게임</div>' + S.rec.games.map(function (g) {
+    if (rec.games.length) {
+      h += '<div class="sec-title">최근 게임</div>' + rec.games.map(function (g) {
         return '<div class="game-row"><span class="wl ' + (g.win ? 'w' : 'l') + '">' + (g.win ? '승' : '패') + '</span><div class="mid"><div><span class="tA">' + esc(g.a) + '</span> vs <span class="tB">' + esc(g.b) + '</span></div>' +
           '<div class="small">' + esc(g.end.slice(0, 16)) + ' · ' + g.rounds + '라운드 · 목표 ' + g.target + ' · <span class="gkind ' + (g.bot ? 'ai">🤖 AI전' : 'hu">👥 사람전') + '</span></div></div>' +
           '<div style="text-align:right"><b>' + g.sa + ' : ' + g.sb + '</b>' + (g.ranked && g.delta != null ? '<div class="small" style="color:' + (g.delta >= 0 ? '#86efac' : '#fda4af') + '">' + (g.delta >= 0 ? '+' : '') + g.delta + '</div>' : '') + '</div></div>';
