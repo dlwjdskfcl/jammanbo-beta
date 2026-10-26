@@ -66,6 +66,10 @@ if (/[?&]reset\b/.test(location.search)) {
 
 var CFG = window.JMB_CONFIG || {};   // config.js 를 못 읽었으면 start() 에서 안내
 var API = CFG.api;
+var API_ENV = CFG.env && CFG.env !== 'prod' ? 'beta' : '';   // 요청에 붙이는 env — 테스트면 서버가 티츄도 테스트 배포를 부름 (운영은 안 붙임)
+/* ↻ 새로고침 버튼(extras.js)으로 다시 열린 경우: 저장된 화면·데이터 대신 서버에서 최신으로 받고 띄움 (한 번만) */
+var HARD = false;
+try { HARD = sessionStorage.getItem('jmb_hard_reload') === '1'; sessionStorage.removeItem('jmb_hard_reload'); } catch (e) {}
 var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';   // 테스트 사이트는 저장 칸을 따로 씀 (같은 github.io 라서 섞이지 않게)
 var SHELL_KEY = 'jmb_shell_v2' + ENV_SFX;   // 기기에 저장해 두는 화면 코드 {html, v, title}
 var DATA_KEY = 'jmb_data_v2';     // 기기에 저장해 두는 데이터 {v, d}  (화면 코드 Index.html 과 같은 이름)
@@ -78,7 +82,7 @@ function lsPutJSON(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } c
 
 /* 데이터 요청: {v, r} 또는 {same:true, v} — 화면 코드의 load() 가 사용 */
 window.JMB_GETDATA = function (pw, fresh, ver) {
-  return fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: 'getData', args: [pw || '', !!fresh, ver || ''] }) })
+  return fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: 'getData', args: [pw || '', !!fresh, ver || ''], env: API_ENV || undefined }) })
     .then(function (r) { if (!r.ok) throw new Error('서버 응답 오류 (' + r.status + ')'); return r.json(); })
     .then(function (j) { if (!j || !j.ok) throw new Error((j && j.e) || '알 수 없는 오류'); return j.same ? { same: true, v: j.v } : { v: j.v, r: j.r }; },
           function (e) { throw (e instanceof TypeError) ? new Error('인터넷 연결을 확인해 주세요') : e; });
@@ -87,7 +91,7 @@ window.JMB_GETDATA = function (pw, fresh, ver) {
 /* ① 가장 먼저: 데이터 요청 시작 (화면 코드를 기다리지 않음) */
 if (API && !window.JMB_RESETTING) (function () {
   var c = lsGetJSON(DATA_KEY);
-  window.JMB_EARLY = window.JMB_GETDATA('', false, c && c.v ? c.v : '');
+  window.JMB_EARLY = window.JMB_GETDATA('', HARD, c && c.v ? c.v : '');
   window.JMB_EARLY.catch(function () {});   // 처리되지 않은 오류 경고 방지 (실제 처리는 화면 코드에서)
 })();
 </script>
@@ -96,7 +100,7 @@ if (API && !window.JMB_RESETTING) (function () {
 <div id="boot"><img src="icon-192.png" alt=""><div class="msg">잠만보 불러오는 중…</div></div>
 <script>
 /* 기존 화면 코드의 google.script.run 호출을 fetch로 바꿔 주는 코드 (화면 안에 넣음) */
-function shim(API, STORE) {
+function shim(API, STORE, ENV) {
   // 회원용 쓰기 함수 — n: 원래 인자 개수(마지막이 pw), who: 닉네임 인자 위치 (서버 Kakao.gs 의 JMB_RULES 와 같게)
   var MEMBER = {
     addPost: { n: 4, who: 1, anon: true }, addPlays: { n: 5, who: 1, list: true },
@@ -132,7 +136,7 @@ function shim(API, STORE) {
   function call(fn, args) {
     var stop = prepare(fn, args);
     if (stop) return Promise.reject(new Error(stop));
-    return fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: fn, args: args }) })
+    return fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: fn, args: args, env: ENV || undefined }) })
       .then(function (r) { if (!r.ok) throw new Error('서버 응답 오류 (' + r.status + ')'); return r.json(); })
       .then(function (j) { if (!j || !j.ok) throw new Error((j && j.e) || '알 수 없는 오류'); return j.r; },
             function (e) { throw (e instanceof TypeError) ? new Error('인터넷 연결을 확인해 주세요') : e; });
@@ -171,9 +175,9 @@ function boot(shell) {
     '<meta name="apple-mobile-web-app-capable" content="yes">' +
     '<meta name="mobile-web-app-capable" content="yes">' +
     '<meta name="apple-mobile-web-app-title" content="잠만보">' +
-    '<script>(' + shim.toString() + ')(' + JSON.stringify(API) + ',' + JSON.stringify(AUTH_ON ? AUTH_STORE : '') + ');' +
+    '<script>(' + shim.toString() + ')(' + JSON.stringify(API) + ',' + JSON.stringify(AUTH_ON ? AUTH_STORE : '') + ',' + JSON.stringify(API_ENV) + ');' +
     // document.write 뒤에도 데이터 요청 함수·미리 보낸 요청을 그대로 쓰도록 (브라우저가 전역을 비운 경우 대비)
-    'window.JMB_GETDATA=window.JMB_GETDATA||' + window.JMB_GETDATA.toString().replace(/\bAPI\b/g, JSON.stringify(API)) + ';<\/script>' + auth;
+    'window.JMB_GETDATA=window.JMB_GETDATA||' + window.JMB_GETDATA.toString().replace(/\bAPI_ENV\b/g, JSON.stringify(API_ENV)).replace(/\bAPI\b/g, JSON.stringify(API)) + ';<\/script>' + auth;
   var html = shell.html.replace(/<head[^>]*>/i, function (m) { return m + head; });
   // [주소] 탭마다 주소 + 뒤로가기 — 화면 코드가 다 실행된 뒤(맨 끝)에 붙임
   var route = '<script>window.JMB_ROOT=' + JSON.stringify(window.JMB_ROOT) + ';<\/script><script src="' + window.JMB_ROOT + 'router.js?v=' + v + '"><\/script>' +
@@ -240,14 +244,19 @@ function start() {
     // ② 저장된 화면으로 바로 시작. 페이지를 다 읽은 뒤에 바꿔 써야 이 시작 화면이 깨끗이 지워짐
     var go = function () {
       // 뒤에서 화면 코드 버전 확인 → 바뀌었으면 받아 두었다가 다음에 열 때 적용 (데이터 요청이 먼저 끝나도록 조금 늦게)
-      setTimeout(function () {
+      if (!HARD) setTimeout(function () {
         fetchShell(cached.v).then(function (s) { if (s) lsPutJSON(SHELL_KEY, s); }).catch(function () {});
       }, 4000);
       try { boot(cached); }
       catch (e) { try { localStorage.removeItem(SHELL_KEY); } catch (x) {} location.reload(); }   // 저장된 화면이 깨졌으면 지우고 새로 받기
     };
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { setTimeout(go, 0); });
-    else setTimeout(go, 0);
+    var ready = function () {
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { setTimeout(go, 0); });
+      else setTimeout(go, 0);
+    };
+    // ↻ 새로고침: 화면 코드가 바뀌었는지 지금 확인하고 최신으로 띄움 (실패하면 저장된 화면으로)
+    if (HARD) fetchShell(cached.v).then(function (s) { if (s) { lsPutJSON(SHELL_KEY, s); cached = s; } }, function () {}).then(ready);
+    else ready();
     return;
   }
   // 처음 방문: 화면 코드와 데이터(①에서 이미 요청 중)를 동시에 받음

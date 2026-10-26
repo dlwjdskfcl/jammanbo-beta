@@ -1,8 +1,9 @@
-/* 잠만보 화면 추가 기능 v3 — 화면 코드(Apps Script Index.html)는 고치지 않고 덧붙입니다.
+/* 잠만보 화면 추가 기능 v4 — 화면 코드(Apps Script Index.html)는 고치지 않고 덧붙입니다.
  *  1) 홈의 '폰 홈 화면에 추가' 안내 카드 숨김
  *  2) 미니게임 들어가는 곳: 상단 바 '미니게임' 버튼 → 메뉴(티츄 · 순서 룰렛 · 탱쫄 판별기↗) + 홈 화면 카드
  *     (v3) 예전 '티츄' 버튼 자리. 새 미니게임은 아래 GAMES 에 한 줄 추가
  *  3) (v2) 디자인 테마(theme.css)용 손질: 탭·버튼 아이콘을 선 아이콘(SVG)으로, 로고 자리, 글꼴(Pretendard)
+ *  4) (v4) ↻ 새로고침 버튼 = 페이지 전체 새로고침 (hardRefresh)
  * index.html 의 boot() 가 router.js 다음에 이 파일을 넣습니다. 화면 코드의 render 가 없으면 조용히 끔.
  */
 (function (ROOT) {
@@ -121,10 +122,30 @@
     }
     var ref = document.getElementById('btnRefresh');
     if (ref && !ref.querySelector('svg')) { ref.innerHTML = svg('refresh'); ref.setAttribute('aria-label', '새로고침'); }
+    if (ref && !ref.jmbHard) {   // ↻ 를 페이지 전체 새로고침으로 (안 되는 경우엔 화면 코드의 원래 동작 = 데이터만 새로)
+      ref.jmbHard = true;
+      var dataOnly = ref.onclick;
+      ref.onclick = function (e) { if (!hardRefresh() && dataOnly) dataOnly.call(this, e); };
+    }
     var brand = document.getElementById('brand');   // 🎲 글자 대신 로고(theme.css)
     if (brand && brand.firstChild && brand.firstChild.nodeType === 3 && /🎲/.test(brand.firstChild.nodeValue)) {
       brand.firstChild.nodeValue = brand.firstChild.nodeValue.replace(/🎲\s*/, '');
     }
+  }
+
+  /* ↻ 새로고침: 데이터뿐 아니라 페이지 자체를 다시 열어 시작 페이지 파일·화면 코드·데이터를 모두 최신으로
+   *  - 이 사이트 범위의 정적 파일 캐시(sw.js)를 비우고 다시 열기 → index.html 이 표시(jmb_hard_reload)를 보고 화면 코드·데이터를 새로 받음
+   *  - 비밀번호로 켠 운영진 모드는 다시 열면 풀리므로, 그때와 인터넷이 끊겼을 때는 false (→ 데이터만 새로) */
+  function hardRefresh() {
+    var pw = window.ADMIN_PW;
+    if ((pw && String(pw).indexOf('kk.') !== 0) || navigator.onLine === false) return false;
+    try { sessionStorage.setItem('jmb_hard_reload', '1'); } catch (e) {}
+    var clear = window.caches ? caches.keys().then(function (ks) {
+      return Promise.all(ks.filter(function (k) { return k.indexOf('jmb-static-') === 0 && k.slice(k.indexOf(':') + 1) === ROOT; })
+        .map(function (k) { return caches.delete(k); }));
+    }) : Promise.resolve();
+    clear.catch(function () {}).then(function () { location.reload(); });
+    return true;
   }
 
   function header() {

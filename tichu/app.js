@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.6.1';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.6.2';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
   var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay';
@@ -173,7 +173,8 @@
     // 응답이 없으면 끊고 다시 시도 (카톡 인앱 브라우저·사파리에서 요청이 멈춰 버리는 경우 대비)
     var ctl = typeof AbortController === 'function' ? new AbortController() : null;
     var timer = ctl ? setTimeout(function () { ctl.abort(); }, timeoutMs || 20000) : 0;
-    return fetch(CFG.api, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: fn, t: S.token || '', a: a || {} }), signal: ctl ? ctl.signal : undefined, cache: 'no-store' })
+    // env: 테스트·내 PC 에서는 'beta' → 티츄 서버가 카카오 확인도 잠만보 '테스트' 배포로 함 (운영은 안 붙임)
+    return fetch(CFG.api, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: fn, t: S.token || '', a: a || {}, env: CFG.env && CFG.env !== 'prod' ? 'beta' : undefined }), signal: ctl ? ctl.signal : undefined, cache: 'no-store' })
       .then(function (r) {
         if (!r.ok) throw new Error('서버 응답 오류 (' + r.status + ')');
         return r.text().then(function (t) { try { return JSON.parse(t); } catch (x) { throw new Error('서버가 바빠요. 잠시 후 다시 시도해 주세요'); } });
