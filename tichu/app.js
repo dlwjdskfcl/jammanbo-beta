@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.8.3';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.8.4';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
   var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay';
@@ -958,6 +958,7 @@
     }).join('');
     var full = r.seats.every(Boolean);
     var h = '<div class="shell"><div class="hdr"><button class="iconbtn" id="wBack" aria-label="로비">←</button><div class="title" style="min-width:0"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (r.opt.lock ? '🔒 ' : '') + esc(r.name) + '</span></div>' +
+      '<button class="iconbtn" id="wPeople" aria-label="참가자·관전자">👥</button>' +
       '<button class="iconbtn" id="wChat" aria-label="채팅">💬' + (S.unread ? '<span class="badge-dot">' + S.unread + '</span>' : '') + '</button></div>' +
       '<div class="content wait-wrap">' +
       '<div class="wait-info"><span class="chip">🎯 목표 ' + r.opt.target + '점</span><span class="chip">⏱ ' + (r.opt.timer ? '턴 ' + r.opt.timer + '초' : '시간 제한 없음') + '</span><span class="chip">🤖 AI ' + botDelayLabel(botDelayOf(r.opt)) + '</span>' + (r.opt.lock ? '<span class="chip">🔒 비밀방</span>' : '') + '</div>' +
@@ -976,6 +977,7 @@
     if (focused) { var mi = $('#wMsg'); mi.value = val; mi.focus(); }
     $('#wBack').onclick = function () { location.hash = '#/'; };
     $('#wChat').onclick = openChat;
+    $('#wPeople').onclick = openPeople;
     $('#wInvite').onclick = copyInvite;
     var wl = $('#wLeave'); if (wl) wl.onclick = leaveRoom;
     var ws = $('#wStart'); if (ws) ws.onclick = function () { roomCall('start', {}, ws); };
@@ -998,6 +1000,24 @@
       : r.host ? w.map(function (n) { return '<button class="wkick" data-kickw="' + esc(n) + '" title="내보내기">' + esc(n) + ' ✕</button>'; }).join('')   // 방장: 눌러서 내보내기
       : '<span>' + w.map(esc).join(', ') + '</span>';
     return '<div class="watchers">👀 관전 ' + w.length + '명' + list + '</div>';
+  }
+  // 👥 참가자 · 관전자 한눈에: 팀별 자리(방장·나·봇·접속 상태) + 관전자(방장은 눌러서 내보내기)
+  function openPeople() {
+    var r = S.room; if (!r) return;
+    var w = r.watchers || [];
+    function seatRow(s) {
+      var st = r.seats[s];
+      if (!st) return '<div class="prow empty">빈자리</div>';
+      var state = st.bot ? '🤖 봇' : !st.on ? '⚪ 연결 끊김' : st.afk ? '💤 자리 비움' : '🟢 접속 중';
+      return '<div class="prow"><b>' + (st.host ? '👑 ' : '') + esc(st.name) + (s === r.me ? ' (나)' : '') + '</b><span>' + state + '</span></div>';
+    }
+    openModal('<h2>👥 참가자 · 관전자<button class="x" data-x>✕</button></h2>' +
+      '<div class="sec-title">참가자 ' + r.seats.filter(Boolean).length + '/4</div>' +
+      '<div class="pteam"><div class="tm tA">A팀</div>' + seatRow(0) + seatRow(2) + '</div>' +
+      '<div class="pteam"><div class="tm tB">B팀</div>' + seatRow(1) + seatRow(3) + '</div>' +
+      '<div class="sec-title">관전자 ' + w.length + '명' + (r.host && w.length ? ' <small>· 이름을 누르면 내보내기</small>' : '') + '</div>' +
+      watchersHTML(r, true).replace(/^<div class="watchers">👀 관전 \d+명/, '<div class="watchers">'));
+    bindKickWatchers(modalEl);
   }
   // 내보내기 (방장): 다시 못 들어온다는 걸 확인받고 보냄. 게임 중인 사람은 봇이 이어서 함
   function kickSeat(s, btn) {
@@ -1118,6 +1138,7 @@
       '<div class="vs">' + g.round + 'R<small>/' + g.target + '</small></div>' +
       '<div class="tm ' + (myTeam ? 'tA' : 'tB') + '"><span>' + scoreThem + '</span><small>' + (me >= 0 ? '상대 · ' : '') + esc(nmThem) + '</small></div></div>' +
       '<button class="iconbtn" id="gSheet" aria-label="점수표">📋</button>' +
+      '<button class="iconbtn" id="gPeople" aria-label="참가자·관전자">👥' + ((r.watchers || []).length ? '<span class="cnt">' + r.watchers.length + '</span>' : '') + '</button>' +
       '<button class="iconbtn" id="gChat" aria-label="채팅">💬' + (S.unread ? '<span class="badge-dot">' + S.unread + '</span>' : '') + '</button></div>';
 
     // 테이블
@@ -1310,6 +1331,7 @@
     var r = S.room, g = r.g, me = r.me;
     $('#gMenu').onclick = gameMenu;
     $('#gSheet').onclick = scoreSheet;
+    $('#gPeople').onclick = openPeople;
     $('#gChat').onclick = openChat;
     var gb = $('#gBack'); if (gb) gb.onclick = function () { act('back', {}, gb); };
     var t1 = $('#gtPass'); if (t1) t1.onclick = function () { act('grand', { call: false }, t1); };
