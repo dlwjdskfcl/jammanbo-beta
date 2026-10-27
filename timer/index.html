@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>잠만보 보드게임 타이머</title>
+<meta name="description" content="체스 클락 · 턴 타이머 · 모래시계 — 잠만보 보드게임 모임용">
+<meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1014" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="타이머">
+<link rel="icon" type="image/png" href="../icon-192.png">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="style.css?v=1.0.0">
+</head>
+<body>
+<div id="app">
+  <!-- 설정 화면 -->
+  <section id="setup" class="screen on" aria-label="타이머 설정">
+    <header class="bar">
+      <a class="ibtn" href="../" aria-label="잠만보로"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></a>
+      <div class="ttl"><b>보드게임 타이머</b><small>체스 클락 · 턴 타이머 · 모래시계</small></div>
+      <button class="ibtn" id="sndBtn" type="button" aria-label="소리 켜기/끄기"></button>
+    </header>
+
+    <div class="wrap">
+      <div class="resume" id="resume" hidden>
+        <div><b>진행 중인 게임이 있어요</b><small id="resumeInfo"></small></div>
+        <button type="button" class="sbtn" id="btnDrop">버리기</button>
+        <button type="button" class="go sm" id="btnResume">이어서</button>
+      </div>
+
+      <div class="modes" id="modes" role="radiogroup" aria-label="타이머 종류">
+        <button type="button" data-v="chess"><i>♞</i><b>체스 클락</b><small>각자 가진 시간</small></button>
+        <button type="button" data-v="turn"><i>⏱</i><b>턴 타이머</b><small>매 턴 제한 시간</small></button>
+        <button type="button" data-v="sand"><i>⏳</i><b>모래시계</b><small>뒤집는 타이머</small></button>
+      </div>
+
+      <div class="presets" id="presets" aria-label="빠른 설정"></div>
+
+      <!-- 체스 클락 -->
+      <div class="card opt" data-mode="chess">
+        <div class="field"><span>가진 시간 <small>한 사람당</small></span><div class="step" data-k="chess.main"></div></div>
+        <div class="lab mt"><span>추가 시간 방식</span></div>
+        <div class="seg sm" data-seg="chess.inc">
+          <button type="button" data-v="none">없음</button>
+          <button type="button" data-v="fischer">피셔</button>
+          <button type="button" data-v="bronstein">브론스타인</button>
+          <button type="button" data-v="delay">딜레이</button>
+          <button type="button" data-v="byoyomi">초읽기</button>
+        </div>
+        <p class="hint" id="incHint"></p>
+        <div class="field" data-show="inc-sec"><span id="incLab">추가 시간</span><div class="step" data-k="chess.incSec"></div></div>
+        <div class="field" data-show="byo"><span>초읽기 시간</span><div class="step" data-k="chess.byoSec"></div></div>
+        <div class="field" data-show="byo"><span>초읽기 횟수</span><div class="step" data-k="chess.byoN"></div></div>
+        <div class="lab mt"><span>시간이 다 되면</span></div>
+        <div class="seg sm" data-seg="chess.onFlag">
+          <button type="button" data-v="continue">표시만 하고 계속</button>
+          <button type="button" data-v="out">그 사람 탈락</button>
+        </div>
+      </div>
+
+      <!-- 턴 타이머 -->
+      <div class="card opt" data-mode="turn">
+        <div class="field"><span>턴 제한</span><div class="step" data-k="turn.limit"></div></div>
+        <div class="field" data-show="limit"><span>예비 시간 <small>각자 · 넘기면 여기서 씀</small></span><div class="step" data-k="turn.bank"></div></div>
+        <div data-show="limit">
+          <div class="lab mt"><span>시간을 넘기면</span></div>
+          <div class="seg sm" data-seg="turn.onOver">
+            <button type="button" data-v="count">넘긴 시간 세기</button>
+            <button type="button" data-v="auto">자동으로 다음 사람</button>
+          </div>
+        </div>
+        <p class="hint" id="turnHint"></p>
+      </div>
+
+      <!-- 모래시계 -->
+      <div class="card opt" data-mode="sand">
+        <div class="field"><span>시간</span><div class="step" data-k="sand.dur"></div></div>
+        <label class="field tog"><span>남은 시간 숫자로 보기 <small>끄면 모래만</small></span><input type="checkbox" id="sandNum"><i></i></label>
+        <p class="hint">진짜 모래시계처럼 뒤집으면 위·아래 모래가 바뀌어요 (반쯤 흘렀을 때 뒤집으면 반만 남음)</p>
+      </div>
+
+      <!-- 플레이어 -->
+      <div class="card" id="playersCard">
+        <div class="lab"><span>플레이어 <small id="pCnt"></small></span><small>위에서부터 차례</small></div>
+        <ol class="players" id="players"></ol>
+        <div class="row tools">
+          <button type="button" class="sbtn" id="btnAdd">＋ 추가</button>
+          <button type="button" class="sbtn" id="btnShuffle">🎲 순서 섞기</button>
+          <button type="button" class="sbtn" id="btnMeet" hidden>📅 최근 모임</button>
+          <button type="button" class="sbtn" id="btnPick" hidden>👥 회원에서</button>
+        </div>
+        <label class="field tog" id="faceRow"><span>2명은 마주 보기 <small>폰을 가운데 두고 각자 자기 쪽을 누름</small></span><input type="checkbox" id="face"><i></i></label>
+      </div>
+
+      <button type="button" class="go" id="btnStart"><span>시작</span><svg viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z"/></svg></button>
+      <p class="foot">진행 중에는 화면이 꺼지지 않아요<span class="kb"> · <kbd>Space</kbd> 다음 · <kbd>P</kbd> 일시정지 · <kbd>Z</kbd> 되돌리기 · <kbd>1</kbd>~<kbd>8</kbd> 그 사람 차례</span></p>
+    </div>
+  </section>
+
+  <!-- 진행 (체스 클락 · 턴 타이머) -->
+  <section id="play" class="screen" aria-label="타이머 진행">
+    <div class="board" id="board"></div>
+    <div class="sr" id="live" aria-live="polite"></div>
+  </section>
+
+  <!-- 모래시계 -->
+  <section id="sand" class="screen" aria-label="모래시계">
+    <header class="hud">
+      <button class="ibtn glass" id="sandQuit" type="button" aria-label="닫기"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      <div class="pill glass" id="sandInfo"></div>
+      <button class="ibtn glass" id="sandSnd" type="button" aria-label="소리 켜기/끄기"></button>
+    </header>
+    <button type="button" class="glass-hg" id="hgBtn" aria-label="모래시계 뒤집기">
+      <svg id="hg" viewBox="0 0 200 320" aria-hidden="true">
+        <defs>
+          <clipPath id="hgTop"><path d="M40 34h120c0 46-36 70-56 120h-8C76 104 40 80 40 34z"/></clipPath>
+          <clipPath id="hgBot"><path d="M96 166h8c20 50 56 74 56 120H40c0-46 36-70 56-120z"/></clipPath>
+          <linearGradient id="hgGlass" x1="0" x2="1"><stop offset="0" stop-color="#fff" stop-opacity=".16"/><stop offset=".35" stop-color="#fff" stop-opacity=".04"/><stop offset="1" stop-color="#fff" stop-opacity=".1"/></linearGradient>
+          <linearGradient id="hgSand" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd8a8"/><stop offset="1" stop-color="#f59f00"/></linearGradient>
+          <linearGradient id="hgWood" x1="0" x2="1"><stop offset="0" stop-color="#8d5524"/><stop offset=".5" stop-color="#c68642"/><stop offset="1" stop-color="#8d5524"/></linearGradient>
+        </defs>
+        <g clip-path="url(#hgTop)"><rect id="sTop" x="30" y="154" width="140" height="0" fill="url(#hgSand)"/></g>
+        <g clip-path="url(#hgBot)"><path id="sBot" d="" fill="url(#hgSand)"/></g>
+        <rect id="sStream" x="98.6" y="150" width="2.8" height="136" fill="#f8b84e" opacity="0"/>
+        <path d="M40 34h120c0 46-36 70-56 120v12c20 50 56 74 56 120H40c0-46 36-70 56-120v-12C76 104 40 80 40 34z" fill="url(#hgGlass)" stroke="rgba(255,255,255,.55)" stroke-width="2.4"/>
+        <rect x="22" y="18" width="156" height="16" rx="6" fill="url(#hgWood)"/>
+        <rect x="22" y="286" width="156" height="16" rx="6" fill="url(#hgWood)"/>
+        <rect x="30" y="34" width="7" height="252" rx="3" fill="url(#hgWood)" opacity=".85"/>
+        <rect x="163" y="34" width="7" height="252" rx="3" fill="url(#hgWood)" opacity=".85"/>
+      </svg>
+    </button>
+    <div class="sand-time" id="sandTime" aria-live="off"></div>
+    <div class="sand-acts">
+      <button type="button" class="cbtn glass" id="sandReset">↺ 처음부터</button>
+      <button type="button" class="cbtn glass big" id="sandFlip">⇅ 뒤집기</button>
+      <button type="button" class="cbtn glass" id="sandPause">⏸ 멈춤</button>
+    </div>
+  </section>
+
+  <!-- 메뉴 · 시간 조정 -->
+  <div class="sheet-bg" id="menuBg" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="menuTitle">
+      <div class="grab"></div>
+      <h3 id="menuTitle">일시정지</h3>
+      <div class="mgrid">
+        <button type="button" class="mbtn" id="mResume"><i>▶</i>계속하기</button>
+        <button type="button" class="mbtn" id="mReverse"><i>⇄</i><span>순서 반대로</span></button>
+        <button type="button" class="mbtn" id="mSound"><i>🔊</i><span>소리</span></button>
+        <button type="button" class="mbtn" id="mHaptic"><i>📳</i><span>진동</span></button>
+      </div>
+      <div class="lab mt"><span>시간 조정 · 빠지기</span><small>멈춘 동안 바꿀 수 있어요</small></div>
+      <ul class="adj" id="adjList"></ul>
+      <div class="row acts">
+        <button type="button" class="sbtn" id="mQuit">기록 없이 나가기</button>
+        <button type="button" class="go sm danger" id="mEnd">🏁 게임 끝 · 결과 보기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 결과 -->
+  <div class="sheet-bg" id="resBg" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="resTitle">
+      <div class="grab"></div>
+      <div id="resCap">
+        <h3 id="resTitle">게임 결과</h3>
+        <div class="rsum" id="resSum"></div>
+        <ol class="rlist" id="resList"></ol>
+      </div>
+      <div class="row acts">
+        <button type="button" class="sbtn" id="btnCopy">📋 복사</button>
+        <button type="button" class="sbtn" id="btnImg" hidden>🖼 이미지</button>
+        <button type="button" class="sbtn" id="btnSetup">설정으로</button>
+        <button type="button" class="go sm" id="btnAgain">같은 설정으로 다시</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 회원 고르기 -->
+  <div class="sheet-bg" id="pickBg" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="pickTitle">
+      <div class="grab"></div>
+      <h3 id="pickTitle">회원에서 고르기 <small>최대 8명</small></h3>
+      <input id="pickQ" class="inp" type="search" placeholder="닉네임 검색 (초성 가능)" autocomplete="off">
+      <div class="chips" id="pickList"></div>
+      <div class="row acts">
+        <button type="button" class="sbtn" id="pickNone">모두 해제</button>
+        <button type="button" class="go sm" id="pickOk">넣기</button>
+      </div>
+    </div>
+  </div>
+  <div class="toast" id="toast" role="status"></div>
+</div>
+<script src="clock.js?v=1.0.0"></script>
+<script src="../fx.js?v=1"></script>
+<script src="app.js?v=1.0.0"></script>
+</body>
+</html>
