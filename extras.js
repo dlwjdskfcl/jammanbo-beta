@@ -12,13 +12,16 @@
     { id: 'tichu', href: ROOT + 'tichu/?reset', emoji: '🃏', name: '티츄', desc: '2 대 2 카드게임 · AI 연습', bg: 'linear-gradient(135deg,#fff4e6,#ffe8cc)', bgDark: 'linear-gradient(135deg,#3a2a12,#4a3315)' },
     { id: 'roulette', href: ROOT + 'roulette/?reset', emoji: '🎯', name: '순서 룰렛', desc: '구슬로 순서 · 당첨자 정하기', bg: 'linear-gradient(135deg,#e7f5ff,#dbe4ff)', bgDark: 'linear-gradient(135deg,#142447,#1d2f5e)' },
     { id: 'timer', href: ROOT + 'timer/?reset', emoji: '⏱️', name: '타이머', desc: '체스 클락 · 턴 타이머 · 모래시계', bg: 'linear-gradient(135deg,#fff0f6,#ffdeeb)', bgDark: 'linear-gradient(135deg,#3d1528,#4f1c34)' },
-    { id: 'sound', href: ROOT + 'sound/?reset', emoji: '🔊', name: '사운드보드', desc: '대회 · 머더미스터리 · 할로윈 BGM · 효과음', bg: 'linear-gradient(135deg,#fff9db,#ffec99)', bgDark: 'linear-gradient(135deg,#3b3010,#4a3c12)' },
+    // admin: 운영진 모드일 때만 보임 (아직 회원에게 공개 안 함 — 주소로는 열림)
+    { id: 'sound', admin: true, href: ROOT + 'sound/?reset', emoji: '🔊', name: '사운드보드', desc: '대회 · 머더미스터리 · 할로윈 BGM · 효과음', bg:'linear-gradient(135deg,#fff9db,#ffec99)', bgDark: 'linear-gradient(135deg,#3b3010,#4a3c12)' },
     { id: 'map', href: ROOT + 'map/?reset', emoji: '📍', name: '장소 지도', desc: '모임 장소 · 맛집 지도', bg: 'linear-gradient(135deg,#e6fcf5,#c3fae8)', bgDark: 'linear-gradient(135deg,#0f2f27,#134235)' },
     // ext: 외부 사이트 — 새 창으로 열고 ↗ 표시. 결과는 앱의 '내 기록 > 방탈출 탱쫄'에서 기록
     { id: 'tangzzol', ext: true, href: 'https://bangpot-tangzzol-test.vercel.app/test/tangzzol', emoji: '🚪', name: '방탈출 탱쫄 판별기', desc: '나는 탱일까 쫄일까? 20종 유형 테스트', bg: 'linear-gradient(135deg,#f3f0ff,#e5dbff)', bgDark: 'linear-gradient(135deg,#2a1f47,#36295e)' }
   ];
   function attrs(g) { return 'href="' + g.href + '" data-g="' + g.id + '"' + (g.ext ? ' target="_blank" rel="noopener"' : ''); }
-  function nm(g) { return g.name + (g.ext ? ' <span class="jmb-ext" aria-label="새 창">↗</span>' : ''); }
+  function nm(g) { return g.name + (g.ext ? ' <span class="jmb-ext" aria-label="새 창">↗</span>' : '') + (g.admin ? ' <span class="jmb-adm">운영진</span>' : ''); }
+  function isAdm() { return !!window.ADMIN_PW; }   // auth.js isAdmin() 과 같은 기준
+  function shown() { var a = isAdm(); return GAMES.filter(function (g) { return !g.admin || a; }); }
 
   // 글꼴: 늦게 와도 화면은 먼저 뜸 (시스템 글꼴로 보이다가 바뀜)
   if (!document.getElementById('jmbFont')) {
@@ -55,6 +58,7 @@
     '.jmb-mini-cards .jmb-tichu-card{margin:0;flex-direction:column;align-items:flex-start;gap:10px;position:relative}' +
     '.jmb-mini-cards .jmb-tichu-card .go{position:absolute;right:14px;top:14px}' +
     '.jmb-ext{font-size:.8em;opacity:.55;font-weight:600}' +
+    '.jmb-adm{display:inline-block;font-size:10.5px;font-weight:800;padding:0 6px;border-radius:999px;background:var(--surface2,#f2f4f7);color:var(--muted,#8b95a1);vertical-align:2px;letter-spacing:0}' +
     '.jmb-mini-cards .jmb-ext-card{grid-column:1/-1;flex-direction:row;align-items:center}' +
     '@media (max-width:360px){.jmb-mini-cards{grid-template-columns:1fr!important}.jmb-mini-cards .jmb-tichu-card{flex-direction:row;align-items:center}}' +
     '@media (prefers-color-scheme: dark){.jmb-mini-menu{box-shadow:0 12px 32px rgba(0,0,0,.55)}}' +
@@ -105,7 +109,7 @@
     menu = document.createElement('div');
     menu.className = 'jmb-mini-menu'; menu.setAttribute('role', 'menu'); menu.id = 'jmbMiniMenu';
     var dark = isDark();
-    menu.innerHTML = '<div class="hd">미니게임</div>' + GAMES.map(function (g) {
+    menu.innerHTML = '<div class="hd">미니게임</div>' + shown().map(function (g) {
       return '<a role="menuitem" ' + attrs(g) + '><span class="ic" style="background:' + (dark ? g.bgDark : g.bg) + '">' + g.emoji + '</span><span><b>' + nm(g) + '</b><small>' + g.desc + '</small></span></a>';
     }).join('');
     document.body.appendChild(menu);
@@ -176,15 +180,17 @@
     if (a2) { var c = a2.closest('.card'); if (c) c.style.display = 'none'; }
     if (typeof VIEW !== 'undefined' && VIEW !== 'home') return;
     var view = document.getElementById('view');
-    if (!view || document.getElementById('jmbMiniCards')) return;
+    if (!view) return;
+    var old = document.getElementById('jmbMiniCards'), adm = isAdm() ? '1' : '0';
+    if (old) { if (old.getAttribute('data-adm') === adm) return; old.parentNode.removeChild(old); }   // 운영진 모드가 바뀌면 다시 그림
     var tiles = view.querySelector('.tiles');
     var box = document.createElement('div');
-    box.id = 'jmbMiniCards'; box.className = 'jmb-mini-cards';
-    var n = GAMES.filter(function (g) { return !g.ext; }).length;   // 한 줄에 몇 칸: 혼자 남는 카드가 없게 (3·6개 → 3칸, 그 밖 → 2칸)
-    var cols = n % 3 === 0 ? 3 : n === 1 ? 1 : 2;
+    box.id = 'jmbMiniCards'; box.className = 'jmb-mini-cards'; box.setAttribute('data-adm', adm);
+    var list = shown(), n = list.filter(function (g) { return !g.ext; }).length;   // 한 줄에 몇 칸: 혼자 남는 카드가 적게 (1·2개 → 그대로, 4개 → 2칸, 그 밖 → 3칸)
+    var cols = n <= 2 ? n : n === 4 ? 2 : 3;
     box.className += ' c' + cols; box.style.setProperty('--cols', cols);
     var dark = isDark();
-    box.innerHTML = GAMES.map(function (g) {
+    box.innerHTML = list.map(function (g) {
       return '<a class="card jmb-tichu-card' + (g.ext ? ' jmb-ext-card' : '') + '" ' + attrs(g) + '><span class="ic" style="background:' + (dark ? g.bgDark : g.bg) + '">' + g.emoji + '</span><span class="tx"><b>' + nm(g) + '</b><small>' + g.desc + '</small></span><span class="go" aria-hidden="true">›</span></a>';
     }).join('');
     if (tiles && tiles.nextSibling) view.insertBefore(box, tiles.nextSibling);
@@ -204,4 +210,6 @@
     window.render = function () { var r = orig.apply(this, arguments); decorate(); return r; };
   }
   decorate();
+  // 운영진 로그인·로그아웃 뒤 홈 카드 다시 (화면 코드가 다시 그리지 않는 경우 대비)
+  if (window.JMB_AUTH && JMB_AUTH.onChange) JMB_AUTH.onChange(function () { setTimeout(decorate, 0); });
 })(window.JMB_ROOT || '/');
