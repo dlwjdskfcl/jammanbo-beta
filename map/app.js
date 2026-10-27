@@ -1,4 +1,4 @@
-/*! 잠만보 장소 지도 — 화면 v2.2.1
+/*! 잠만보 장소 지도 — 화면 v2.3.0
  * 서버: 잠만보 메인 Apps Script (Map.gs — mapList · mapSearch · mapSave · mapHide)
  * 지도: MapLibre GL (그리는 엔진) + OpenFreeMap (지도 그림, 키 없음), 안 되면 VersaTiles — 아래 STYLES 만 바꾸면 다른 지도로
  * 해외 검색: Photon (오타·부분 이름에 강함), 안 되면 Nominatim — 둘 다 키 없음. 국내는 카카오(서버)
@@ -11,7 +11,7 @@
  */
 (function () {
   'use strict';
-  var VER = '2.2.1';
+  var VER = '2.3.0';
   var C = window.MAPCORE;
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
@@ -247,7 +247,7 @@
   function itemHTML(p) {
     var cat = C.catOf(p.cat), v = visits(p);
     var d = p._me != null ? p._me : S.sort === 'near' ? p._d : null;
-    var sub = [d != null ? C.fmtDist(d) : '', p.region].filter(Boolean).join(' · ');
+    var sub = [d != null ? C.fmtDist(d) : '', C.shortAddr(p.addr, p.region) || p.region].filter(Boolean).join(' · ');
     return '<li class="item' + (p.id === S.sel ? ' on' : '') + '" data-id="' + esc(p.id) + '" tabindex="0">' +
       '<span class="em" style="--c:' + cat.color + '">' + cat.emoji + '</span>' +
       '<span class="it"><b>' + esc(p.name) + ' <em>' + esc(p.cat) + '</em>' + (p.vis === '회원' ? '<span class="lock" title="회원에게만 보여요">회원</span>' : '') + '</b><small>' + esc(sub) + '</small></span>' +
@@ -259,7 +259,9 @@
     $('cnt').textContent = S.loaded ? list.length + '곳' + (S.q || S.cat ? ' / ' + S.places.length : '') : '';
     if (!S.loaded) { el.innerHTML = '<li class="empty">불러오는 중…</li>'; return; }
     if (!list.length) {
-      el.innerHTML = '<li class="empty">' + (S.places.length ? '조건에 맞는 장소가 없어요' : '아직 등록된 장소가 없어요.<br>아래 <b>장소 추가</b>로 첫 장소를 올려 주세요!') + '</li>';
+      el.innerHTML = '<li class="empty">' + (!S.places.length ? '아직 등록된 장소가 없어요.<br>아래 <b>장소 추가</b>로 첫 장소를 올려 주세요!'
+        : S.q ? '‘' + esc(S.q) + '’ 은(는) 아직 지도에 없어요<br><button type="button" class="go addq" data-addq>새 장소로 등록하기</button>'
+        : '이 분류에는 아직 장소가 없어요') + '</li>';
       return;
     }
     el.innerHTML = list.slice(0, MAX_LIST).map(itemHTML).join('') +
@@ -297,7 +299,7 @@
     box.innerHTML = '<div class="detail">' +
       '<div class="dtop"><div class="dtt"><h2>' + esc(p.name) + '</h2><span class="dcat" style="--c:' + cat.color + '">' + cat.emoji + ' ' + esc(p.cat) + '</span>' +
         (p.vis === '회원' ? '<span class="lock">회원만</span>' : '') + '</div></div>' +
-      '<div class="dsub">' + esc([p.region, p.cc && p.cc !== 'KR' ? p.cc : ''].filter(Boolean).join(' · ')) +
+      '<div class="dsub">' + esc([p._me != null ? '내 위치에서 ' + C.fmtDist(p._me) : '', p.addr ? '' : p.region, p.cc && p.cc !== 'KR' ? p.cc : ''].filter(Boolean).join(' · ')) +
         (v ? '<div class="dvis"><span class="badge">모임 ' + v.count + '번</span> 마지막 ' + esc(v.last || '-') + '</div>' : '') + '</div>' +
       '<div class="acts">' + acts + '</div>' +
       (info ? '<ul class="dinfo">' + info + '</ul>' : '') +
@@ -461,7 +463,6 @@
     map.addControl(new maplibregl.AttributionControl({ compact: true }), W ? 'bottom-right' : 'bottom-left');
     if (W) map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
     map.addControl(btnCtl('lookBtn', ico(I.layers), '지도 모양', openLook), 'top-right');
-    map.addControl(btnCtl('viewBtn', VIEWS[look.view].name, '', function () { setView(VIEWS[look.view].next); }), 'top-right');
     map.addControl(geo, W ? 'top-right' : 'bottom-left');
     // 10초 안에 스타일도 못 받으면 다음 서버로 (스타일은 왔는데 그림 조각이 느린 건 기다림 — 느린 휴대폰에서 괜히 바꾸지 않게)
     loadTimer = setTimeout(function () { if (!styleOk) nextStyle(); }, 10000);
@@ -523,8 +524,6 @@
     });
   }
   function applyView(animate) {
-    var b = $('viewBtn');
-    if (b) { b.textContent = VIEWS[look.view].name; b.title = '보기: ' + VIEWS[look.view].name + ' (누르면 ' + VIEWS[VIEWS[look.view].next].name + ')'; b.setAttribute('aria-label', b.title); }
     if (!mapReady) return;
     var is3d = look.view === '3d', dur = animate && !reduce ? 600 : 0;
     flatBuildings(look.view === '2d');
@@ -590,7 +589,7 @@
           : '<i style="background:linear-gradient(135deg,#f8f4f0 0 50%,#1b1b1d 50%)"></i>';
         return '<button type="button" role="radio" aria-checked="' + (look.id === k.id) + '" data-look="' + k.id + '" class="' + (look.id === k.id ? 'on' : '') + '"' + (k.desc ? ' title="' + esc(k.desc) + '"' : '') + '>' + sw + '<b>' + esc(k.name) + '</b></button>';
       }).join('') + '</div>' +
-      '<div class="lab"><span>보기</span><small>지도 위 버튼으로도 바꿀 수 있어요</small></div><div class="seg">' +
+      '<div class="lab"><span>보기</span><small>3D 는 두 손가락으로 기울이고 돌려요</small></div><div class="seg">' +
         Object.keys(VIEWS).map(function (v) { return '<button type="button" data-view="' + v + '" class="' + (look.view === v ? 'on' : '') + '">' + VIEWS[v].name + '</button>'; }).join('') + '</div>' +
       '<div class="lab"><span>주변 시설 아이콘</span><small>가게 · 카페 등, 누르면 정보 (역은 늘 보여요)</small></div><div class="seg">' +
         Object.keys(POI).map(function (v) { return '<button type="button" data-poi="' + v + '" class="' + (look.poi === v ? 'on' : '') + '">' + POI[v] + '</button>'; }).join('') + '</div>' +
@@ -1079,7 +1078,10 @@
     $('cats').onclick = function (e) { var b = e.target.closest('[data-cat]'); if (!b) return; S.cat = b.getAttribute('data-cat'); apply(); if (mapReady && S.view.length) fitAll(); };
     $('sort').value = S.sort;
     $('sort').onchange = function () { S.sort = this.value; lsSet(LS.sort, S.sort); S.view = filtered(); renderList(); };
-    $('list').addEventListener('click', function (e) { var li = e.target.closest('.item'); if (li) select(li.getAttribute('data-id'), { fly: true }); });
+    $('list').addEventListener('click', function (e) {
+      if (e.target.closest('[data-addq]')) { openEditor({ name: S.q }); return; }
+      var li = e.target.closest('.item'); if (li) select(li.getAttribute('data-id'), { fly: true });
+    });
     $('list').addEventListener('keydown', function (e) { var li = e.target.closest('.item'); if (li && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); select(li.getAttribute('data-id'), { fly: true }); } });
     $('detail').addEventListener('click', function (e) {
       var b = e.target.closest('[data-act]'), p = S.byId[S.sel];

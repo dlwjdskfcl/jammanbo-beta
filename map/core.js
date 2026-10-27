@@ -122,6 +122,11 @@
 
   // 지번주소 "경기 안양시 동안구 호계동 1039" → "경기 안양시"
   function regionOf(addr) { return text(addr).split(' ').slice(0, 2).join(' '); }
+  // 목록용 짧은 주소: 앞의 지역(시·도 시·군)을 뺌 "경기 안양시 동안구 평촌대로 36" → "동안구 평촌대로 36"
+  function shortAddr(addr, region) {
+    var a = text(addr), r = text(region) || regionOf(a);
+    return r && a.indexOf(r + ' ') === 0 ? a.slice(r.length + 1) : a;
+  }
 
   /* ---------- 입력 확인 (서버 Map.js 에서 같은 규칙으로 다시 확인) ---------- */
   var BAD = /^(__proto__|constructor|prototype|hasOwnProperty|toString|valueOf)$/;
@@ -261,7 +266,7 @@
     CATS: CATS, COLS: COLS, catOf: catOf, defaultVis: defaultVis,
     text: text, norm: norm, splitList: splitList, chosung: chosung, matches: matches, similarity: similarity,
     okLat: okLat, okLng: okLng, round6: round6, wrapLng: wrapLng, distance: distance, fmtDist: fmtDist,
-    toFeature: toFeature, toGeoJSON: toGeoJSON, unpack: unpack, fromKakaoCat: fromKakaoCat, regionOf: regionOf,
+    toFeature: toFeature, toGeoJSON: toGeoJSON, unpack: unpack, fromKakaoCat: fromKakaoCat, regionOf: regionOf, shortAddr: shortAddr,
     validate: validate, findDuplicates: findDuplicates,
     placeNames: placeNames, meetingStats: meetingStats, aliasSuggestions: aliasSuggestions,
     safeUrl: safeUrl, links: links, debounce: debounce
