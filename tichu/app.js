@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.10.3';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.10.4';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
   var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay';
@@ -863,7 +863,7 @@
       wx(5, ['J3', 'S4', 'P5', 'T6', 'J7'], ['J6', 'S7', 'P8', 'T9', 'J11', 'S12', 'P13', 'PH'], true, '10 이 없지만 <b>봉황을 10 으로</b> 쓰면 7·8·9·봉황·J 로 이길 수 있어요 → 내야 해요.') +
       wx(6, ['J3', 'S4', 'P5', 'T6', 'J7'], ['J6', 'S7', 'P8', 'T10', 'J11', 'S12', 'P13', 'PH'], false, '손에 <b>9 가 없어요.</b> 봉황으로 9 자리를 채울 수는 있지만 봉황은 9 로 치지 않아요.') +
       wx(7, ['J3', 'S4', 'P5', 'T6', 'J7'], ['T9', 'S12', 'P13', 'J14', 'PH', 'J2'], false, '9 는 있지만 10 과 J 가 둘 다 비어서 봉황 한 장으로는 스트레이트를 못 이어요.') +
-      wx(8, null, ['T9', 'J3', 'S12'], true, '내가 선이에요. 9 가 들어간 조합으로 시작해야 해요 (싱글 9 도, 9 페어도 OK).') +
+      wx(8, null, ['T9', 'J9', 'J3', 'S12'], true, '내가 선이에요. 9 가 들어간 조합으로 시작해야 해요 (싱글 9 도, 9 페어도 OK).') +
       '<h3>잠만보 티츄에서는</h3><ul><li>턴 시간을 넘기면 자동으로 진행돼요(낼 의무가 없으면 패스). ‘돌아왔어요’를 누르면 다시 직접 해요.</li>' +
       '<li>게임 중 나가면 봇이 대신하고, 그 판은 전적에 들어가지 않아요.</li><li>레이팅은 사람 4명이 끝까지 한 게임만 반영돼요.</li><li>라운드 중에는 각자 따간 점수가 보이지 않아요. 라운드가 끝나면 결과에서 확인해요.</li><li>판을 끝낼 때마다 경험치가 쌓여 레벨·칭호가 오르고, 조건을 채우면 배지를 받아요 (내 전적 탭).</li></ul>' +
       '<h3>🔎 참새 콜 — 특수 상황</h3><p class="small" style="margin-top:0">자주 나오진 않지만 헷갈리는 경우예요.</p><ul class="wish-special">' +
