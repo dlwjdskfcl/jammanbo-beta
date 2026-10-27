@@ -121,9 +121,7 @@ h2 .sub{font-size:13px;font-weight:500;color:var(--muted)}
 .card.today .today-t b{color:#fff}
 @media (prefers-color-scheme: dark){.card.today{background:linear-gradient(135deg,#1e2763 0%,#2f46a8 60%,#4560d6 100%);box-shadow:none}}
 /* 오늘의 추천 안 실시간 검색어: 파란 바탕이라 강조색을 밝게 */
-.card.today .trend-n.top,.card.today .trend-d.up,.card.today .trend-d.new{color:#ffd84d}
-.card.today .trend-d.down{color:#b8ccff}
-.card.today .trend-tabs button.on{background:rgba(255,255,255,.2)}
+.card.today .trend-n.top{color:#ffd84d}
 
 /* 6. 목록·표·차트 --------------------------------------------------------- */
 .list{overflow:hidden}
