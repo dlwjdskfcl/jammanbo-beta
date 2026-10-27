@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.11.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.11.1';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
   var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay';
@@ -1264,7 +1264,7 @@
       if (v.url && !/^https:\/\//.test(v.url)) { $('#adErr').textContent = '링크는 https:// 로 시작해야 해요'; return; }
       btn.disabled = true;
       api('setAd', v).then(function (r) { S.ad = r.ad || null; closeModal(); toast(v.t ? '광고를 저장했어요 (다른 사람에게는 최대 5분 뒤)' : '광고를 껐어요'); if (S.route.name === 'lobby') renderLobby(); },
-        function (e) { btn.disabled = false; $('#adErr').textContent = e.message; });
+        function (e) { btn.disabled = false; var er = $('#adErr'); if (er) er.textContent = e.message; else toast(e.message, true); });   // 그 사이 창을 닫았으면 알림으로
     };
     $('#adSave').onclick = function () { save(val(), this); };
     var off = $('#adOff'); if (off) off.onclick = function () { if (confirm('광고를 끌까요?')) save({ t: '', url: '', until: '' }, off); };
