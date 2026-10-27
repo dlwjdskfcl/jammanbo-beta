@@ -6,7 +6,8 @@
  *  비밀 값은 넣지 마세요 (토큰 서명 키는 Apps Script 스크립트 속성에만 있음)
  */
 var TICHU_API_PROD = 'https://script.google.com/macros/s/AKfycbzMLG2RxrxIlhT3aTYARhxGyfzINky2HGRlEmYIsku4EegWU8YDWHDSh_FXLPy6Ac4alQ/exec';
-var TICHU_API_BETA = 'https://script.google.com/macros/s/AKfycbwkad_b4Z1NxUu0lFshQFX-ngzSOf3zjpBP3DZylXF2dDctVAVDgq_vyTG8GvxtVCJWyw/exec';
+var TICHU_RT_BETA = 'https://tichu-rt-beta.dlwjd.workers.dev';   // 실시간 서버 실험 (3_서버_AppsScript/tichu_rt)
+var TICHU_API_BETA ='https://script.google.com/macros/s/AKfycbwkad_b4Z1NxUu0lFshQFX-ngzSOf3zjpBP3DZylXF2dDctVAVDgq_vyTG8GvxtVCJWyw/exec';
 
 (function () {
   var main = window.JMB_CONFIG || {};
@@ -17,6 +18,7 @@ var TICHU_API_BETA = 'https://script.google.com/macros/s/AKfycbwkad_b4Z1NxUu0lFs
     version: '1.0.0',
     env: env,
     api: api,
+    rt: env === 'prod' ? '' : TICHU_RT_BETA,   // 실시간 서버(Cloudflare) 실험 — 테스트·내 PC 에서만 '⚡ 빠른 연습' 버튼
     kakaoRestKey: main.kakaoRestKey || '',
     mainApi: main.api || ''
   };
