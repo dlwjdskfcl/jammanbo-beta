@@ -1,4 +1,5 @@
-/* 잠만보 서비스 워커 v2.5 — 재방문을 빠르게 (안전하게)
+/* 잠만보 서비스 워커 v2.6 — 재방문을 빠르게 (안전하게)
+ * - v2.6: 장소 지도(map/) 추가 → SKIP_DIRS
  * - v2.5: 미니게임 순서 룰렛(roulette/) 추가 → SKIP_DIRS
  * - v2.4: v2.3 두 갈래 합침 (범위별 캐시 + 미니게임 폴더 제외). 미니게임 폴더는 아래 SKIP_DIRS 에 한 줄씩 추가
  * - v2.3a: 운영(/jammanbo/)과 테스트(/jammanbo-beta/)가 같은 github.io 출처라 캐시 저장소를 같이 씀
@@ -11,9 +12,9 @@
  * - Apps Script·카카오(다른 출처)와 로그인 복귀(?code=…)·초기화(?reset)는 건드리지 않음
  */
 var SCOPE = new URL(self.registration.scope).pathname;   // '/jammanbo/' 또는 '/jammanbo-beta/'
-var CACHE = 'jmb-static-v2.5:' + SCOPE;
+var CACHE = 'jmb-static-v2.6:' + SCOPE;
 // 미니게임 등 따로 동작하는 하위 폴더 (앱 첫 화면으로 바꿔치기하지 않음). 새 게임을 만들면 여기에 '폴더이름/' 추가
-var SKIP_DIRS = ['tichu/', 'roulette/'];
+var SKIP_DIRS = ['tichu/', 'roulette/', 'map/'];
 // 이 범위의 옛 캐시인지: 'jmb-static-…:범위' 형식이거나, 범위 표시가 없던 예전 이름(운영에서만 쓰던 것)
 function isMineOld(k) {
   if (k === CACHE || k.indexOf('jmb-static-') !== 0) return false;

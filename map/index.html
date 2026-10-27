@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<!-- 보안: 이 페이지가 불러오거나 접속할 수 있는 곳을 정함 (지도·검색 서버를 바꾸면 여기도) -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://cdn.jsdelivr.net data:; img-src 'self' data: blob: https:; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://tiles.openfreemap.org https://tiles.versatiles.org https://photon.komoot.io https://nominatim.openstreetmap.org; worker-src blob:; child-src blob:; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>잠만보 장소 지도</title>
+<meta name="description" content="잠만보 모임 장소 · 맛집 지도">
+<meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1014" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="장소 지도">
+<link rel="icon" type="image/png" href="../icon-192.png">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<link rel="preconnect" href="https://script.google.com" crossorigin>
+<link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
+<link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" integrity="sha384-GIdEBaqGN9mNkDkMkzMHW8EKUqtpPIe/sLj1X7DIrnc9uPtLROJgmuDlh+3rBw0j" crossorigin="anonymous">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css" integrity="sha384-MinO0mNliZ3vwppuPOUnGa+iq619pfMhLVUXfC4LHwSCvF9H+6P/KO4Q7qBOYV5V" crossorigin="anonymous">
+<link rel="stylesheet" href="style.css?v=2.2.0">
+</head>
+<body>
+<div id="app">
+  <div id="map" role="application" aria-label="장소 지도"></div>
+  <div id="mapFallback" hidden><b>지도를 불러오지 못했어요</b><span id="mapFallbackMsg"></span><button type="button" class="sbtn" id="mapRetry">다시 시도</button></div>
+
+  <div class="top" id="top">
+    <div class="bar">
+      <a class="ibtn" id="homeLink" href="../" aria-label="잠만보로"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></a>
+      <div class="q">
+        <label class="sr" for="q">장소 찾기</label>
+        <svg class="qi" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>
+        <input id="q" type="search" enterkeyhint="search" autocomplete="off" placeholder="장소·별칭·지역 (초성 가능)">
+        <button type="button" class="x" id="qClear" aria-label="검색어 지우기" hidden>✕</button>
+      </div>
+      <button type="button" class="acct" id="acct">로그인</button>
+    </div>
+    <div class="chips" id="cats" role="toolbar" aria-label="분류"></div>
+  </div>
+
+  <section class="sheet" id="sheet" aria-label="장소 목록">
+    <div class="grab" id="grab" role="button" tabindex="0" aria-label="목록 펼치기/접기"><i></i></div>
+    <div class="shead" id="shead">
+      <button type="button" class="back" id="selBack"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>목록</button>
+      <b>모임 장소</b><span class="cnt" id="cnt"></span><span class="sp"></span>
+      <label class="sr" for="sort">정렬</label>
+      <select class="sort" id="sort">
+        <option value="visits">모임 많은 순</option>
+        <option value="near">지도 가운데서 가까운 순</option>
+        <option value="recent">최근 등록 순</option>
+        <option value="name">이름 순</option>
+      </select>
+    </div>
+    <div class="sbody" id="sbody">
+      <div id="detail"></div>
+      <details class="todo" id="todo" hidden><summary id="todoSum"></summary><p>모임 기록에 있는데 지도에는 없는 곳이에요. 눌러서 바로 등록할 수 있어요.</p><div id="todoList"></div></details>
+      <ul class="list" id="list" aria-live="polite"></ul>
+    </div>
+  </section>
+  <button type="button" class="go fab" id="fab"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>장소 추가</button>
+
+  <div class="pickpin" id="pickPin" hidden aria-hidden="true">📍</div>
+  <div class="pickbar" id="pickBar" hidden>
+    <p>지도를 움직여 📍 를 장소에 맞춰 주세요</p>
+    <div class="row"><button type="button" class="sbtn" id="pickCancel">취소</button><button type="button" class="go" id="pickOk">이 위치로</button></div>
+  </div>
+  <div class="banner" id="banner" role="status" hidden></div>
+</div>
+<div id="modal"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<noscript><p style="padding:24px">자바스크립트를 켜야 이용할 수 있어요.</p></noscript>
+<script src="../config.js"></script>
+<script src="core.js?v=2.2.0"></script>
+<script src="app.js?v=2.2.0"></script>
+</body>
+</html>
