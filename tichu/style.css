@@ -63,6 +63,16 @@ a { color: var(--gold2); }
 .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); font-size: 13px; font-weight: 600; }
 .content { flex: 1; padding: 14px 16px 90px; display: flex; flex-direction: column; gap: 14px; }
 .notice { background: rgba(245,179,1,.1); border: 1px solid rgba(245,179,1,.35); color: var(--gold2); padding: 10px 12px; border-radius: 12px; font-size: 14px; }
+/* 대회 광고 */
+.ad { display: flex; align-items: center; gap: 10px; padding: 11px 14px; margin: 10px 0; border-radius: 14px; text-decoration: none; color: #fff7dc;
+  background: linear-gradient(135deg, rgba(240,192,64,.28), rgba(214,51,108,.22)); border: 1px solid rgba(240,192,64,.55); box-shadow: 0 4px 14px rgba(0,0,0,.25); }
+.ad .ad-ic { font-size: 20px; flex: none; }
+.ad .ad-t { flex: 1; min-width: 0; font-weight: 800; font-size: 14.5px; line-height: 1.4; word-break: keep-all; }
+.ad .ad-go { flex: none; font-size: 12.5px; font-weight: 700; color: var(--gold2); white-space: nowrap; }
+a.ad:active { transform: scale(.99); }
+.ad.ad-chat { margin: 0 0 8px; padding: 8px 12px; border-radius: 12px; box-shadow: none; }
+.ad.ad-chat .ad-t { font-size: 13.5px; }
+.ad.ad-result { margin: 4px 0 10px; }
 .cta { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .cta .btn { min-height: 64px; flex-direction: column; gap: 2px; border-radius: 16px; }
 .cta .btn small { font-weight: 500; opacity: .75; font-size: 12px; }

@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.10.4';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.11.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
   var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay';
@@ -13,7 +13,7 @@
   var app = document.getElementById('app'), modalEl = document.getElementById('modal'), toastsEl = document.getElementById('toasts');
 
   var S = {
-    token: null, user: null, route: { name: 'boot' }, lobby: null, rank: null, rec: null, notice: '',
+    token: null, user: null, route: { name: 'boot' }, lobby: null, rank: null, rec: null, notice: '', ad: null,
     room: null, roomId: null, roomPw: '', sel: [], exch: [null, null, null], exSlot: 0, exRound: 0,
     lastSeq: 0, seqMatch: '', polling: false, pollSeq: 0, optim: null, backAt: 0, guard: false, lastChat: 0, unread: 0, offset: 0, busy: false, pollT: 0, lobbyT: 0,
     modal: null, resultShown: '', recvShown: '', sound: lsGet(LS_SOUND) !== '0', voice: lsGet(LS_VOICE) !== '0', sv: '', hintI: -1, chatOpen: false, flash: {}
@@ -308,6 +308,7 @@
         return;
       }
       if (j.push) { if (S.roomId === j.push.id && S.route.name === 'room') { netOk(); applyRoom(j.push); } return; }
+      if (j.ad !== undefined) S.ad = j.ad;   // 방 입장 응답의 대회 광고
       var w = RT.wait[j.re];
       if (!w) return;
       delete RT.wait[j.re];
@@ -365,7 +366,7 @@
       if (j.now) S.offset = j.now - Date.now();
       if (j.e) { var e = rtErr(j); if (S.route.name === 'lobby') toast(e.message, true); return; }
       if (!j.lobby) return;
-      S.lobby = j.lobby.rooms; S.notice = j.lobby.notice || '';
+      S.lobby = j.lobby.rooms; S.notice = j.lobby.notice || ''; S.ad = j.lobby.ad || null;
       if (S.route.name === 'lobby' && !S.modal) renderLobby();
       if (LB.manual) { LB.manual = false; toast('새로고침했어요'); }
     };
@@ -525,6 +526,7 @@
     var mc = $('#meChip'); if (mc) mc.onclick = accountMenu;
     var bc = $('#bCreate'); if (bc) bc.onclick = createRoomSheet;
     var bp = $('#bPractice'); if (bp) bp.onclick = function () { practice(bp); };    var br = $('#bRefresh'); if (br) br.onclick = function () { loadLobby(true); };
+    var bad = $('#bAd'); if (bad) bad.onclick = openAdEditor;
     $$('[data-rsort]').forEach(function (b) { b.onclick = function () { S.rankSort = b.getAttribute('data-rsort'); renderLobby(); }; });
     $$('[data-pname]').forEach(function (b) { b.onclick = function () { openProfile(b.getAttribute('data-pname')); }; });
     $$('[data-join]').forEach(function (b) { b.onclick = function () { S.roomPw = ''; joinRoom(b.getAttribute('data-join'), b.getAttribute('data-lock') === '1'); }; });
@@ -559,7 +561,7 @@
   function loadLobby(manual) {
     if (CFG.rt) return rtLobby(manual);
     api('lobby').then(function (r) {
-      S.lobby = r.rooms; S.notice = r.notice || ''; if (r.user) S.user = r.user;
+      S.lobby = r.rooms; S.notice = r.notice || ''; S.ad = r.ad || null; if (r.user) S.user = r.user;
       if (S.route.name === 'lobby' && !S.modal) renderLobby();
       if (manual) toast('새로고침했어요');
     }, function (e) { if (S.route.name === 'lobby') toast(e.message, true); });
@@ -571,6 +573,8 @@
   function lobbyBody() {
     var h = '';
     if (S.notice) h += '<div class="notice">📢 ' + esc(S.notice) + '</div>';
+    h += adHTML('ad-lobby');
+    if (S.user && S.user.admin) h += '<div style="text-align:right;margin:-2px 0 8px"><button class="btn sm ghost" id="bAd">📣 대회 광고 ' + (adNow() ? '바꾸기' : '만들기') + '</button></div>';
     h += '<div class="cta"><button class="btn primary" id="bPractice">🤖 AI와 연습<small>봇 3명과 바로 시작</small></button>' +
       '<button class="btn" id="bCreate">＋ 방 만들기<small>친구들과 2 대 2</small></button></div>';
     h += '<div class="sec-title"><span>열린 방</span><button class="btn sm ghost" id="bRefresh">↻ 새로고침</button></div>';
@@ -1124,7 +1128,7 @@
         '<button class="btn block" id="wShuffle" ' + (r.seats.filter(Boolean).length < 2 ? 'disabled' : '') + '>🎲 랜덤 팀</button><button class="btn block" id="wOpt">방 설정</button></div>'
         : me >= 0 ? '<div class="empty" style="padding:14px">방장(' + esc(r.hostName) + ')이 시작하기를 기다리는 중…</div>' : '<div class="empty" style="padding:14px">관전 중이에요. 빈자리를 눌러 앉을 수 있어요.</div>') +
       '<div style="display:flex;gap:8px"><button class="btn block" id="wInvite">🔗 초대 링크 복사</button>' + (me >= 0 ? '<button class="btn danger block" id="wLeave">나가기</button>' : '') + '</div>' +
-      '<div class="sec-title">채팅</div><div class="chatlist" id="wChatList">' + chatItems(r.chat.slice(-8)) + '</div>' +
+      '<div class="sec-title">채팅</div>' + adHTML('ad-chat') + '<div class="chatlist" id="wChatList">' + chatItems(r.chat.slice(-8)) + '</div>' +
       '<form class="chatform" id="wChatForm"><input class="input" id="wMsg" maxlength="100" placeholder="메시지" autocomplete="off"><button class="btn" type="submit">보내기</button></form>' +
       '</div></div>';
     var focused = document.activeElement && document.activeElement.id === 'wMsg', val = focused ? $('#wMsg').value : '';
@@ -1234,10 +1238,41 @@
       return '<div class="m' + (c.pending ? ' pending' : '') + '"><b class="' + cls + '">' + esc(c.n) + '</b>' + esc(c.m) + '</div>';
     }).join('') || '<div class="m sys">아직 메시지가 없어요</div>';
   }
+  /* ----- 대회 광고 (티츄 설정 '광고' · '광고링크' · '광고마감' — 운영진이 로비의 📣 버튼으로 바꿈) ----- */
+  function kstToday() { return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); }
+  function adNow() { var a = S.ad; return a && a.t && !(a.until && a.until < kstToday()) ? a : null; }   // 마감 지나면 바로 숨김 (서버 반영 전에도)
+  function adHTML(cls) {
+    var a = adNow(); if (!a) return '';
+    var body = '<span class="ad-ic" aria-hidden="true">📣</span><span class="ad-t">' + esc(a.t) + '</span>' + (a.url ? '<span class="ad-go">자세히 ›</span>' : '');
+    return /^https:\/\//.test(a.url || '') ? '<a class="ad ' + cls + '" href="' + esc(a.url) + '" target="_blank" rel="noopener noreferrer">' + body + '</a>'
+      : '<div class="ad ' + cls + '">' + body + '</div>';
+  }
+  function openAdEditor() {
+    var a = S.ad || {};
+    openModal('<h2>📣 대회 광고<button class="x" data-x>✕</button></h2>' +
+      '<p class="small" style="margin-top:0">로비 · 채팅창 맨 위 · 라운드 결과에 보여요. 다른 사람 화면에는 <b>최대 5분 뒤</b>에 바뀌어요.</p>' +
+      '<label class="small" for="adT">문구 (80자까지)</label><input class="input" id="adT" maxlength="80" placeholder="예) 🏆 11/15(토) 잠만보 티츄 대회! 참가 신청 받아요" value="' + esc(a.t || '') + '">' +
+      '<label class="small" for="adU" style="display:block;margin-top:10px">링크 (선택 · https:// 로 시작)</label><input class="input" id="adU" maxlength="300" inputmode="url" placeholder="https://open.kakao.com/…" value="' + esc(a.url || '') + '">' +
+      '<label class="small" for="adD" style="display:block;margin-top:10px">마감일 (선택 · 지나면 저절로 숨겨져요)</label><input class="input" id="adD" type="date" value="' + esc(a.until || '') + '">' +
+      '<div class="small" style="margin-top:12px">미리보기</div><div id="adPrev"></div><div class="err" id="adErr"></div>' +
+      '<div style="display:flex;gap:8px;margin-top:12px">' + (a.t ? '<button class="btn danger block" id="adOff">광고 끄기</button>' : '') + '<button class="btn primary block" id="adSave">저장</button></div>');
+    var val = function () { return { t: $('#adT').value.trim(), url: $('#adU').value.trim(), until: $('#adD').value }; };
+    var prev = function () { var v = val(), keep = S.ad; S.ad = v.t ? v : null; $('#adPrev').innerHTML = adHTML('ad-lobby') || '<div class="small" style="opacity:.7">(문구가 없거나 마감일이 지났어요)</div>'; S.ad = keep; };
+    ['#adT', '#adU', '#adD'].forEach(function (id) { $(id).oninput = prev; });
+    prev();
+    var save = function (v, btn) {
+      if (v.url && !/^https:\/\//.test(v.url)) { $('#adErr').textContent = '링크는 https:// 로 시작해야 해요'; return; }
+      btn.disabled = true;
+      api('setAd', v).then(function (r) { S.ad = r.ad || null; closeModal(); toast(v.t ? '광고를 저장했어요 (다른 사람에게는 최대 5분 뒤)' : '광고를 껐어요'); if (S.route.name === 'lobby') renderLobby(); },
+        function (e) { btn.disabled = false; $('#adErr').textContent = e.message; });
+    };
+    $('#adSave').onclick = function () { save(val(), this); };
+    var off = $('#adOff'); if (off) off.onclick = function () { if (confirm('광고를 끌까요?')) save({ t: '', url: '', until: '' }, off); };
+  }
   var QUICK = ['좋아요 👍', '나이스! 👏', '미안해요 🙏', 'ㅋㅋㅋ', '티츄 화이팅!', '폭탄 조심 💣', '잠깐만요', '한 판 더?'];
   function openChat() {
     S.chatOpen = true; S.unread = 0;
-    openModal('<h2>채팅<button class="x" data-x>✕</button></h2><div class="chatlist" id="cl"></div>' +
+    openModal('<h2>채팅<button class="x" data-x>✕</button></h2>' + adHTML('ad-chat') + '<div class="chatlist" id="cl"></div>' +
       '<div class="quick">' + QUICK.map(function (q) { return '<button data-q="' + esc(q) + '">' + esc(q) + '</button>'; }).join('') + '</div>' +
       '<form class="chatform" id="cf"><input class="input" id="cm" maxlength="100" placeholder="메시지" autocomplete="off"><button class="btn primary" type="submit">보내기</button></form>',
       function () { S.chatOpen = false; render(); });
@@ -1724,6 +1759,7 @@
       html += '<div class="big-win"><div class="t" style="color:' + (r.me < 0 ? 'var(--gold2)' : won ? '#86efac' : '#fda4af') + '">' + (r.me < 0 ? (g.winner === 0 ? 'A팀 승리' : 'B팀 승리') : won ? '🎉 우리 팀 승리!' : '아쉽게 졌어요') + '</div>' +
         '<div class="s"><span class="' + (us ? 'tB' : 'tA') + '">' + g.scores[us] + '</span> : <span class="' + (us ? 'tA' : 'tB') + '">' + g.scores[them] + '</span></div><div class="small">' + g.round + '라운드 · 목표 ' + g.target + '점</div></div>';
     }
+    html += adHTML('ad-result');
     if (h.dbl) html += '<div class="notice" style="text-align:center">🎊 원투! ' + esc(seatName(h.out[0])) + ' · ' + esc(seatName(h.out[1])) + ' 팀 +200</div>';
     html += '<div class="order">' + order.map(function (s, i) {
       var call = h.calls.filter(function (c) { return c.s === s; })[0];
