@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.11.1';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.11.2';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
   var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay';
@@ -506,7 +506,7 @@
   /* ================= 로비 ================= */
   function header() {
     return '<div class="hdr"><div class="title"><span class="logo-mark">T</span>잠만보 티츄</div>' +
-      '<button class="chip" id="meChip">' + (S.user ? lvTag(rankOf(S.user.name)) + ' ' : '') + esc(S.user ? S.user.name : '') + ' ▾</button></div>';
+      '<button class="chip" id="meChip">' + (S.user ? lvTag(rankOf(S.user.name)) + ' ' : '') + esc(S.user ? S.user.name : '') + (S.user && S.user.admin ? ' <span class="adm">운영진</span>' : '') + ' ▾</button></div>';
   }
   function tabbar(on) {
     var t = [['lobby', '#/', '🃏', '방 목록'], ['rank', '#/rank', '🏆', '랭킹'], ['me', '#/me', '📊', '내 전적'], ['rules', '#/rules', '📖', '규칙']];
@@ -534,7 +534,9 @@
   }
   function accountMenu() {
     openModal('<h2>' + esc(S.user.name) + '<button class="x" data-x>✕</button></h2>' +
-      '<div class="small">' + esc(S.user.kind) + ' 계정' + (CFG.env !== 'prod' ? ' · ' + esc(CFG.env) + ' 환경' : '') + '</div>' +
+      '<div class="small">' + (S.user.admin ? '<span class="adm">운영진</span> ' : '') + esc(S.user.admin ? '운영진' : S.user.kind) + ' 계정' + (CFG.env !== 'prod' ? ' · ' + esc(CFG.env) + ' 환경' : '') + '</div>' +
+      (S.user.admin ? '<div class="adm-box"><b>운영진이 할 수 있는 것</b><ul><li>📣 대회 광고 만들기·바꾸기 (방 목록 위)</li><li>어떤 방이든 방 메뉴(≡)에서 ‘운영진: 방 닫기’</li><li>점검 중에도 들어오기</li></ul>' +
+        '<div class="small">잠만보 운영진 계정이면 카카오 로그인 때 자동으로 운영진이 돼요.</div></div>' : '') +
       soundRows() +
       '<div class="menu-list">' +
       '<a class="btn block" href="' + ROOT + '">잠만보 홈으로</a>' +
@@ -1838,9 +1840,18 @@
     if (!window.TE) { app.innerHTML = '<div class="boot">엔진 파일(engine.js)을 불러오지 못했어요</div>'; return; }
     kakaoInAppNotice();
     var t = lsGet(LS_TOKEN), info = t && tokenInfo(t);
-    if (info && info.x > Date.now()) { S.token = t; S.user = { uid: info.u, name: info.n, kind: info.k, admin: info.k === '운영진' }; return route(); }
-    lsSet(LS_TOKEN, null);
     var ks = kakaoSession();
+    if (info && info.x > Date.now()) {
+      S.token = t; S.user = { uid: info.u, name: info.n, kind: info.k, admin: info.k === '운영진' };
+      var syncKey = 'tichu_admsync' + ENV_SFX, mainAdm = !!(ks && ks.user && ks.user.admin);
+      // 잠만보에서 운영진이 됐거나 빠졌는데 티츄 토큰은 예전 것 → 카카오로 한 번 다시 받음 (안 맞아도 이 탭에서 한 번만)
+      if (ks && /^k:/.test(info.u) && mainAdm !== S.user.admin && !sessionStorage.getItem(syncKey)) {
+        try { sessionStorage.setItem(syncKey, '1'); } catch (e) {}
+        return api('loginKakao', { token: ks.token }).then(function (r) { setLogin(r); if (r.user.admin) toast('운영진으로 들어왔어요'); route(); }, function () { route(); });
+      }
+      return route();
+    }
+    lsSet(LS_TOKEN, null);
     if (ks && ks.user && ks.user.nickname && lsGet(LS_NOAUTO) !== '1') { renderLogin(); var kg = $('#kGo'); return loginKakao(kg); }
     renderLogin();
   }
