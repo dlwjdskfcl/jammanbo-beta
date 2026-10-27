@@ -1,4 +1,4 @@
-/*! 잠만보 장소 지도 — 화면 v2.3.0
+/*! 잠만보 장소 지도 — 화면 v2.3.1
  * 서버: 잠만보 메인 Apps Script (Map.gs — mapList · mapSearch · mapSave · mapHide)
  * 지도: MapLibre GL (그리는 엔진) + OpenFreeMap (지도 그림, 키 없음), 안 되면 VersaTiles — 아래 STYLES 만 바꾸면 다른 지도로
  * 해외 검색: Photon (오타·부분 이름에 강함), 안 되면 Nominatim — 둘 다 키 없음. 국내는 카카오(서버)
@@ -11,7 +11,7 @@
  */
 (function () {
   'use strict';
-  var VER = '2.3.0';
+  var VER = '2.3.1';
   var C = window.MAPCORE;
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
@@ -42,7 +42,9 @@
   // 주변 시설(가게·카페 등 OpenStreetMap 아이콘): 가까이서만 = 많이 확대했을 때만 (멀리서는 우리 장소 핀이 잘 보이게)
   var POI = { off: '숨기기', near: '가까이서만', on: '늘 보이기' }, POI_NEAR = 16;
   var FX = { b: [60, 140, '밝기'], s: [0, 200, '색 진하기'], c: [60, 150, '대비'] };   // 효과: 최소 · 최대(%) · 이름, 기본 100
-  var look = (function () { var v = lsJSON('jmb_map_look') || {}; return { id: v.id || 'auto', b: +v.b || 100, s: v.s == null ? 100 : +v.s, c: +v.c || 100, view: VIEWS[v.view] ? v.view : 'height', poi: POI[v.poi] ? v.poi : v.poi === true ? 'on' : 'near' }; })();
+  // 처음 열 때(이 기기에서 바꾼 적 없을 때)와 '처음대로'의 값: 스타일 기본 · 보기 평면 · 주변 시설 늘 보이기
+  var LOOK_DEF = { id: 'liberty', view: '2d', poi: 'on' };
+  var look = (function () { var v = lsJSON('jmb_map_look') || {}; return { id: v.id || LOOK_DEF.id, b: +v.b || 100, s: v.s == null ? 100 : +v.s, c: +v.c || 100, view: VIEWS[v.view] ? v.view : LOOK_DEF.view, poi: POI[v.poi] ? v.poi : v.poi === true ? 'on' : LOOK_DEF.poi }; })();
   function lookOf(id) { return LOOKS.filter(function (k) { return k.id === id; })[0] || LOOKS[0]; }
   function curLook() { var k = lookOf(look.id); return k.id === 'auto' ? lookOf(dark ? 'dark' : 'liberty') : k; }
   var HOME_VIEW = { center: [126.95, 37.39], zoom: 11 };   // 저장된 위치도 장소도 없을 때 (안양 근처)
@@ -1045,7 +1047,7 @@
     if (b.hasAttribute('data-poi')) { setPoi(b.getAttribute('data-poi')); return; }
     if (b.hasAttribute('data-view')) { setView(b.getAttribute('data-view')); return; }
     if (b.hasAttribute('data-look')) { setLook(b.getAttribute('data-look')); refreshLook(); return; }
-    if (act === 'lookreset') { look.b = look.s = look.c = 100; applyFx(); setLook('auto'); saveLook(); refreshLook(); return; }
+    if (act === 'lookreset') { look.b = look.s = look.c = 100; look.view = LOOK_DEF.view; look.poi = LOOK_DEF.poi; applyFx(); setLook(LOOK_DEF.id); saveLook(); applyView(true); applyPoi(); refreshLook(); return; }
     if (!E) return;
     if (b.hasAttribute('data-tab')) {
       E.tab = b.getAttribute('data-tab');
