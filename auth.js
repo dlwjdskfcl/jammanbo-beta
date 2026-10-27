@@ -209,6 +209,7 @@
     h += '<div class="jmb-list">';
     if (admin) h += '<span class="badge b-good">운영진 모드' + (isKkAdmin() ? ' · 카카오 계정' : '') + '</span>';
     h += '</div><div class="jmb-menu">';
+    if (u && u.nickname && typeof window.openMine === 'function') h += '<button class="btn primary jmb-wide" id="jmbMine">🙋 나의 잠만보</button>';   // 화면 코드(Index.html)의 내 기록 창
     if (admin) h += '<button class="btn jmb-wide" id="jmbAdminMenu">운영진 메뉴</button><button class="btn jmb-wide" id="jmbLinkMgr">카카오 연동 관리</button><button class="btn jmb-wide" id="jmbAdminOut">' + (isKkAdmin() ? '운영진 모드 끄기 (이번 접속)' : '운영진 로그아웃') + '</button>';
     else if (u && u.admin) h += '<button class="btn jmb-wide" id="jmbKkOn">운영진 모드 켜기</button>';   // 운영진 계정인데 꺼 둔 경우
     else h += '<button class="btn jmb-wide" id="jmbAdminIn">운영진 로그인</button>';
@@ -218,6 +219,7 @@
     showModal(h);
     var on = function (id, f) { var el = $(id); if (el) el.onclick = f; };
     on('jmbKakao', function () { startKakao(false); });
+    on('jmbMine', function () { hideModal(); window.openMine(); });
     on('jmbAdminIn', function () { viewLogin(); var t = $('jmbAdminToggle'); if (t) t.click(); });
     on('jmbAdminMenu', function () { var ol = fn('openLogin'); hideModal(); if (ol) ol(); });
     on('jmbLinkMgr', viewManage);
