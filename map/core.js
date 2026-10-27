@@ -225,11 +225,12 @@
   }
 
   /* ---------- 외부 지도 링크 (공식 문서로 확인된 형식만) ----------
-   * 카카오맵: place.map.kakao.com/<장소ID> (카카오 장소 검색 응답의 place_url)
-   *          map.kakao.com/link/map/이름,위도,경도 · /link/to/이름,위도,경도 (카카오맵 URL 공식 안내)
+   * 카카오맵: map.kakao.com/link/map/<장소ID> (지도 화면에 그 장소) · /link/map/이름,위도,경도 · /link/to/이름,위도,경도 (카카오맵 URL 공식 안내)
+   *          place.map.kakao.com/<장소ID> 는 정보 화면만 떠서 안 씀 · /link/to/<장소ID> 는 엉뚱한 곳이 떠서 안 씀 (2026-10-27 확인)
    * 구글 지도: Maps URLs — /maps/search/?api=1&query= · /maps/dir/?api=1&destination=
    * 네이버지도: 웹 검색 주소 (공식 문서 확인 전 — 검색만)
-   * 국내 구글 지도는 이름+지역 검색 (좌표만 넣으면 핀만 찍혀 가게 정보가 안 보임)
+   * 국내 네이버·구글은 주소로 검색 — 이름은 모임에서 부르는 이름(예: 태초마을)일 수 있어 그 지도에서 못 찾음.
+   *   주소가 없을 때만 이름+지역 (지도 위 시설처럼 진짜 가게 이름일 때)
    */
   var LINK_HOSTS = ['place.map.kakao.com', 'map.kakao.com', 'map.naver.com', 'www.google.com'];
   function safeUrl(u) {
@@ -239,10 +240,11 @@
     var nm = encodeURIComponent(text(p.name).replace(/,/g, ' ')), ll = p.lat + ',' + p.lng, out = [];
     var kr = p.cc === 'KR' || (!p.cc && p.lat > 33 && p.lat < 39 && p.lng > 124 && p.lng < 132);
     if (kr) {
-      out.push({ id: 'kakao', label: '카카오맵', url: /^\d+$/.test(p.kakao || '') ? 'https://place.map.kakao.com/' + p.kakao : 'https://map.kakao.com/link/map/' + nm + ',' + ll });
+      var q = encodeURIComponent(text(p.addr) || text(p.name + ' ' + (p.region || '')));
+      out.push({ id: 'kakao', label: '카카오맵', url: 'https://map.kakao.com/link/map/' + (/^\d+$/.test(p.kakao || '') ? p.kakao : nm + ',' + ll) });
       out.push({ id: 'route', label: '길찾기', url: 'https://map.kakao.com/link/to/' + nm + ',' + ll });
-      out.push({ id: 'naver', label: '네이버지도', url: 'https://map.naver.com/p/search/' + encodeURIComponent(text(p.name + ' ' + (p.region || ''))) });
-      out.push({ id: 'google', label: '구글 지도', url: 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(text(p.name + ' ' + (p.region || ''))) });
+      out.push({ id: 'naver', label: '네이버지도', url: 'https://map.naver.com/p/search/' + q });
+      out.push({ id: 'google', label: '구글 지도', url: 'https://www.google.com/maps/search/?api=1&query=' + q });
     } else {
       out.push({ id: 'google', label: '구글 지도', url: 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(ll) });
       out.push({ id: 'route', label: '길찾기', url: 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(ll) });

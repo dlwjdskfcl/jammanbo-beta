@@ -1,4 +1,4 @@
-/*! 잠만보 장소 지도 — 화면 v2.2.0
+/*! 잠만보 장소 지도 — 화면 v2.2.1
  * 서버: 잠만보 메인 Apps Script (Map.gs — mapList · mapSearch · mapSave · mapHide)
  * 지도: MapLibre GL (그리는 엔진) + OpenFreeMap (지도 그림, 키 없음), 안 되면 VersaTiles — 아래 STYLES 만 바꾸면 다른 지도로
  * 해외 검색: Photon (오타·부분 이름에 강함), 안 되면 Nominatim — 둘 다 키 없음. 국내는 카카오(서버)
@@ -11,7 +11,7 @@
  */
 (function () {
   'use strict';
-  var VER = '2.2.0';
+  var VER = '2.2.1';
   var C = window.MAPCORE;
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
