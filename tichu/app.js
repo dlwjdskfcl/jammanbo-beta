@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.9.4';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.10.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
   var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay';
@@ -239,7 +239,8 @@
 
   /* ----- 서버 호출 ----- */
   function api(fn, a, timeoutMs) {
-    if (a && isRt(a.room) && RT_FN[fn]) return rtSend(fn, a);   // ⚡ 실시간 서버 방은 WebSocket 으로
+    if (CFG.rt && fn === 'create') return rtCreate(a || {});        // ⚡ 실시간 서버: 방 만들기(연습 포함)와
+    if (a && isRt(a.room) && RT_FN[fn]) return rtCall(fn, a);       //    Q 방의 모든 요청은 WebSocket 으로
     if (!CFG.api || /^YOUR_/.test(CFG.api)) return Promise.reject(new Error('티츄 서버 주소(tichu/config.js)가 아직 설정되지 않았어요'));
     // 응답이 없으면 끊고 다시 시도 (카톡 인앱 브라우저·사파리에서 요청이 멈춰 버리는 경우 대비)
     var ctl = typeof AbortController === 'function' ? new AbortController() : null;
@@ -271,32 +272,41 @@
       });
   }
 
-  /* ----- ⚡ 실시간 서버(Cloudflare) 실험: 방 ID 가 Q 로 시작하는 방은 poll 대신 WebSocket 하나로 주고받음 -----
-   * 답: {re, ok, r|e, code} · 서버가 먼저 보내는 새 상태: {push: 방 화면} (봇이 두거나 다른 사람이 두면) */
-  var RT = { ws: null, id: '', seq: 0, wait: {}, ready: null };
-  var RT_FN = { act: 1, chat: 1, rematch: 1, botDelay: 1, leave: 1 };
+  /* ----- ⚡ 실시간 서버(Cloudflare · config.js 의 rt, 지금은 테스트에서만) -----
+   * 로비 · 방 만들기 · 방 ID 가 Q 로 시작하는 방은 poll 대신 WebSocket 하나로 주고받음 (R 로 시작하는 예전 방은 그대로 GAS)
+   * 방: 답 {re, ok, r|e, code} · 새 상태 {push: 방 화면} (봇·다른 사람이 두면) · {bye: {code, e}} (방이 닫힘·내보냄)
+   * 로비: {lobby: {rooms, notice}} — 방 목록이 바뀌면 서버가 바로 보냄 */
+  var RT = { ws: null, id: '', ok: false, seq: 0, wait: {}, ready: null }, LB = { ws: null, manual: false };
+  var RT_FN = { join: 1, seat: 1, addBot: 1, kick: 1, shuffle: 1, takeover: 1, replace: 1, opt: 1, start: 1, rematch: 1, act: 1, chat: 1, leave: 1, botDelay: 1, adminClose: 1 };
   function isRt(id) { return !!CFG.rt && /^Q/.test(id || ''); }
+  function rtUrl(path) { return CFG.rt.replace(/^http/, 'ws') + path; }
   function rtErr(j) {
     var e = new Error((j && j.e) || '연결이 잠깐 끊겼어요. 다시 연결하는 중이에요');
     if (j && j.code) e.code = j.code; else if (!j) e.net = true;
-    if (e.code === 'auth') logout(e.message);
+    if (e.code === 'auth' || e.code === 'maint') logout(e.message);
     return e;
   }
   function rtClose() {
     var ws = RT.ws;
-    RT.ws = null; RT.id = ''; RT.ready = null;
+    RT.ws = null; RT.id = ''; RT.ok = false; RT.ready = null;
     Object.keys(RT.wait).forEach(function (k) { RT.wait[k].bad(rtErr(null)); });
     RT.wait = {};
     if (ws) try { ws.close(); } catch (e) {}
   }
   function rtOpen(id) {
     rtClose();
-    var ws = RT.ws = new WebSocket(CFG.rt.replace(/^http/, 'ws') + '/room/' + id);
+    var ws = RT.ws = new WebSocket(rtUrl('/room/' + id));
     RT.id = id;
     RT.ready = new Promise(function (ok, bad) { ws.onopen = ok; ws.onerror = function () { bad(rtErr(null)); }; });
     ws.onmessage = function (ev) {
       var j; try { j = JSON.parse(ev.data); } catch (e) { return; }
       if (j.now) S.offset = j.now - Date.now();
+      if (j.bye) {   // 방이 닫힘 · 내보냄
+        if (RT.ws !== ws) return;
+        rtClose();
+        if (S.roomId === id && S.route.name === 'room') { toast(j.bye.e, true); location.hash = '#/'; }
+        return;
+      }
       if (j.push) { if (S.roomId === j.push.id && S.route.name === 'room') { netOk(); applyRoom(j.push); } return; }
       var w = RT.wait[j.re];
       if (!w) return;
@@ -319,21 +329,49 @@
       });
     });
   }
-  // 방에 들어가기 (create 를 주면 새 연습방). 끊겼다 다시 붙을 때도 이걸로
-  function rtJoin(id, create) {
+  // 그 방에 아직 연결 안 됐으면 먼저 연결(관전자로 hello)한 뒤 보냄 — 로비에서 입장할 때 등
+  function rtCall(fn, a) {
+    if (fn === 'leave' && a.watch && RT.id !== a.room) return Promise.resolve({ left: true });
+    if (RT.id === a.room && RT.ok) return rtSend(fn, a);
+    rtOpen(a.room);
+    return rtSend('hello', { pw: a.pw || S.roomPw || '', quiet: 1 }, S.token).then(function () { RT.ok = true; return rtSend(fn, a); });
+  }
+  // 방 화면에 들어가기 · 끊겼다 다시 붙기
+  function rtJoin(id) {
     rtOpen(id);
-    return rtSend('hello', { create: create || null }, S.token).then(function (r) { netOk(); applyRoom(r, true); return r; }, function (e) {
-      if (S.roomId !== id) return;
-      if (e.code === 'gone' || e.code === 'setup') { toast(e.message, true); location.hash = '#/'; return; }
-      if (!S.room) app.innerHTML = '<div class="boot"><div>' + esc(e.message) + '</div><a class="btn ghost" href="#/">로비로</a></div>';
+    return rtSend('hello', { pw: S.roomPw || '' }, S.token).then(function (r) { RT.ok = true; netOk(); applyRoom(r, true); return r; }, function (e) {
+      if (S.roomId !== id || S.route.name !== 'room') return;
+      if (e.code === 'pw') { rtClose(); watchRoom(id, true, !!S.roomPw); return; }   // 초대 링크로 비밀방: 관전 비밀번호
+      if (e.code === 'gone' || e.code === 'kicked' || e.code === 'setup') { toast(e.message, true); location.hash = '#/'; return; }
+      if (e.code === 'auth' || e.code === 'maint') return;
+      if (!S.room) app.innerHTML = '<div class="boot"><div>' + esc(e.message) + '</div><button class="btn" onclick="location.reload()">다시 시도</button><a class="btn ghost" href="#/">로비로</a></div>';
     });
   }
-  function rtPractice(btn) {
-    btn.disabled = true;
+  // 방 만들기 (연습방 포함): 새 방 ID 를 화면에서 정하고, 그 방에 연결하면서 만듦
+  function rtCreate(a) {
     var id = 'Q' + Date.now().toString(36).toUpperCase() + Math.floor(Math.random() * 1296).toString(36).toUpperCase();
-    S.rtCreate = { target: 500, botDelay: botDelayPref() };
-    location.hash = '#/room/' + id;
+    rtOpen(id);
+    return rtSend('hello', { create: a }, S.token).then(function (r) { RT.ok = true; return r; }, function (e) { rtClose(); throw e; });
   }
+  // 로비: 연결해 두면 방 목록이 바뀔 때마다 서버가 보내 줌 (6초마다 다시 부르지 않음 — 끊겼으면 다시 연결만)
+  function rtLobby(manual) {
+    if (manual) LB.manual = true;
+    var ws = LB.ws;
+    if (ws && ws.readyState <= 1) { if (manual && ws.readyState === 1) ws.send(JSON.stringify({ fn: 'refresh' })); return; }
+    ws = LB.ws = new WebSocket(rtUrl('/lobby'));
+    ws.onopen = function () { ws.send(JSON.stringify({ fn: 'hello', t: S.token })); };
+    ws.onmessage = function (ev) {
+      var j; try { j = JSON.parse(ev.data); } catch (e) { return; }
+      if (j.now) S.offset = j.now - Date.now();
+      if (j.e) { var e = rtErr(j); if (S.route.name === 'lobby') toast(e.message, true); return; }
+      if (!j.lobby) return;
+      S.lobby = j.lobby.rooms; S.notice = j.lobby.notice || '';
+      if (S.route.name === 'lobby' && !S.modal) renderLobby();
+      if (LB.manual) { LB.manual = false; toast('새로고침했어요'); }
+    };
+    ws.onclose = function () { if (LB.ws === ws) LB.ws = null; };
+  }
+  function rtLobbyClose() { var ws = LB.ws; LB.ws = null; if (ws) try { ws.close(); } catch (e) {} }
 
   /* ================= 카드 그리기 ================= */
   var SUIT_SVG = {
@@ -435,6 +473,7 @@
     if (r.name !== 'room' && S.room) { S.rank = null; S.rec = null; }   // 방에서 나오면 전적 새로 (레벨업 알림)
     if (r.name !== 'room' && S.room && S.room.me < 0) api('leave', { room: S.room.id, watch: 1 }).catch(function () {});   // 관전자 목록에서 바로 빠짐
     if (r.name !== 'room') { if (S.room) hush(); stopPoll(); rtClose(); S.room = null; S.roomId = null; S.guard = false; S.pollSeq++; S.polling = false; }
+    if (r.name !== 'lobby') rtLobbyClose();
     S.route = r;
     clearInterval(S.lobbyT);
     if (r.name === 'room') return enterRoom(r.id);
@@ -485,9 +524,7 @@
     $$('[data-go]').forEach(function (b) { b.onclick = function () { location.hash = b.getAttribute('data-go'); }; });
     var mc = $('#meChip'); if (mc) mc.onclick = accountMenu;
     var bc = $('#bCreate'); if (bc) bc.onclick = createRoomSheet;
-    var bp = $('#bPractice'); if (bp) bp.onclick = function () { practice(bp); };
-    var bq = $('#bRtPractice'); if (bq) bq.onclick = function () { rtPractice(bq); };
-    var br = $('#bRefresh'); if (br) br.onclick = function () { loadLobby(true); };
+    var bp = $('#bPractice'); if (bp) bp.onclick = function () { practice(bp); };    var br = $('#bRefresh'); if (br) br.onclick = function () { loadLobby(true); };
     $$('[data-rsort]').forEach(function (b) { b.onclick = function () { S.rankSort = b.getAttribute('data-rsort'); renderLobby(); }; });
     $$('[data-pname]').forEach(function (b) { b.onclick = function () { openProfile(b.getAttribute('data-pname')); }; });
     $$('[data-join]').forEach(function (b) { b.onclick = function () { S.roomPw = ''; joinRoom(b.getAttribute('data-join'), b.getAttribute('data-lock') === '1'); }; });
@@ -520,6 +557,7 @@
   }
 
   function loadLobby(manual) {
+    if (CFG.rt) return rtLobby(manual);
     api('lobby').then(function (r) {
       S.lobby = r.rooms; S.notice = r.notice || ''; if (r.user) S.user = r.user;
       if (S.route.name === 'lobby' && !S.modal) renderLobby();
@@ -534,8 +572,7 @@
     var h = '';
     if (S.notice) h += '<div class="notice">📢 ' + esc(S.notice) + '</div>';
     h += '<div class="cta"><button class="btn primary" id="bPractice">🤖 AI와 연습<small>봇 3명과 바로 시작</small></button>' +
-      '<button class="btn" id="bCreate">＋ 방 만들기<small>친구들과 2 대 2</small></button>' +
-      (CFG.rt ? '<button class="btn" id="bRtPractice">⚡ 빠른 연습 (실험)<small>새 실시간 서버 · 전적에 안 남음</small></button>' : '') + '</div>';
+      '<button class="btn" id="bCreate">＋ 방 만들기<small>친구들과 2 대 2</small></button></div>';
     h += '<div class="sec-title"><span>열린 방</span><button class="btn sm ghost" id="bRefresh">↻ 새로고침</button></div>';
     if (!S.lobby) return h + '<div class="empty">불러오는 중…</div>';
     if (!S.lobby.length) return h + '<div class="empty">열린 방이 없어요.<br>방을 만들고 단톡방에 초대 링크를 보내 보세요!</div>';
@@ -830,7 +867,7 @@
     S.roomId = id;
     setTimeout(armGuard, 0);
     if (S.room && S.room.id === id) render(); else app.innerHTML = '<div class="boot"><div class="logo-mark">T</div><div>방에 들어가는 중…</div></div>';
-    if (isRt(id)) { var cr = S.rtCreate; S.rtCreate = null; if (RT.id !== id) rtJoin(id, cr); return; }
+    if (isRt(id)) { if (RT.id !== id || !RT.ok) rtJoin(id); return; }   // 만들기·입장으로 이미 연결돼 있으면 그대로
     startPoll(0);
   }
   function stopPoll() { clearTimeout(S.pollT); S.pollT = 0; }
@@ -846,7 +883,7 @@
   }
   function poll() {
     if (S.route.name !== 'room' || !S.roomId) return;
-    if (isRt(S.roomId)) { S.pollT = 0; if (!RT.ws) rtJoin(S.roomId); return; }   // ⚡ 방: poll 없음 (끊겼으면 다시 연결 — 5초 점검·화면 복귀 때)
+    if (isRt(S.roomId)) { S.pollT = 0; if (!RT.ws || RT.id !== S.roomId) rtJoin(S.roomId); return; }   // ⚡ 방: poll 없음 (끊겼으면 다시 연결 — 5초 점검·화면 복귀·비밀번호 입력 뒤)
     if (S.busy) return startPoll(150);
     if (S.polling) return;
     var id = S.roomId, mySeq = ++S.pollSeq;
