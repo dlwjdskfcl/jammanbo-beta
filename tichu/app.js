@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.10.1';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.10.2';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
   var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay';
@@ -438,12 +438,12 @@
       '<div class="box">' +
       (CFG.kakaoRestKey ? (ks ? '<button class="btn kakao block" id="kGo">' + (nick ? esc(nick) + '님으로 계속하기' : '카카오로 계속하기') + '</button>' :
         '<button class="btn kakao block" id="kStart">카카오 로그인</button><div class="small">잠만보 사이트와 같은 카카오 로그인이에요. 모임 닉네임이 연결된 회원만 들어올 수 있어요.</div>') : '') +
-      '<div class="or">테스트 계정</div>' +
+      '<details class="tester"' + (errMsg || !CFG.kakaoRestKey ? ' open' : '') + '><summary>테스트 계정으로 로그인</summary>' +
       '<form id="lf" class="field" autocomplete="on">' +
       '<input class="input" id="lid" placeholder="아이디" autocomplete="username" autocapitalize="off" required>' +
       '<input class="input" id="lpw" type="password" placeholder="비밀번호" autocomplete="current-password" required style="margin-top:8px">' +
       '<div class="err" id="lerr">' + esc(errMsg || '') + '</div>' +
-      '<button class="btn primary block" type="submit" id="lbtn">로그인</button></form>' +
+      '<button class="btn primary block" type="submit" id="lbtn">로그인</button></form></details>' +
       '</div>' +
       '<a class="small" href="' + ROOT + '">← 잠만보로 돌아가기</a>' +
       '</div>';

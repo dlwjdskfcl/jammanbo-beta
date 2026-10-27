@@ -136,6 +136,11 @@ th{background:var(--surface);font-family:var(--sans);font-weight:600;font-size:1
 th.sortable.on{color:var(--accent)}
 .memtable tbody tr:nth-child(even){background:transparent}
 .memtable tbody tr:hover{background:var(--surface2)}
+/* 회원 표를 옆으로 넘겨도 닉네임은 왼쪽에 고정 (휴대폰) */
+.memtable th:first-child,.memtable td:first-child{position:sticky;left:0;z-index:1;background:var(--surface);box-shadow:1px 0 0 var(--line)}
+.memtable tbody tr:hover td:first-child{background:var(--surface2)}
+/* 월간 결산 배지 줄: 이름은 한 줄로, 배지는 오른쪽에서 줄바꿈 */
+.mr>b{flex:none;white-space:nowrap}.mr>span{text-align:right;min-width:0}
 tbody tr:last-child td{border-bottom:0}
 .chart{padding:16px 18px}
 .chart h3{font-size:15px;margin-bottom:12px}
