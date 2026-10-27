@@ -10,7 +10,7 @@
   if (!E) return;
   var W = E.W, R = E.R;
   var $ = function (id) { return document.getElementById(id); };
-  var VER = '2.5.0';
+  var VER = '2.6.0';
 
   /* ---------- 저장 ---------- */
   var KEY = { names: 'jmb_rl_names', recent: 'jmb_rl_recent', opt: 'jmb_rl_opt' };
@@ -930,6 +930,7 @@
     if (G.mode === 'first') { win = order[0]; title = '1등 당첨'; hl = 0; }
     else if (G.mode === 'last') { win = order[order.length - 1]; title = '꼴찌 당첨'; hl = order.length - 1; }
     $('resTitle').textContent = title;
+    if (window.JMB_FX) { JMB_FX.confetti({ y: 0.3 }); JMB_FX.haptic('win'); }   // 🎉 결과 (../fx.js)
     $('resWin').innerHTML = win ? '<div class="win"><span class="ball" style="background:' + win.color + '"></span><div><small>' + (G.mode === 'first' ? '가장 먼저 들어온 사람' : '가장 늦게 남은 사람') + '</small><b>' + esc(win.name) + '</b></div></div>' : '';
     $('resList').innerHTML = order.map(function (e, i) {
       var label = G.mode === 'last' && i === order.length - 1 ? '꼴찌' : e.t == null ? '—' : e.t.toFixed(2) + '초';

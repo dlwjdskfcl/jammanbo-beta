@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.11.2';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.12.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
   var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay';
@@ -137,6 +137,8 @@
   }
   function seq(c, t, notes, step, dur, type, vol) { notes.forEach(function (f, i) { tone(c, f, t + i * step, dur, type, vol); }); }
   var N = { G4: 392, C5: 523.25, E5: 659.25, G5: 783.99, A5: 880, B5: 987.77, C6: 1046.5, D6: 1174.7, E6: 1318.5, G6: 1568 };
+  // 효과 모음(../fx.js): 진동 · 꽃가루 · 이미지 저장 — 없으면 조용히 건너뜀
+  function fx(fn, a) { var f = window.JMB_FX; if (f && typeof f[fn] === 'function') try { return f[fn](a); } catch (e) {} }
   function sfx(name, delay) {
     var c = ac(); if (!c) return;
     var t = c.currentTime + (delay || 0);
@@ -549,10 +551,12 @@
   function soundRows() {
     return '<div class="setlist">' +
       '<label class="setrow"><span><b>효과음</b><small>카드·조합·차례 알림 소리</small></span><input type="checkbox" class="sw" id="swSound"' + (S.sound ? ' checked' : '') + '></label>' +
-      '<label class="setrow"><span><b>음성 안내</b><small>"케이 페어", "패스", "마이 턴"</small></span><input type="checkbox" class="sw" id="swVoice"' + (S.voice ? ' checked' : '') + '></label></div>';
+      '<label class="setrow"><span><b>음성 안내</b><small>"케이 페어", "패스", "마이 턴"</small></span><input type="checkbox" class="sw" id="swVoice"' + (S.voice ? ' checked' : '') + '></label>' +
+      (window.JMB_FX ? '<label class="setrow"><span><b>진동</b><small>내 차례 · 폭탄 · 승리 (안드로이드 · 아이폰 iOS 18 이상)</small></span><input type="checkbox" class="sw" id="swHap"' + (JMB_FX.hapticOn() ? ' checked' : '') + '></label>' : '') + '</div>';
   }
   function bindSoundRows() {
-    var a = $('#swSound'), b = $('#swVoice');
+    var a = $('#swSound'), b = $('#swVoice'), hp = $('#swHap');
+    if (hp) hp.onchange = function () { JMB_FX.setHaptic(hp.checked); if (hp.checked) JMB_FX.haptic('tap'); };
     if (a) a.onchange = function () { S.sound = a.checked; lsSet(LS_SOUND, S.sound ? '1' : '0'); if (S.sound) sfx('turn'); };
     if (b) b.onchange = function () { S.voice = b.checked; lsSet(LS_VOICE, S.voice ? '1' : '0'); if (S.voice) say('음성 안내를 켰어요'); else try { speechSynthesis.cancel(); } catch (e) {} };
   }
@@ -740,7 +744,7 @@
     if (!old || S.modal) return;
     var nb = got.filter(function (n) { return old.b.indexOf(n) < 0; }), up = l.lv > old.lv;
     if (!nb.length && !up) return;
-    sfx('win', 0);
+    sfx('win', 0); fx('confetti'); fx('haptic', 'win');
     openModal('<h2>🎉 축하해요!<button class="x" data-x>✕</button></h2><div class="ach">' +
       (up ? '<div class="ach-lv">' + l.title[1] + '<b>Lv.' + l.lv + '</b><span>' + esc(l.title[2]) + '</span></div><p class="small" style="text-align:center">레벨이 올랐어요!</p>' : '') +
       nb.map(function (n) { var b = BADGES.filter(function (x) { return x[1] === n; })[0]; return '<div class="ach-b"><span class="bi">' + b[0] + '</span><div><b>' + esc(b[1]) + '</b><div class="small">' + esc(b[2]) + '</div></div></div>'; }).join('') +
@@ -1073,7 +1077,7 @@
       }
       if (e.k === 'play') {
         if (!(mine && e.s === me)) S.flash[e.s] = order++;
-        if (e.bomb) { banner('💣 폭탄!', 'bomb'); S.shake = true; }
+        if (e.bomb) { banner('💣 폭탄!', 'bomb'); S.shake = true; fx('haptic', 'bomb'); }
         if (!(mine && e.s === me)) { sfx(comboSound(e.c, e.bomb), at); say(comboVoice(e.c), at); }
       } else if (e.k === 'pass') { if (!(mine && e.s === me)) { S.flash[e.s] = order++; sfx('pass', at); say('패스', at); } }
       else if (e.k === 'tichu') { banner(seatName(e.s) + (e.kind === 2 ? ' 라지 티츄!' : ' 티츄!')); sfx('tichu', at); say(e.kind === 2 ? '라지 티츄' : '티츄', at); }
@@ -1090,7 +1094,7 @@
     });
     var g = r.g;
     var mine = g && me >= 0 && ((g.phase === 'play' && g.turn === me) || (g.phase === 'dragon' && g.dragon && g.dragon.seat === me));
-    if (mine && evs.length && !evs.every(function (e) { return e.s === me; })) { sfx('turn', order * 0.28 + 0.15); say(g.phase === 'dragon' ? '용 트릭 줄 사람을 고르세요' : '마이 턴', order * 0.28 + 0.15); S.hintI = -1; }
+    if (mine && evs.length && !evs.every(function (e) { return e.s === me; })) { sfx('turn', order * 0.28 + 0.15); setTimeout(function () { fx('haptic', 'turn'); }, (order * 0.28 + 0.15) * 1000); say(g.phase === 'dragon' ? '용 트릭 줄 사람을 고르세요' : '마이 턴', order * 0.28 + 0.15); S.hintI = -1; }
   }
 
   /* ----- 그리기 ----- */
@@ -1779,8 +1783,16 @@
     } else if (r.me >= 0) {
       html += '<button class="btn primary block" id="rNext">' + (r.ready && r.ready[r.me] ? '다른 사람 기다리는 중…' : '다음 라운드') + ' <span id="rCount"></span></button>';
     }
+    html += '<button class="btn ghost block" id="rImg" style="margin-top:8px">🖼 ' + (ended ? '게임' : '라운드') + ' 결과 이미지</button>';
     openModal(html);
     S.modal.result = true;
+    if (r.me >= 0 && ((ended && g.winner === us) || (h.dbl && team(h.out[0]) === us))) { fx('confetti'); fx('haptic', 'win'); }   // 🎉 우리 팀 승리 · 원투
+    var ri = $('#rImg'); if (ri) ri.onclick = function () {
+      if (!window.JMB_FX) return toast('이미지 저장을 쓸 수 없어요', true);
+      toast('이미지를 만드는 중…');
+      JMB_FX.capture(modalEl.querySelector('.sheet'), '티츄_' + (ended ? '게임' : h.round + '라운드') + '_결과', { exclude: '.btn,[data-x],#rCount', bg: '#10251c', title: '잠만보 티츄' })
+        .then(function (x) { if (x === 'saved') toast('이미지를 저장했어요'); }, function (e) { toast(e.message || '이미지를 만들지 못했어요', true); });
+    };
     var rn = $('#rNext'); if (rn) rn.onclick = function () { act('ready', {}, rn).then(function () { rn.textContent = '다른 사람 기다리는 중…'; }); };
     var ra = $('#rAgain'); if (ra) ra.onclick = function () { closeModal(); roomCall('rematch', {}, ra); };
     var rl = $('#rLobby'); if (rl) rl.onclick = function () { closeModal(); location.hash = '#/'; };

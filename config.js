@@ -14,7 +14,7 @@ var JMB_ENV = !/github\.io$/.test(location.hostname) ? 'local'
 var JMB_API = (JMB_ENV === 'prod' || JMB_API_BETA.indexOf('YOUR_') === 0) ? JMB_API_PROD : JMB_API_BETA;
 
 window.JMB_CONFIG = {
-  version: '1.7.11',   // 바꾸면 auth.js/auth.css/router.js/extras.js/theme.css 캐시가 새로 받아짐
+  version: '1.7.12',   // 바꾸면 auth.js/auth.css/router.js/extras.js/theme.css 캐시가 새로 받아짐
   date: '2026-10-27', // version 을 올린 날 — 계정 창 아래에 '시작 페이지 v… · 날짜'로 표시
   env: JMB_ENV,       // prod 가 아니면 화면 왼쪽 아래 'TEST' 표시 + 기기 저장 칸을 따로 씀
   api: JMB_API,

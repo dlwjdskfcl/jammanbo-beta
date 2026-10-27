@@ -175,6 +175,7 @@ function boot(shell) {
     '<meta name="apple-mobile-web-app-capable" content="yes">' +
     '<meta name="mobile-web-app-capable" content="yes">' +
     '<meta name="apple-mobile-web-app-title" content="잠만보">' +
+    '<script src="' + window.JMB_ROOT + 'fx.js?v=' + v + '"><\/script>' +   // 효과 모음 (아바타 · 진동 · 꽃가루 · 캘린더 · 이미지 저장) — 화면 코드보다 먼저
     '<script>(' + shim.toString() + ')(' + JSON.stringify(API) + ',' + JSON.stringify(AUTH_ON ? AUTH_STORE : '') + ',' + JSON.stringify(API_ENV) + ');' +
     // document.write 뒤에도 데이터 요청 함수·미리 보낸 요청을 그대로 쓰도록 (브라우저가 전역을 비운 경우 대비)
     'window.JMB_GETDATA=window.JMB_GETDATA||' + window.JMB_GETDATA.toString().replace(/\bAPI_ENV\b/g, JSON.stringify(API_ENV)).replace(/\bAPI\b/g, JSON.stringify(API)) + ';<\/script>' + auth;
