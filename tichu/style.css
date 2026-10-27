@@ -108,6 +108,20 @@ a { color: var(--gold2); }
 .rules ul { padding-left: 18px; margin: 6px 0; }
 .rules .ex { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 8px 0; }
 .rules .ex .lbl { font-size: 12px; color: var(--muted); width: 100%; }
+/* 참새 콜 (소원) */
+.rules .wish-sum { background: rgba(240, 192, 64, .12); border: 1px solid rgba(240, 192, 64, .35); border-radius: 12px; padding: 10px 14px; margin: 6px 0 10px; color: #f5e6b8; line-height: 1.6; }
+.rules .wish-steps { padding-left: 20px; margin: 6px 0; }
+.rules .wish-steps li { margin: 4px 0; }
+.rules .wx { background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .1); border-radius: 12px; padding: 10px 12px; margin: 8px 0; }
+.rules .wx-h { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.rules .wx-v { font-size: 12px; font-weight: 700; border-radius: 999px; padding: 2px 9px; }
+.rules .wx-v.must { background: #f0c040; color: #1a1a1a; }
+.rules .wx-v.free { background: rgba(255, 255, 255, .14); color: #d5e4dc; }
+.rules .wx-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; flex-wrap: wrap; }
+.rules .wx-k { font-size: 12px; color: var(--muted); width: 42px; flex: none; }
+.rules .wx-why { margin: 6px 0 0; font-size: 13.5px; }
+.rules .wish-special li { margin: 6px 0; }
+.rules .wish-special .cards { margin-top: 4px; }
 
 /* ---------- 대기실 ---------- */
 .wait-wrap { display: flex; flex-direction: column; gap: 14px; }

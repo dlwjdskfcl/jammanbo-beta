@@ -333,13 +333,11 @@ var TE = (function () {
   }
 
   // 지금 차례인 사람이 참새 콜을 반드시 지켜야 하는가 → 지켜야 하면 낼 수 있는 조합 목록, 아니면 null
-  // 봉황은 강제 대상이 아님: 봉황 없이 소원 숫자를 낼 수 있을 때만 의무. 봉황을 섞어야만 맞출 수 있으면 내도 되고 안 내도 됨
-  // (의무일 때 돌려주는 목록에는 봉황을 섞은 조합도 들어 있음 — 그걸로 지켜도 됨)
+  // 콜 숫자가 손에 '진짜로' 있고(봉황은 그 숫자로 치지 않음), 규칙에 맞게 낼 수 있으면 의무 — 봉황을 섞어야만 맞출 수 있어도,
+  // 그 숫자가 든 폭탄으로만 이길 수 있어도 의무 (2026-10-27 모임 규칙 정리: 씨제이님)
   function wishPlays(g, s) {
     if (!g.wish || !hasNatural(g.hands[s], g.wish)) return null;
-    var top = topCombo(g), noPh = g.hands[s].filter(function (id) { return id !== 'PH'; });
-    if (!plays(noPh, top).some(function (c) { return hasNatural(c.c, g.wish); })) return null;
-    var list = plays(g.hands[s], top).filter(function (c) { return hasNatural(c.c, g.wish); });
+    var list = plays(g.hands[s], topCombo(g)).filter(function (c) { return hasNatural(c.c, g.wish); });
     return list.length ? list : null;
   }
 
