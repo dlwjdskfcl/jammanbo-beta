@@ -12,7 +12,7 @@
   font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", system-ui, sans-serif;
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); touch-action: manipulation; }   /* 두 번 터치 확대 끔 (두 손가락 확대는 됨) */
 body { font-size: 15px; line-height: 1.45; overscroll-behavior-y: none; }
 button { font: inherit; color: inherit; cursor: pointer; }
 input, select { font: inherit; }

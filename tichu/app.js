@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.13.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.13.1';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
   var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay';
@@ -47,7 +47,7 @@
   var actx = null;
   function ac() {
     if (!S.sound) return null;
-    try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); return actx; } catch (e) { return null; }
+    try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state !== 'running') actx.resume(); return actx; } catch (e) { return null; }   // 아이폰은 'interrupted'(다른 앱·잠금 뒤)도 있음
   }
   function tone(c, f, t, d, type, vol, f2) {
     var o = c.createOscillator(), g = c.createGain();
@@ -231,13 +231,36 @@
     }, Math.round((delay || 0) * 1000));
     sayTimers.push(tm);
   }
-  // 아이폰 등은 첫 터치 때 소리를 열어 둬야 해요
+  // 아이폰 등은 터치 때 소리를 열어 둬야 해요. 터치의 pointerdown 은 '사용자 동작'으로 안 쳐 줘서(손을 뗄 때만 인정)
+  // 카드만 누르면 안 열리고 '내기' 버튼을 누른 뒤에야 소리가 났음 → 손 뗄 때·클릭·키 입력마다, 소리가 꺼져 있으면 다시 엶
+  var voiceOpened = false;
   function unlockAudio() {
-    document.removeEventListener('pointerdown', unlockAudio, true);
-    ac();
-    try { if (window.speechSynthesis && S.voice) { var u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); } } catch (e) {}
+    if (S.sound && !(actx && actx.state === 'running')) {
+      var c = ac();
+      try { if (c) { var b = c.createBufferSource(); b.buffer = c.createBuffer(1, 1, 22050); b.connect(c.destination); b.start(0); } } catch (e) {}   // 예전 iOS: 동작 안에서 한 번 재생해야 열림
+    }
+    if (!voiceOpened && S.voice && window.speechSynthesis) {
+      voiceOpened = true;
+      try { var u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); } catch (e) {}
+    }
   }
-  document.addEventListener('pointerdown', unlockAudio, true);
+  ['pointerup', 'touchend', 'click', 'keydown'].forEach(function (ev) { document.addEventListener(ev, unlockAudio, true); });
+
+  // 아이폰 사파리: 빠르게 두 번 터치(옆 카드 연달아 고르기 등)하면 화면이 확대됨 → 두 번째 터치의 기본 동작을 막음
+  // (버튼·입력칸은 CSS touch-action 으로 확대가 안 되고, 여기서 막으면 클릭이 사라지므로 건드리지 않음. 두 손가락 확대는 그대로)
+  var lastTouchEnd = 0;
+  document.addEventListener('touchend', function (e) {
+    var now = Date.now(), quick = now - lastTouchEnd < 350;
+    lastTouchEnd = now;
+    if (!quick || e.touches.length) return;
+    var t = e.target;
+    if (!t || !t.closest) return;
+    if (!t.closest('#hand')) {
+      if (t.closest('button, a, input, textarea, select, label, [contenteditable]')) return;
+      try { if (getComputedStyle(t).cursor === 'pointer') return; } catch (e2) {}   // 눌러서 쓰는 칸(자리·설정 줄 등)
+    }
+    e.preventDefault();
+  }, { passive: false });
 
   /* ----- 서버 호출 ----- */
   function api(fn, a, timeoutMs) {
