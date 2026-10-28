@@ -1,5 +1,5 @@
 /* 잠만보 효과 모음 fx.js v1 — 직접 만든 가벼운 기능 (외부 라이브러리·외부 접속 없음)
- * 메인 앱(index.html 머리에서) · 티츄 · 순서 룰렛이 같이 씀. (티츄·룰렛은 index.html 의 ../fx.js?v=1 — 이 파일을 바꾸면 그 숫자도 올리기) 이미지 저장만 같은 사이트의 vendor/snapdom.js(MIT)를 필요할 때 읽음
+ * 메인 앱(index.html 머리에서) · 티츄 · 순서 룰렛이 같이 씀. (티츄·룰렛은 index.html 의 ../fx.js?v=1 — 이 파일을 바꾸면 그 숫자도 올리기) 이미지 저장만 같은 사이트의 vendor/snapdom.js(MIT)를, 움직임은 vendor/anime.umd.min.js(MIT)를 필요할 때 읽음
  *
  *   JMB_FX.avatar(name, px)    닉네임 → 미플(보드게임 말) 아바타 SVG 글자. 같은 이름은 늘 같은 색·표정·소품
  *   JMB_FX.haptic(kind)        진동 tap · turn · bomb · win · warn — 안드로이드는 vibrate, 아이폰(iOS 18+)은 스위치 '틱'
@@ -194,5 +194,22 @@
     });
   }
 
-  W.JMB_FX = { avatar: avatar, haptic: haptic, hapticOn: hapticOn, setHaptic: setHaptic, confetti: confetti, ics: ics, icsString: icsString, gcal: gcal, capture: capture, shareOrSave: shareOrSave };
+  /* ---------- 움직임 (vendor/anime.umd.min.js = Anime.js v4.5.0, 처음 쓸 때만 읽음) ----------
+   * JMB_FX.anime().then(function (A) { A.animate(...) }) — 동작 줄이기 설정이면 null (움직이지 않음) */
+  var animeP = null;
+  function anime() {
+    if (W.matchMedia && W.matchMedia('(prefers-reduced-motion: reduce)').matches) return Promise.resolve(null);
+    if (W.anime && W.anime.animate) return Promise.resolve(W.anime);
+    if (animeP) return animeP;
+    animeP = new Promise(function (ok) {
+      var s = D.createElement('script');
+      s.src = BASE + 'vendor/anime.umd.min.js?v=4.5.0';
+      s.onload = function () { ok(W.anime && W.anime.animate ? W.anime : null); };
+      s.onerror = function () { animeP = null; ok(null); };   // 못 읽으면 그냥 안 움직임
+      D.head.appendChild(s);
+    });
+    return animeP;
+  }
+
+  W.JMB_FX = { avatar: avatar, haptic: haptic, hapticOn: hapticOn, setHaptic: setHaptic, confetti: confetti, ics: ics, icsString: icsString, gcal: gcal, capture: capture, shareOrSave: shareOrSave, anime: anime };
 })(window);
