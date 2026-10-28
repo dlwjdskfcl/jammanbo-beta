@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.14.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.15.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
   var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay';
@@ -1970,6 +1970,25 @@
     if (ks && ks.user && ks.user.nickname && lsGet(LS_NOAUTO) !== '1') { renderLogin(); var kg = $('#kGo'); return loginKakao(kg); }
     renderLogin();
   }
+  // 접속 기록: 기기마다 30분에 한 번 잠만보 서버(logVisit)에 남김 → 잠만보 운영진 메뉴 '📈 접속 기록' (페이지 = 티츄). 실패해도 게임과 상관없음
+  function logVisit() {
+    try {
+      if (!CFG.mainApi) return;
+      var key = 'tichu_visit_at' + ENV_SFX;
+      if (Date.now() - (+lsGet(key) || 0) < 30 * 60e3) return;
+      lsSet(key, String(Date.now()));
+      var cid = lsGet('jmb_vid');   // 잠만보 화면과 같은 기기 구분 값 (개인 정보 아님)
+      if (!cid) { cid = Date.now().toString(36) + Math.random().toString(36).slice(2, 10); lsSet('jmb_vid', cid); }
+      var info = { page: '티츄', cid: cid, ua: navigator.userAgent, w: screen.width, h: screen.height, touch: navigator.maxTouchPoints || 0,
+        app: (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone ? 1 : 0 };
+      var ks = kakaoSession(), tok = ks ? ks.token : '';
+      var send = function () { fetch(CFG.mainApi, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: 'logVisit', args: [info, tok], env: CFG.env && CFG.env !== 'prod' ? 'beta' : undefined }) }).catch(function () {}); };
+      var uad = navigator.userAgentData;
+      if (uad && uad.getHighEntropyValues) { info.mobile = !!uad.mobile; uad.getHighEntropyValues(['model']).then(function (h) { info.model = h.model || ''; send(); }, send); }
+      else send();
+    } catch (e) {}
+  }
+  setTimeout(logVisit, 3000);   // 화면이 뜬 뒤에
   window.TICHU_DEBUG = { state: function () { return S; } };   // 개발자 도구에서 상태 확인용 (읽기 전용으로만 쓰세요)
   boot();
 })();
