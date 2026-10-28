@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.13.1';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.14.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
   var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay';
@@ -1515,10 +1515,13 @@
     var turnLbl = isTurn ? '<span class="turnlbl">' + (g.phase === 'dragon' ? '🐉 ' : '⏳ ') + (mine ? '내 차례' : who + ' 차례') + '</span>' : '';
     if (g.phase !== 'play' && g.phase !== 'dragon') return '<div class="front p' + p + ' none"></div>';
     if (!st) return isTurn ? '<div class="front p' + p + ' t' + tc + ' wait' + tn + '">' + turnLbl + '</div>' : '<div class="front p' + p + ' none"></div>';
-    var fl = S.flash[s] !== undefined ? ' flash' : '', delay = fl ? ' style="animation-delay:' + (S.flash[s] * 0.28) + 's"' : '';
+    var fl = S.flash[s] !== undefined ? ' flash' : '', delay = fl ? ' style="animation-delay:' + (S.flash[s] * 0.28) + 's;--d:' + (S.flash[s] * 0.28) + 's"' : '';
     if (st.pass) return '<div class="front pass p' + p + fl + tn + '"' + delay + '><span class="lbl">' + who + ' · 패스</span>' + turnLbl + '</div>';
     var size = 'md';   // 크기는 같게, 칸이 좁으면 fitFronts 가 겹침만 늘림
-    return '<div class="front p' + p + ' t' + tc + (isTop ? ' top' : ' old') + fl + tn + '"' + delay + '>' + cardsHTML(st.play.c, size) + '<span class="lbl">' + (isTop ? '👑 ' : '') + who + ' · ' + esc(TE.comboName(st.play)) + '</span>' + turnLbl + '</div>';
+    // 방금 낸 카드: 한 장씩 그 사람 자리 쪽에서 날아옴 (CSS .fly — --i 순서, 폭탄은 .bomb 쾅)
+    var cards = fl ? '<div class="cards ' + size + '">' + st.play.c.map(function (c, i) { return cardHTML(c, '', size).replace('class="card', 'style="--i:' + i + '" class="card'); }).join('') + '</div>' : cardsHTML(st.play.c, size);
+    if (fl) fl += ' fly' + (S.shake && isTop ? ' bomb' : '');
+    return '<div class="front p' + p + ' t' + tc + (isTop ? ' top' : ' old') + fl + tn + '"' + delay + '>' + cards + '<span class="lbl">' + (isTop ? '👑 ' : '') + who + ' · ' + esc(TE.comboName(st.play)) + '</span>' + turnLbl + '</div>';
   }
   function centerHTML(g, me, pend) {
     var h = '', msg = '', isMe = false;

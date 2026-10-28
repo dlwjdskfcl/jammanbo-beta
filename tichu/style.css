@@ -193,6 +193,19 @@ a.ad:active { transform: scale(.99); }
 .front.flash { animation: pop .45s both; }
 @keyframes pop { 0% { opacity: 0; transform: translate(var(--tx,0), var(--ty,0)) scale(.6); } 100% { opacity: 1; } }
 .front.p0.flash { --tx: -50%; } .front.p2.flash { --tx: -50%; } .front.p1.flash, .front.p3.flash { --ty: -50%; }
+/* 방금 낸 카드 날아오기 (1.14.0) — 칸 전체 pop 대신 카드마다 자리 쪽에서 45ms 간격, 폭탄은 크게 쾅.
+   키프레임 안에 CSS 변수를 쓰면 휴대폰에서 버벅여서(측정) 자리마다 고정 값 키프레임 */
+.front.fly { animation: none; --d: 0s; }
+.front.fly .card { animation: .42s cubic-bezier(.34, 1.45, .64, 1) both; animation-delay: calc(var(--d) + var(--i, 0) * 45ms); }
+.front.p0.fly .card { animation-name: flyB; } .front.p1.fly .card { animation-name: flyR; } .front.p2.fly .card { animation-name: flyT; } .front.p3.fly .card { animation-name: flyL; }
+.front.fly.bomb .card { animation-name: slam; animation-duration: .55s; animation-timing-function: cubic-bezier(.2, 1.6, .4, 1); }
+.front.fly .lbl { animation: fadein .25s both; animation-delay: calc(var(--d) + .15s); }
+@keyframes flyB { from { opacity: 0; transform: translate(0, 70px) rotate(-14deg) scale(.6); } }
+@keyframes flyT { from { opacity: 0; transform: translate(0, -70px) rotate(14deg) scale(.6); } }
+@keyframes flyR { from { opacity: 0; transform: translate(80px, 0) rotate(14deg) scale(.6); } }
+@keyframes flyL { from { opacity: 0; transform: translate(-80px, 0) rotate(-14deg) scale(.6); } }
+@keyframes slam { from { opacity: 0; transform: scale(1.9); } }
+@keyframes fadein { from { opacity: 0; } }
 .center { position: absolute; left: 50%; top: 53%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; pointer-events: none; width: 54%; z-index: 0; }
 .turnmsg { font-weight: 900; font-size: 15px; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.6); }
 .turnmsg.me { color: var(--gold2); font-size: 17px; }
