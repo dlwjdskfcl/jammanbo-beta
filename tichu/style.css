@@ -553,3 +553,6 @@ body.ingame .toasts { top: auto; bottom: calc(var(--ch) + 150px); }
 .pv-row .cards { flex-wrap: nowrap; max-width: 100%; }
 @media (max-width: 380px) { .pv-row .cards.sm .card + .card { margin-left: -17px; } .wv button b { font-size: 12.5px; } }
 @media (prefers-reduced-motion: reduce) { .wv button.turn::after { animation: none; } }
+/* 랭킹 시즌 고르기 */
+.season-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 2px 0 6px; }
+.season-sel { background: var(--bg2); color: inherit; border: 1px solid var(--line2); border-radius: 10px; padding: 6px 10px; font-weight: 700; font-size: 14px; max-width: 100%; }

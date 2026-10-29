@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.15.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.16.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
   var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay';
@@ -553,6 +553,7 @@
     var bp = $('#bPractice'); if (bp) bp.onclick = function () { practice(bp); };    var br = $('#bRefresh'); if (br) br.onclick = function () { loadLobby(true); };
     var bad = $('#bAd'); if (bad) bad.onclick = openAdEditor;
     $$('[data-rsort]').forEach(function (b) { b.onclick = function () { S.rankSort = b.getAttribute('data-rsort'); renderLobby(); }; });
+    var rs = $('#rSeason'); if (rs) rs.onchange = function () { S.rankSeason = rs.value; S.rankPast = null; renderLobby(); if (S.rankSeason) loadRank(); };
     $$('[data-pname]').forEach(function (b) { b.onclick = function () { openProfile(b.getAttribute('data-pname')); }; });
     $$('[data-join]').forEach(function (b) { b.onclick = function () { S.roomPw = ''; joinRoom(b.getAttribute('data-join'), b.getAttribute('data-lock') === '1'); }; });
     $$('[data-watch]').forEach(function (b) { b.onclick = function () { S.roomPw = ''; watchRoom(b.getAttribute('data-watch'), b.getAttribute('data-lock') === '1'); }; });
@@ -720,7 +721,8 @@
     var rounds = p.rounds || 0, fc = p.fc != null ? p.fc : (S.rec && S.rec.me === p ? p.first : Math.round((p.first || 0) * rounds / 100));
     var st = p.st || [0, 0], gt = p.gt || [0, 0];
     return { games: p.games || 0, ranked: +p.ranked || 0, win: p.win || 0, lose: p.lose || 0, rounds: rounds, fc: fc, onetwo: p.onetwo || 0,
-      sts: st[0], stf: st[1], gts: gt[0], gtf: gt[1], tfail: st[1] + gt[1], rating: p.rating || 1500 };
+      sts: st[0], stf: st[1], gts: gt[0], gtf: gt[1], tfail: st[1] + gt[1], rating: p.rating || 1500,
+      peak: p.peak != null ? +p.peak || 0 : (+p.ranked ? p.rating || 1500 : 0) };   // peak = 시즌 상관없이 최고 레이팅 (예전 서버면 지금 레이팅)
   }
   function xpOf(x) { return XP_RULE.reduce(function (a, r) { return a + (x[r[0]] || 0) * r[2]; }, 0); }
   function lvOf(xp) { var L = 1; while (25 * (L + 1) * L <= xp) L++; return L; }
@@ -752,7 +754,7 @@
     ['🥇', '빠른 손', '1등으로 나가기 30번', function (x) { return [x.fc, 30]; }],
     ['🤝', '진짜 대전', '사람 4명 대전 10판', function (x) { return [x.ranked, 10]; }],
     ['🧠', '정확한 선언', '티츄 성공률 70% 이상 (10번 이상 선언)', function (x) { var n = x.sts + x.stf + x.gts + x.gtf; return n < 10 ? [n, 10] : [(x.sts + x.gts) / n >= 0.7 ? 1 : 0, 1]; }],
-    ['💎', '레이팅 1600', '사람 4명 대전 레이팅 1600 넘기기', function (x) { return x.ranked ? [Math.max(0, x.rating - 1500), 100] : [0, 100]; }],
+    ['💎', '레이팅 1600', '사람 4명 대전 레이팅 1600 넘기기 (어느 시즌이든)', function (x) { return [Math.max(0, x.peak - 1500), 100]; }],
     ['🙈', '용감한 도전', '티츄 실패 10번 (그래도 또 외쳐요)', function (x) { return [x.tfail, 10]; }, 1],
     ['🌙', '밤샘 티츄', '라운드 300번', function (x) { return [x.rounds, 300]; }, 1]
   ];
@@ -778,9 +780,12 @@
   }
 
   /* ----- 랭킹 · 전적 · 규칙 ----- */
+  // 랭킹: S.rankSeason 이 비면 이번 시즌(S.rank · S.rankInfo), 지난 시즌이면 S.rankPast
   function loadRank() {
-    api('ranking').then(function (r) {
-      S.rank = r.list;
+    var want = S.rankSeason || '';
+    api('ranking', want ? { season: want } : {}).then(function (r) {
+      if (r.past) { if ((S.rankSeason || '') === r.season) { S.rankPast = r; if (S.route.name === 'rank' && !S.modal) renderLobby(); } return; }
+      S.rank = r.list; S.rankInfo = r;
       if (S.route.name !== 'room' && !S.modal) renderLobby();
       var mine = S.user && r.list.filter(function (p) { return p.name === S.user.name; })[0];
       if (mine && mine.fc != null) checkAch(mine);
@@ -788,19 +793,38 @@
   }
   function loadRecords() { api('records').then(function (r) { S.rec = r; if (S.route.name === 'me') renderLobby(); if (r.me && r.me.games) checkAch(r.me); }, function (e) { toast(e.message, true); }); }
   function pct(a, b) { return a + b ? Math.round(a / (a + b) * 100) + '%' : '-'; }
+  function md(d) { var p = String(d || '').split('-'); return p.length === 3 ? +p[1] + '월 ' + +p[2] + '일' : ''; }
   function rankBody() {
-    var sort = S.rankSort || 'rating';
-    var h = '<div class="sec-title">랭킹 <div class="seg mini">' + [['rating', '레이팅'], ['level', '레벨']].map(function (x) { return '<button data-rsort="' + x[0] + '" class="' + (sort === x[0] ? 'on' : '') + '">' + x[1] + '</button>'; }).join('') + '</div></div>' +
-      '<div class="small">' + (sort === 'rating' ? '레이팅은 사람 4명이 끝까지 한 게임만 반영 · 점수 차와 팀 안 활약(1등·원투·티츄)에 따라 달라져요 · 이름을 누르면 전적' : '레벨은 봇이 낀 판까지 모든 전적으로 쌓여요 (사람 4명 대전은 경험치 +20)') + '</div>';
+    var sort = S.rankSort || 'rating', info = S.rankInfo, past = sort === 'rating' && S.rankSeason;
+    var h = '<div class="sec-title">랭킹 <div class="seg mini">' + [['rating', '레이팅'], ['level', '레벨']].map(function (x) { return '<button data-rsort="' + x[0] + '" class="' + (sort === x[0] ? 'on' : '') + '">' + x[1] + '</button>'; }).join('') + '</div></div>';
+    if (sort === 'rating' && info && info.season) {   // 시즌 고르기 (예전 서버면 안 보임)
+      h += '<div class="season-bar"><select id="rSeason" class="season-sel" aria-label="시즌"><option value="">🏁 이번 시즌 · ' + esc(info.label) + '</option>' +
+        (info.seasons || []).map(function (s) { return '<option value="' + esc(s.id) + '"' + (S.rankSeason === s.id ? ' selected' : '') + '>지난 시즌 · ' + esc(s.label) + '</option>'; }).join('') + '</select>' +
+        (past ? '' : '<span class="small">' + md(info.end) + '까지</span>') + '</div>';
+    }
+    h += '<div class="small">' + (sort !== 'rating' ? '레벨은 봇이 낀 판까지 모든 전적으로 쌓여요 (사람 4명 대전은 경험치 +20)'
+      : past ? '시즌이 끝났을 때의 순위예요 · 승/패는 그 시즌 사람전'
+      : '레이팅은 사람 4명이 끝까지 한 게임만 반영 · 점수 차와 팀 안 활약(1등·원투·티츄)에 따라 달라져요' + (info && info.season ? ' · 분기마다 새 시즌(모두 1500 에서 다시)' : '') + ' · 이름을 누르면 전적') + '</div>';
+    if (past) {
+      var P = S.rankPast;
+      if (!P) return h + '<div class="empty">불러오는 중…</div>';
+      if (!P.list.length) return h + '<div class="empty">그 시즌 기록이 없어요</div>';
+      return h + '<div style="overflow-x:auto"><table class="table-list"><thead><tr><th>#</th><th>이름</th><th>레이팅</th><th>시즌(승/패)</th></tr></thead><tbody>' +
+        P.list.map(function (p) {
+          var med = p.rank <= 3 ? '<span class="medal">' + ['🥇', '🥈', '🥉'][p.rank - 1] + '</span>' : String(p.rank);
+          return '<tr class="prof' + (S.user && p.name === S.user.name ? ' me' : '') + '" data-pname="' + esc(p.name) + '"><td>' + med + '</td><td class="n">' + esc(p.name) + '</td><td>' + p.rating + '</td><td>' + wlCell(p.sw[0], p.sw[0] + p.sw[1]) + '</td></tr>';
+        }).join('') + '</tbody></table></div>';
+    }
     if (!S.rank) return h + '<div class="empty">불러오는 중…</div>';
     if (!S.rank.length) return h + '<div class="empty">아직 기록이 없어요. 첫 판의 주인공이 되어 보세요!</div>';
     var list = S.rank.slice();
     if (sort === 'level') list.sort(function (a, b) { return xpOf(stats(b)) - xpOf(stats(a)) || b.win - a.win; });
-    return h + '<div style="overflow-x:auto"><table class="table-list"><thead><tr><th>#</th><th>이름</th>' + (sort === 'level' ? '<th>XP</th>' : '<th>레이팅</th>') + '<th>사람(승/패)</th><th>AI(승/패)</th><th>티츄</th><th>1등률</th></tr></thead><tbody>' +
+    var ssn = sort === 'rating' && info && info.season;   // 이번 시즌: 레이팅 옆은 시즌 승/패 (sr = 시즌 사람전 판수)
+    return h + '<div style="overflow-x:auto"><table class="table-list"><thead><tr><th>#</th><th>이름</th>' + (sort === 'level' ? '<th>XP</th>' : '<th>레이팅</th>') + '<th>' + (ssn ? '시즌' : '사람') + '(승/패)</th><th>AI(승/패)</th><th>티츄</th><th>1등률</th></tr></thead><tbody>' +
       list.map(function (p, i) {
-        var lead = sort === 'level' || p.ranked, med = i < 3 && lead ? '<span class="medal">' + ['🥇', '🥈', '🥉'][i] + '</span>' : String(i + 1);
+        var rk = ssn ? p.sr : p.ranked, lead = sort === 'level' || rk, med = i < 3 && lead ? '<span class="medal">' + ['🥇', '🥈', '🥉'][i] + '</span>' : String(i + 1);
         return '<tr class="prof' + (S.user && p.name === S.user.name ? ' me' : '') + '" data-pname="' + esc(p.name) + '"><td>' + med + '</td><td class="n">' + lvTag(p) + ' ' + esc(p.name) + '</td><td>' +
-          (sort === 'level' ? xpOf(stats(p)).toLocaleString() : p.ranked ? p.rating : '<span class="small">-</span>') + '</td>' + (p.wl ? '<td>' + wlCell(p.wl.hw, p.wl.hg) + '</td><td>' + wlCell(p.wl.aw, p.wl.ag) + '</td>' : '<td>' + p.win + '/' + p.lose + '</td><td>' + p.rate + '%</td>') + '<td>' + pct(p.st[0] + p.gt[0], p.st[1] + p.gt[1]) + '</td><td>' + p.first + '%</td></tr>';
+          (sort === 'level' ? xpOf(stats(p)).toLocaleString() : rk ? p.rating : '<span class="small">-</span>') + '</td>' + (p.wl ? '<td>' + (ssn && p.sw ? wlCell(p.sw[0], p.sw[0] + p.sw[1]) : wlCell(p.wl.hw, p.wl.hg)) + '</td><td>' + wlCell(p.wl.aw, p.wl.ag) + '</td>' : '<td>' + p.win + '/' + p.lose + '</td><td>' + p.rate + '%</td>') + '<td>' + pct(p.st[0] + p.gt[0], p.st[1] + p.gt[1]) + '</td><td>' + p.first + '%</td></tr>';
       }).join('') + '</tbody></table></div>';
   }
   function levelCard(m) {
@@ -841,7 +865,8 @@
     var h = '', m = rec.me;
     if (!m || !m.games) h += '<div class="empty">' + (mine ? '아직 끝까지 한 게임이 없어요. 한 판 끝내면 레벨과 배지가 열려요!' : '아직 끝까지 한 게임이 없어요') + '</div>';
     else h += levelCard(m) + '<div class="sec-title">기록</div><div class="stat-grid">' +
-      '<div class="stat"><b>' + (m.ranked ? m.rating : '-') + '</b><span>레이팅</span></div>' +
+      (m.sr != null ? '<div class="stat"><b>' + (m.sr ? m.rating : '-') + '</b><span>이번 시즌 레이팅' + (m.peak > 1500 ? ' · 최고 ' + m.peak : '') + '</span></div>'
+        : '<div class="stat"><b>' + (m.ranked ? m.rating : '-') + '</b><span>레이팅</span></div>') +
       (m.wl ? wlStat('👥 사람전', m.wl.hw, m.wl.hg) + wlStat('🤖 AI전', m.wl.aw, m.wl.ag)
         : '<div class="stat"><b>' + m.win + '승 ' + m.lose + '패</b><span>승률 ' + Math.round(m.win / m.games * 100) + '%</span></div>') +
       '<div class="stat"><b>' + (m.rounds ? Math.round(m.first / m.rounds * 100) : 0) + '%</b><span>1등으로 나감</span></div>' +
@@ -901,7 +926,7 @@
       wx(7, ['J3', 'S4', 'P5', 'T6', 'J7'], ['T9', 'S12', 'P13', 'J14', 'PH', 'J2'], false, '9 는 있지만 10 과 J 가 둘 다 비어서 봉황 한 장으로는 스트레이트를 못 이어요.') +
       wx(8, null, ['T9', 'J9', 'J3', 'S12'], true, '내가 선이에요. 9 가 들어간 조합으로 시작해야 해요 (싱글 9 도, 9 페어도 OK).') +
       '<h3>잠만보 티츄에서는</h3><ul><li>턴 시간을 넘기면 자동으로 진행돼요(낼 의무가 없으면 패스). ‘돌아왔어요’를 누르면 다시 직접 해요.</li>' +
-      '<li>게임 중 나가면 봇이 대신하고, 그 판은 전적에 들어가지 않아요.</li><li>레이팅은 사람 4명이 끝까지 한 게임만 반영돼요.</li><li>라운드 중에는 각자 따간 점수가 보이지 않아요. 라운드가 끝나면 결과에서 확인해요.</li><li>판을 끝낼 때마다 경험치가 쌓여 레벨·칭호가 오르고, 조건을 채우면 배지를 받아요 (내 전적 탭).</li></ul>' +
+      '<li>게임 중 나가면 봇이 대신하고, 그 판은 전적에 들어가지 않아요.</li><li>레이팅은 사람 4명이 끝까지 한 게임만 반영돼요. 분기마다(1·4·7·10월 1일) 새 시즌이 시작되고 모두 1500 에서 다시 겨뤄요 — 지난 시즌 순위는 랭킹에서 볼 수 있어요.</li><li>라운드 중에는 각자 따간 점수가 보이지 않아요. 라운드가 끝나면 결과에서 확인해요.</li><li>판을 끝낼 때마다 경험치가 쌓여 레벨·칭호가 오르고, 조건을 채우면 배지를 받아요 (내 전적 탭).</li></ul>' +
       '<h3>🔎 참새 콜 — 특수 상황</h3><p class="small" style="margin-top:0">자주 나오진 않지만 헷갈리는 경우예요.</p><ul class="wish-special">' +
       '<li><b>차례가 아닐 때 폭탄:</b> 폭탄은 차례가 아니어도 낼 수 있으니, 콜 숫자가 든 폭탄을 먼저 내서 소원을 들어줘도 돼요. 단 ‘반드시’는 <b>내 차례에만</b> 확인해요 — 차례가 아닐 때 안 내도 반칙이 아니에요.</li>' +
       '<li><b>더 센 폭탄이 이미 나왔을 때:</b> 5 콜인데 테이블에 7 포카드가 있으면, 내 5 포카드로는 못 이기니 패스해도 돼요.' + cardsHTML(['J7', 'S7', 'P7', 'T7'], 'sm') + '</li>' +
