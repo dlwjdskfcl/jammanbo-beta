@@ -284,6 +284,7 @@ a.ad:active { transform: scale(.99); }
 .modal { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.55); display: flex; align-items: flex-end; justify-content: center; padding: 0; }
 .modal[hidden] { display: none; }
 .sheet { width: 100%; max-width: 520px; max-height: 88vh; overflow: auto; background: var(--panel); border: 1px solid var(--line2); border-radius: 20px 20px 0 0; padding: 18px 16px max(18px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 12px; animation: up .2s ease-out; }
+.sheet > * { flex-shrink: 0; }   /* 창 내용이 길면 줄어들지 말고 창이 스크롤 (계정 창 소리 설정이 잘리던 문제) */
 @media (min-width: 640px) { .modal { align-items: center; } .sheet { border-radius: 20px; } }
 @keyframes up { from { transform: translateY(30px); opacity: 0; } }
 .sheet h2 { margin: 0; font-size: 19px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
