@@ -89,6 +89,7 @@ kbd{font:600 11px var(--sans);border:1px solid var(--line);border-bottom-width:2
 .seg{display:flex;background:var(--surface2);border-radius:12px;padding:3px;gap:2px}
 .seg button{flex:1;border:0;background:transparent;border-radius:9px;padding:8px 4px;font-weight:600;font-size:14px;color:var(--muted);transition:background .15s,color .15s;min-width:0}
 .seg.sm button{font-size:13px;padding:8px 2px;letter-spacing:-.03em}
+.seg.fit button{flex:1 1 auto;white-space:nowrap}   /* 글자 길이만큼 폭 (360px 에서 '브론스타인' 두 줄 방지) */
 .seg button.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(16,24,40,.08),0 1px 3px rgba(16,24,40,.06)}
 @media (prefers-color-scheme: dark){.seg button.on{background:#2e333d;box-shadow:none}}
 .tog{cursor:pointer;margin-top:6px}

@@ -81,7 +81,7 @@ kbd{font:600 11px var(--sans);border:1px solid var(--line);border-bottom-width:2
 .pad.add{background:transparent;box-shadow:inset 0 0 0 2px var(--line);color:var(--muted)}
 
 /* 배경음악 카드 */
-.bgms{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
+.bgms{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px}
 .grp{margin:14px 2px 8px;font-size:13px;font-weight:800;color:var(--muted)}
 .grp:first-child{margin-top:2px}
 .bgms.mystery .bg{--c:#9775fa}
