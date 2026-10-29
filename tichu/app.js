@@ -4,10 +4,10 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.17.2';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.18.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
-  var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay', LS_THEME = 'tichu_theme', LS_THEME_TIP = 'tichu_theme_tip';
+  var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay', LS_THEME = 'tichu_theme', LS_THEME_TIP = 'tichu_theme_tip', LS_BOTLV = 'tichu_botlv';
   var KAKAO_STORE = 'jmb_kakao_v2' + ENV_SFX, KAKAO_STATE = 'jmb_kakao_state' + ENV_SFX;
   var ROOT = (function () { var seg = location.pathname.split('/')[1] || ''; return /\.github\.io$/.test(location.hostname) && seg ? '/' + seg + '/' : '/'; })();
   var app = document.getElementById('app'), modalEl = document.getElementById('modal'), toastsEl = document.getElementById('toasts');
@@ -666,10 +666,31 @@
     return h;
   }
 
+  // AI 연습: 실력 고르기 → 바로 시작 (고른 실력은 기억)
   function practice(btn) {
-    btn.disabled = true;
-    api('create', { practice: true, target: 500, timer: 0, botDelay: botDelayPref() }).then(function (r) { applyRoom(r, true); location.hash = '#/room/' + r.id; }, function (e) { btn.disabled = false; toast(e.message, true); });
+    var cur = botLvPref();
+    openModal('<h2>🤖 AI와 연습<button class="x" data-x>✕</button></h2><div class="small">봇 3명과 바로 시작 · 목표 500점 · 시간 제한 없음</div><div class="lv-pick">' + BOT_LVS.map(function (L, i) {
+      return '<button class="lv-card' + (i === cur ? ' on' : '') + '" data-lv="' + i + '"><span class="lv-ic">' + L[1] + '</span><span class="lv-tx"><b>' + L[0] + '</b><small>' + L[2] + '</small></span><span class="lv-xp">' + (L[3] ? '이기면<br><b>+' + L[3] + ' XP</b>' : '기본<br>경험치') + '</span></button>';
+    }).join('') + '</div><div class="small">이기면 받는 추가 경험치는 상대 팀에 봇이 있을 때만 (내 전적 → 경험치 내역)</div>');
+    $$('[data-lv]', modalEl).forEach(function (b) {
+      b.onclick = function () {
+        var lv = +b.getAttribute('data-lv'); lsSet(LS_BOTLV, String(lv));
+        $$('[data-lv]', modalEl).forEach(function (x) { x.disabled = true; });
+        btn.disabled = true;
+        api('create', { practice: true, target: 500, timer: 0, botDelay: botDelayPref(), botLv: lv }).then(function (r) { closeModal(); applyRoom(r, true); location.hash = '#/room/' + r.id; },
+          function (e) { btn.disabled = false; $$('[data-lv]', modalEl).forEach(function (x) { x.disabled = false; }); toast(e.message, true); });
+      };
+    });
   }
+  // AI 실력 — 방 옵션 botLv (서버 Bot.js: 0 기본 · 1 고수 · 2 신). [이름, 아이콘, 설명, 이기면 추가 XP]
+  var BOT_LVS = [['기본', '🤖', '무난하게 · 처음 배울 때', 0], ['고수', '🧠', '남은 카드를 세고 티츄를 잘 판단', 15], ['신', '⚡', '경우의 수를 수백 번 굴려 보고 두는 AI', 40]];
+  function botLvPref() { var v = +lsGet(LS_BOTLV); return v === 1 || v === 2 ? v : 0; }
+  function botLvOf(o) { var v = o && +o.botLv; return v === 1 || v === 2 ? v : 0; }
+  function botLvLabel(v) { var L = BOT_LVS[botLvOf({ botLv: v })]; return L[1] + ' ' + L[0]; }
+  function botLvSeg(cur) {
+    return '<div class="field"><label>🎓 AI 실력 <span class="small">(이기면 고수 +15 · 신 +40 XP)</span></label>' + optSeg('botLv', [0, 1, 2], cur, botLvLabel) + '</div>';
+  }
+  function botLvVal(root) { var v = segVal(root, 'botLv'); v = v == null ? botLvPref() : +v; lsSet(LS_BOTLV, String(v)); return v; }
 
   function optSeg(name, vals, cur, fmt) {
     return '<div class="seg" data-seg="' + name + '">' + vals.map(function (v) { return '<button type="button" data-v="' + v + '" class="' + (String(v) === String(cur) ? 'on' : '') + '">' + fmt(v) + '</button>'; }).join('') + '</div>';
@@ -700,13 +721,13 @@
   }
   function botDelayVal(root) { var v = segVal(root, 'botDelay'); v = v == null ? botDelayPref() : +v; lsSet(LS_BOTD, String(v)); return v; }
   function roomOptForm(o) {
-    o = o || { name: '', target: 500, timer: 45, pw: '', botDelay: botDelayPref() };
+    o = o || { name: '', target: 500, timer: 45, pw: '', botDelay: botDelayPref(), botLv: botLvPref() };
     var preset = [200, 400, 500].indexOf(+o.target) >= 0;
     return '<div class="field"><label>방 이름</label><input class="input" id="oName" maxlength="24" placeholder="' + esc(S.user.name) + '님의 방" value="' + esc(o.name) + '"></div>' +
       '<div class="field"><label>목표 점수</label>' + optSeg('target', [200, 400, 500], preset ? o.target : '', function (v) { return v + '점'; }) +
         '<input class="input" id="oTarget" type="number" inputmode="numeric" min="100" max="3000" step="10" placeholder="직접 입력 (100~3000점)" value="' + (preset ? '' : esc(o.target)) + '" style="margin-top:6px"></div>' +
       '<div class="field"><label>턴 시간 (넘기면 자동 진행)</label>' + optSeg('timer', [0, 20, 30, 45, 60, 90], o.timer, function (v) { return v ? v + '초' : '없음'; }) + '</div>' +
-      botDelaySeg(botDelayOf(o)) +
+      botLvSeg(botLvOf(o)) + botDelaySeg(botDelayOf(o)) +
       // 관전자 패 보기 (실시간 서버 방만) — 배우는 사람 · 대회 중계용
       (CFG.rt ? '<div class="field"><label>👀 관전자에게 패 보여 주기 <span class="small">(배우는 사람 · 대회 중계용)</span></label>' + optSeg('peek', [0, 1], o.peek ? 1 : 0, function (v) { return v ? '보여 주기' : '안 보여 주기'; }) +
         '<div class="small" style="margin-top:6px">켜면 관전자는 네 사람의 패를 모두 볼 수 있어요 · 공정하게 하려고 게임 중 관전자의 봇 자리 이어받기는 막혀요</div></div>' : '') +
@@ -717,7 +738,7 @@
     bindSeg(modalEl); bindTarget(modalEl);
     $('#oGo').onclick = function () {
       var b = $('#oGo'); b.disabled = true;
-      api('create', { name: $('#oName').value, target: targetVal(modalEl), timer: +segVal(modalEl, 'timer'), botDelay: botDelayVal(modalEl), peek: +segVal(modalEl, 'peek') || 0, pw: $('#oPw').value }).then(function (r) {
+      api('create', { name: $('#oName').value, target: targetVal(modalEl), timer: +segVal(modalEl, 'timer'), botDelay: botDelayVal(modalEl), botLv: botLvVal(modalEl), peek: +segVal(modalEl, 'peek') || 0, pw: $('#oPw').value }).then(function (r) {
         closeModal(); applyRoom(r, true); location.hash = '#/room/' + r.id;
       }, function (e) { b.disabled = false; toast(e.message, true); });
     };
@@ -755,7 +776,8 @@
   /* ----- 레벨 · 칭호 · 배지 (잠만보 트레이너 레벨처럼, 전적 숫자로 계산) ----- */
   // 경험치: 끝까지 한 판 10 · 사람 4명 대전 +20 · 승 10 · 라운드 1 · 1등 3 · 원투 8 · 스몰 성공 10 · 라지 성공 30 · 티츄 도전(실패) 2
   var XP_RULE = [['games', '끝까지 한 판', 10], ['ranked', '사람 4명 대전', 20], ['win', '승리', 10], ['rounds', '라운드', 1], ['fc', '1등으로 나감', 3],
-    ['onetwo', '원투', 8], ['sts', '스몰 티츄 성공', 10], ['gts', '라지 티츄 성공', 30], ['tfail', '티츄 도전', 2]];
+    ['onetwo', '원투', 8], ['sts', '스몰 티츄 성공', 10], ['gts', '라지 티츄 성공', 30], ['tfail', '티츄 도전', 2],
+    ['pw', '🧠 고수 AI전 승리', 15], ['gw', '⚡ 신 AI전 승리', 40]];   // 서버 apiSummary_ 의 xp 식과 같게
   // 레벨 L 까지 누적 필요 XP = 25·L·(L−1) (잠만보 트레이너 레벨과 같은 곡선)
   var TITLES = [[1, '🐣', '참새 견습생'], [3, '🐕', '개 조련사'], [5, '🃏', '트릭 수집가'], [8, '💣', '폭탄 장인'], [12, '🔥', '봉황 기사'], [16, '🐉', '용의 주인'], [22, '👑', '티츄 마스터']];
   function stats(p) {   // 랭킹 항목 / 내 전적 둘 다 받아서 같은 모양으로
@@ -764,7 +786,7 @@
     var st = p.st || [0, 0], gt = p.gt || [0, 0];
     return { games: p.games || 0, ranked: +p.ranked || 0, win: p.win || 0, lose: p.lose || 0, rounds: rounds, fc: fc, onetwo: p.onetwo || 0,
       sts: st[0], stf: st[1], gts: gt[0], gtf: gt[1], tfail: st[1] + gt[1], rating: p.rating || 1500,
-      peak: p.peak != null ? +p.peak || 0 : (+p.ranked ? p.rating || 1500 : 0) };   // peak = 시즌 상관없이 최고 레이팅 (예전 서버면 지금 레이팅)
+      peak: p.peak != null ? +p.peak || 0 : (+p.ranked ? p.rating || 1500 : 0), pw: +p.pw || 0, gw: +p.gw || 0 };   // peak = 시즌 상관없이 최고 레이팅 (예전 서버면 지금 레이팅)
   }
   function xpOf(x) { return XP_RULE.reduce(function (a, r) { return a + (x[r[0]] || 0) * r[2]; }, 0); }
   function lvOf(xp) { var L = 1; while (25 * (L + 1) * L <= xp) L++; return L; }
@@ -797,6 +819,9 @@
     ['🤝', '진짜 대전', '사람 4명 대전 10판', function (x) { return [x.ranked, 10]; }],
     ['🧠', '정확한 선언', '티츄 성공률 70% 이상 (10번 이상 선언)', function (x) { var n = x.sts + x.stf + x.gts + x.gtf; return n < 10 ? [n, 10] : [(x.sts + x.gts) / n >= 0.7 ? 1 : 0, 1]; }],
     ['💎', '레이팅 1600', '사람 4명 대전 레이팅 1600 넘기기 (어느 시즌이든)', function (x) { return [Math.max(0, x.peak - 1500), 100]; }],
+    ['🧠', '고수 격파', '고수 AI전 1번 이기기', function (x) { return [x.pw, 1]; }],
+    ['⚡', '신을 이긴 자', '신 AI전 1번 이기기', function (x) { return [x.gw, 1]; }],
+    ['🌌', '신의 영역', '신 AI전 10번 이기기', function (x) { return [x.gw, 10]; }, 1],
     ['🙈', '용감한 도전', '티츄 실패 10번 (그래도 또 외쳐요)', function (x) { return [x.tfail, 10]; }, 1],
     ['🌙', '밤샘 티츄', '라운드 300번', function (x) { return [x.rounds, 300]; }, 1]
   ];
@@ -968,7 +993,7 @@
       wx(7, ['J3', 'S4', 'P5', 'T6', 'J7'], ['T9', 'S12', 'P13', 'J14', 'PH', 'J2'], false, '9 는 있지만 10 과 J 가 둘 다 비어서 봉황 한 장으로는 스트레이트를 못 이어요.') +
       wx(8, null, ['T9', 'J9', 'J3', 'S12'], true, '내가 선이에요. 9 가 들어간 조합으로 시작해야 해요 (싱글 9 도, 9 페어도 OK).') +
       '<h3>잠만보 티츄에서는</h3><ul><li>턴 시간을 넘기면 자동으로 진행돼요(낼 의무가 없으면 패스). ‘돌아왔어요’를 누르면 다시 직접 해요.</li>' +
-      '<li>게임 중 나가면 봇이 대신하고, 그 판은 전적에 들어가지 않아요.</li><li>레이팅은 사람 4명이 끝까지 한 게임만 반영돼요. 분기마다(1·4·7·10월 1일) 새 시즌이 시작되고 모두 1500 에서 다시 겨뤄요 — 지난 시즌 순위는 랭킹에서 볼 수 있어요.</li><li>라운드 중에는 각자 따간 점수가 보이지 않아요. 라운드가 끝나면 결과에서 확인해요.</li><li>판을 끝낼 때마다 경험치가 쌓여 레벨·칭호가 오르고, 조건을 채우면 배지를 받아요 (내 전적 탭).</li></ul>' +
+      '<li>게임 중 나가면 봇이 대신하고, 그 판은 전적에 들어가지 않아요.</li><li>AI 실력은 🤖 기본 · 🧠 고수 · ⚡ 신 — 방 설정이나 ‘AI와 연습’에서 골라요. AI전에서 이기면 고수 +15 · 신 +40 경험치를 더 받아요 (상대 팀에 봇이 있을 때). 자리를 비운 사람 대신 두는 자동 진행은 늘 기본이에요.</li><li>레이팅은 사람 4명이 끝까지 한 게임만 반영돼요. 분기마다(1·4·7·10월 1일) 새 시즌이 시작되고 모두 1500 에서 다시 겨뤄요 — 지난 시즌 순위는 랭킹에서 볼 수 있어요.</li><li>라운드 중에는 각자 따간 점수가 보이지 않아요. 라운드가 끝나면 결과에서 확인해요.</li><li>판을 끝낼 때마다 경험치가 쌓여 레벨·칭호가 오르고, 조건을 채우면 배지를 받아요 (내 전적 탭).</li></ul>' +
       '<h3>🔎 참새 콜 — 특수 상황</h3><p class="small" style="margin-top:0">자주 나오진 않지만 헷갈리는 경우예요.</p><ul class="wish-special">' +
       '<li><b>차례가 아닐 때 폭탄:</b> 폭탄은 차례가 아니어도 낼 수 있으니, 콜 숫자가 든 폭탄을 먼저 내서 소원을 들어줘도 돼요. 단 ‘반드시’는 <b>내 차례에만</b> 확인해요 — 차례가 아닐 때 안 내도 반칙이 아니에요.</li>' +
       '<li><b>더 센 폭탄이 이미 나왔을 때:</b> 5 콜인데 테이블에 7 포카드가 있으면, 내 5 포카드로는 못 이기니 패스해도 돼요.' + cardsHTML(['J7', 'S7', 'P7', 'T7'], 'sm') + '</li>' +
@@ -1231,7 +1256,7 @@
       '<button class="iconbtn" id="wPeople" aria-label="참가자·관전자">👥</button>' +
       '<button class="iconbtn" id="wChat" aria-label="채팅">💬' + (S.unread ? '<span class="badge-dot">' + S.unread + '</span>' : '') + '</button></div>' +
       '<div class="content wait-wrap">' +
-      '<div class="wait-info"><span class="chip">🎯 목표 ' + r.opt.target + '점</span><span class="chip">⏱ ' + (r.opt.timer ? '턴 ' + r.opt.timer + '초' : '시간 제한 없음') + '</span><span class="chip">🤖 AI ' + botDelayLabel(botDelayOf(r.opt)) + '</span>' + (r.opt.lock ? '<span class="chip">🔒 비밀방</span>' : '') + (r.opt.peek ? '<span class="chip">👀 관전자 패 보기</span>' : '') + '</div>' +
+      '<div class="wait-info"><span class="chip">🎯 목표 ' + r.opt.target + '점</span><span class="chip">⏱ ' + (r.opt.timer ? '턴 ' + r.opt.timer + '초' : '시간 제한 없음') + '</span><span class="chip">' + botLvLabel(botLvOf(r.opt)) + ' AI · ' + botDelayLabel(botDelayOf(r.opt)) + '</span>' + (r.opt.lock ? '<span class="chip">🔒 비밀방</span>' : '') + (r.opt.peek ? '<span class="chip">👀 관전자 패 보기</span>' : '') + '</div>' +
       watchersHTML(r) + '<div class="idle-note" id="wIdle" hidden></div>' +
       '<div class="wait-table">' + seats + '<div class="wait-center"><b style="font-size:20px">' + r.seats.filter(Boolean).length + ' / 4</b><br>마주 앉은<br>두 사람이 한 팀</div></div>' +
       (r.host ? '<button class="btn primary block" id="wStart" ' + (full ? '' : 'disabled') + '>' + (full ? '게임 시작' : '네 자리가 차면 시작할 수 있어요') + '</button>' +
@@ -1324,10 +1349,10 @@
   }
   function optSheet() {
     var r = S.room;
-    openModal('<h2>방 설정<button class="x" data-x>✕</button></h2>' + roomOptForm({ name: r.name, target: r.opt.target, timer: r.opt.timer, botDelay: botDelayOf(r.opt), peek: r.opt.peek, pw: '' }) +
+    openModal('<h2>방 설정<button class="x" data-x>✕</button></h2>' + roomOptForm({ name: r.name, target: r.opt.target, timer: r.opt.timer, botDelay: botDelayOf(r.opt), botLv: botLvOf(r.opt), peek: r.opt.peek, pw: '' }) +
       '<div class="small">비밀번호 칸을 비우면 공개방이 돼요.</div><button class="btn primary block" id="oGo">저장</button>');
     bindSeg(modalEl); bindTarget(modalEl);
-    $('#oGo').onclick = function () { var pk = segVal(modalEl, 'peek'); roomCall('opt', { name: $('#oName').value, target: targetVal(modalEl), timer: +segVal(modalEl, 'timer'), botDelay: botDelayVal(modalEl), peek: pk == null ? undefined : +pk, pw: $('#oPw').value }, $('#oGo')).then(closeModal); };
+    $('#oGo').onclick = function () { var pk = segVal(modalEl, 'peek'); roomCall('opt', { name: $('#oName').value, target: targetVal(modalEl), timer: +segVal(modalEl, 'timer'), botDelay: botDelayVal(modalEl), botLv: botLvVal(modalEl), peek: pk == null ? undefined : +pk, pw: $('#oPw').value }, $('#oGo')).then(closeModal); };
   }
   function copyInvite() {
     // ?reset: 잠만보 앱의 예전 서비스 워커(v2.2)가 남은 기기에서도 티츄 페이지가 바로 열리게 (티츄는 이 값을 쓰지 않고 지움)
