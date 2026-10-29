@@ -1,4 +1,4 @@
-/*! 잠만보 방탈출 — 화면 v1.0.0
+/*! 잠만보 방탈출 — 화면 v1.0.1
  * 서버: 잠만보 메인 Apps Script (Escape.gs — escData · escSaveTheme · escHideTheme · escSaveLog · escDeleteLog · escWish)
  * 탭: 🔍 찾기(검색·필터·정렬) · 📔 내 일지(기록·통계) · 👥 모임(같이 갈 사람에게 맞춘 추천·랭킹) · ❤️ 가고 싶어요(같이 가요 모집 글)
  * 주소: #/t/<테마ID> = 그 테마 열기 (카톡에 공유하면 바로 그 테마)
@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.0.0';
+  var VER = '1.0.1';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   var ENV_SFX = ENV !== 'prod' ? '_' + ENV : '';
@@ -75,7 +75,7 @@
     if (confirm(myNick() + ' 님으로 로그인돼 있어요.\n로그아웃할까요? (잠만보 앱도 함께 로그아웃돼요)')) { lsSet(LS.auth, null); renderAcct(); S.ver = ''; refresh(); }
   }
   function needLogin(what) {
-    return '<div class="empty"><b>🔒 로그인이 필요해요</b>' + esc(what) + '은(는) 카카오로 로그인한 회원만 볼 수 있어요.<div class="btns" style="justify-content:center"><button type="button" class="btn pri" data-login>카카오 로그인</button></div></div>';
+    return '<div class="empty"><b>🔒 로그인이 필요해요</b>' + esc(what) + ' 카카오로 로그인한 회원만 볼 수 있어요.<div class="btns" style="justify-content:center"><button type="button" class="btn pri" data-login>카카오 로그인</button></div></div>';
   }
 
   /* ================= 서버 ================= */
@@ -276,7 +276,7 @@
   }
   function renderLog() {
     var el = $('logBody');
-    if (!S.me) { el.innerHTML = needLogin('내 방탈 일지'); return; }
+    if (!S.me) { el.innerHTML = needLogin('내 방탈 일지는'); return; }
     var mine = S.logs.filter(function (l) { return l.nick === S.me; }).sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
     if (!mine.length) {
       el.innerHTML = '<div class="empty"><b>📔 아직 기록이 없어요</b>다녀온 방탈출을 기록하면 성공률 · 힌트 · 좋아하는 장르를 모아 보여 드려요.<div class="btns" style="justify-content:center"><button type="button" class="btn pri" data-newlog>＋ 첫 일지 쓰기</button></div></div>';
@@ -331,7 +331,7 @@
   }
   function renderClub() {
     var el = $('clubBody');
-    if (!S.me) { el.innerHTML = needLogin('모임 추천 · 랭킹'); return; }
+    if (!S.me) { el.innerHTML = needLogin('모임 추천 · 랭킹은'); return; }
     var people = pickedPeople(), rec = recommend(people, S.recArea);
     var memberChips = S.members.slice().sort(function (a, b) { return (people.indexOf(b) >= 0) - (people.indexOf(a) >= 0) || a.localeCompare(b, 'ko'); })
       .map(function (m) { return '<button type="button" class="pchip' + (people.indexOf(m) >= 0 ? ' on' : '') + '" data-p="' + esc(m) + '">' + esc(m) + '</button>'; }).join('');
@@ -375,7 +375,7 @@
   /* ================= 가고 싶어요 ================= */
   function renderWish() {
     var el = $('wishBody');
-    if (!S.me) { el.innerHTML = needLogin('가고 싶어요'); return; }
+    if (!S.me) { el.innerHTML = needLogin('가고 싶어요는'); return; }
     var mine = Object.keys(S.myWish).map(function (k) { return S.byId[k]; }).filter(Boolean);
     var pop = Object.keys(S.wishBy).filter(function (k) { return S.byId[k]; }).sort(function (a, b) { return S.wishBy[b].length - S.wishBy[a].length; }).slice(0, 20);
     var h = '<div class="card"><h3>❤️ 내가 가고 싶은 테마 <small>' + mine.length + '개</small></h3>' +
