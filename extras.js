@@ -14,6 +14,7 @@
     { id: 'timer', href: ROOT + 'timer/?reset', emoji: '⏱️', name: '타이머', desc: '체스 클락 · 턴 타이머 · 모래시계', bg: 'linear-gradient(135deg,#fff0f6,#ffdeeb)', bgDark: 'linear-gradient(135deg,#3d1528,#4f1c34)' },
     // admin: 운영진 모드일 때만 보임 (아직 회원에게 공개 안 함 — 주소로는 열림)
     { id: 'sound', admin: true, href: ROOT + 'sound/?reset', emoji: '🔊', name: '사운드보드', desc: '대회 · 머더미스터리 · 할로윈 BGM · 효과음', bg:'linear-gradient(135deg,#fff9db,#ffec99)', bgDark: 'linear-gradient(135deg,#3b3010,#4a3c12)' },
+    { id: 'escape', admin: true, href: ROOT + 'escape/?reset', emoji: '🗝️', name: '방탈출', desc: '테마 찾기 · 내 방탈 일지 · 모임 추천', bg: 'linear-gradient(135deg,#f3f0ff,#e5dbff)', bgDark: 'linear-gradient(135deg,#2a1f47,#36295e)' },
     { id: 'map', href: ROOT + 'map/?reset', emoji: '📍', name: '장소 지도', desc: '모임 장소 · 맛집 지도', bg: 'linear-gradient(135deg,#e6fcf5,#c3fae8)', bgDark: 'linear-gradient(135deg,#0f2f27,#134235)' },
     // ext: 외부 사이트 — 새 창으로 열고 ↗ 표시. 결과는 앱의 '내 기록 > 방탈출 탱쫄'에서 기록
     { id: 'tangzzol', ext: true, href: 'https://bangpot-tangzzol-test.vercel.app/test/tangzzol', emoji: '🚪', name: '방탈출 탱쫄 판별기', desc: '나는 탱일까 쫄일까? 20종 유형 테스트', bg: 'linear-gradient(135deg,#f3f0ff,#e5dbff)', bgDark: 'linear-gradient(135deg,#2a1f47,#36295e)' }
