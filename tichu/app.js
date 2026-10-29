@@ -4,10 +4,10 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.16.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.17.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
-  var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay';
+  var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay', LS_THEME = 'tichu_theme', LS_THEME_TIP = 'tichu_theme_tip';
   var KAKAO_STORE = 'jmb_kakao_v2' + ENV_SFX, KAKAO_STATE = 'jmb_kakao_state' + ENV_SFX;
   var ROOT = (function () { var seg = location.pathname.split('/')[1] || ''; return /\.github\.io$/.test(location.hostname) && seg ? '/' + seg + '/' : '/'; })();
   var app = document.getElementById('app'), modalEl = document.getElementById('modal'), toastsEl = document.getElementById('toasts');
@@ -552,22 +552,63 @@
     var bc = $('#bCreate'); if (bc) bc.onclick = createRoomSheet;
     var bp = $('#bPractice'); if (bp) bp.onclick = function () { practice(bp); };    var br = $('#bRefresh'); if (br) br.onclick = function () { loadLobby(true); };
     var bad = $('#bAd'); if (bad) bad.onclick = openAdEditor;
+    var tt = $('#ttTry'); if (tt) tt.onclick = function () { setTheme('halloween'); renderLobby(); toast('🎃 할로윈 테마 — 이름 버튼(▾)에서 언제든 바꿀 수 있어요'); };
+    var tn = $('#ttNo'); if (tn) tn.onclick = function () { lsSet(LS_THEME_TIP, '1'); renderLobby(); };
     $$('[data-rsort]').forEach(function (b) { b.onclick = function () { S.rankSort = b.getAttribute('data-rsort'); renderLobby(); }; });
     var rs = $('#rSeason'); if (rs) rs.onchange = function () { S.rankSeason = rs.value; S.rankPast = null; renderLobby(); if (S.rankSeason) loadRank(); };
     $$('[data-pname]').forEach(function (b) { b.onclick = function () { openProfile(b.getAttribute('data-pname')); }; });
     $$('[data-join]').forEach(function (b) { b.onclick = function () { S.roomPw = ''; joinRoom(b.getAttribute('data-join'), b.getAttribute('data-lock') === '1'); }; });
     $$('[data-watch]').forEach(function (b) { b.onclick = function () { S.roomPw = ''; watchRoom(b.getAttribute('data-watch'), b.getAttribute('data-lock') === '1'); }; });
   }
+  /* ----- 테마 (기기마다 저장) — 고른 테마의 themes/<id>.css 만 받음. 처음 그리기는 index.html 의 작은 스크립트가 함 ----- */
+  // [id, 이름, 아이콘, 미리보기 색 2개, 주소창 색]
+  var THEMES = [['', '기본', '🃏', '#17563f', '#0b2e22', '#0b1a14'], ['halloween', '할로윈', '🎃', '#432570', '#ff8c1a', '#120c1c'],
+    ['spring', '봄', '🌸', '#7d4b6d', '#ffc2d6', '#1c1218'], ['summer', '여름', '🍉', '#16798d', '#ffd34d', '#08161c'],
+    ['autumn', '가을', '🍁', '#7d4b24', '#ff9a3c', '#170f09'], ['winter', '겨울', '⛄', '#2b5590', '#c4e8ff', '#0a1020']];
+  function curTheme() { var t = lsGet(LS_THEME) || ''; return THEMES.some(function (x) { return x[0] === t; }) ? t : ''; }
+  function setTheme(id) {
+    var root = document.documentElement, old = document.getElementById('themeCss'), th = THEMES.filter(function (x) { return x[0] === id; })[0] || THEMES[0];
+    root.className = root.className.replace(/\bth-\w+/g, '').trim();
+    if (id) {
+      var l = document.createElement('link'); l.rel = 'stylesheet'; l.id = 'themeCss'; l.href = 'themes/' + id + '.css?v=' + (window.TICHU_THEME_V || '1');
+      document.head.appendChild(l); root.classList.add('th-' + id);
+    }
+    if (old) old.parentNode.removeChild(old);
+    var m = document.querySelector('meta[name=theme-color]'); if (m) m.setAttribute('content', th[5]);
+    lsSet(LS_THEME, id || null); lsSet(LS_THEME_TIP, '1');
+  }
+  function themeRows() {
+    var cur = curTheme();
+    return '<div class="sec-title">테마 <span class="small">이 기기에만 적용</span></div><div class="theme-grid">' + THEMES.map(function (t) {
+      return '<button class="theme-pick' + (t[0] === cur ? ' on' : '') + '" data-theme="' + t[0] + '" aria-pressed="' + (t[0] === cur) + '"><span class="tsw" style="background:linear-gradient(135deg,' + t[3] + ' 55%,' + t[4] + ' 55%)">' + t[2] + '</span>' + t[1] + '</button>';
+    }).join('') + '</div>';
+  }
+  function bindThemeRows() {
+    $$('[data-theme]').forEach(function (b) {
+      b.onclick = function () {
+        setTheme(b.getAttribute('data-theme'));
+        $$('[data-theme]').forEach(function (x) { var on = x === b; x.classList.toggle('on', on); x.setAttribute('aria-pressed', on); });
+        var tip = $('#themeTip'); if (tip) tip.parentNode.removeChild(tip);
+      };
+    });
+  }
+  // 할로윈 무렵(10/24~11/1) 기본 테마인 사람에게 한 번 알림 — 닫거나 테마를 고르면 다시 안 나옴
+  function themeTip() {
+    var d = new Date(), md = (d.getMonth() + 1) * 100 + d.getDate();
+    if (curTheme() || lsGet(LS_THEME_TIP) || md < 1024 || md > 1101) return '';
+    return '<div class="theme-tip" id="themeTip"><span>🎃 할로윈 테마가 나왔어요! 봄·여름·가을·겨울 테마도 있어요</span><button class="btn sm primary" id="ttTry">써 보기</button><button class="btn sm ghost" id="ttNo" aria-label="닫기">✕</button></div>';
+  }
+
   function accountMenu() {
     openModal('<h2>' + esc(S.user.name) + '<button class="x" data-x>✕</button></h2>' +
       '<div class="small">' + (S.user.admin ? '<span class="adm">운영진</span> ' : '') + esc(S.user.admin ? '운영진' : S.user.kind) + ' 계정' + (CFG.env !== 'prod' ? ' · ' + esc(CFG.env) + ' 환경' : '') + '</div>' +
       (S.user.admin ? '<div class="adm-box"><b>운영진이 할 수 있는 것</b><ul><li>📣 대회 광고 만들기·바꾸기 (방 목록 위)</li><li>어떤 방이든 방 메뉴(≡)에서 ‘운영진: 방 닫기’</li><li>점검 중에도 들어오기</li></ul>' +
         '<div class="small">잠만보 운영진 계정이면 카카오 로그인 때 자동으로 운영진이 돼요.</div></div>' : '') +
-      soundRows() +
+      soundRows() + themeRows() +
       '<div class="menu-list">' +
       '<a class="btn block" href="' + ROOT + '">잠만보 홈으로</a>' +
       '<button class="btn danger block" id="mOut">로그아웃</button></div>' + verLine());
-    bindSoundRows();
+    bindSoundRows(); bindThemeRows();
     $('#mOut').onclick = function () { lsSet(LS_NOAUTO, '1'); closeModal(); logout(); toast('로그아웃했어요'); };
   }
 
@@ -603,6 +644,7 @@
   function lobbyBody() {
     var h = '';
     if (S.notice) h += '<div class="notice">📢 ' + esc(S.notice) + '</div>';
+    h += themeTip();
     h += adHTML('ad-lobby');
     if (S.user && S.user.admin) h += '<div style="text-align:right;margin:-2px 0 8px"><button class="btn sm ghost" id="bAd">📣 대회 광고 ' + (adNow() ? '바꾸기' : '만들기') + '</button></div>';
     h += '<div class="cta"><button class="btn primary" id="bPractice">🤖 AI와 연습<small>봇 3명과 바로 시작</small></button>' +
