@@ -3,72 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex, nofollow, noai, noimageai">
-<!-- 보안: 이 페이지가 불러오거나 접속할 수 있는 곳 (서버 주소를 바꾸면 여기도) -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://cdn.jsdelivr.net data:; img-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com; object-src 'none'; base-uri 'self'; form-action 'self'">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>잠만보 방탈출</title>
-<meta name="description" content="잠만보 방탈출 — 테마 찾기 · 내 방탈 일지 · 모임 추천">
-<meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0e1014" media="(prefers-color-scheme: dark)">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="방탈출">
-<link rel="icon" type="image/png" href="../icon-192.png">
-<link rel="apple-touch-icon" href="../apple-touch-icon.png">
-<link rel="preconnect" href="https://script.google.com" crossorigin>
-<link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" integrity="sha384-GIdEBaqGN9mNkDkMkzMHW8EKUqtpPIe/sLj1X7DIrnc9uPtLROJgmuDlh+3rBw0j" crossorigin="anonymous">
-<link rel="stylesheet" href="style.css?v=1.0.2">
+<!-- 방탈출 미니게임은 없앰 → 잠만보 게임 탭으로. 예전 공유 링크 escape/#/t/<테마ID> 는 games#esc/<테마ID> (그 테마 창) -->
+<script>
+(function () {
+  var m = /^#\/t\/(.+)$/.exec(location.hash);
+  location.replace('../games#esc' + (m ? '/' + m[1] : ''));
+})();
+</script>
+<noscript><meta http-equiv="refresh" content="0;url=../games"></noscript>
 </head>
-<body>
-<div id="app">
-  <header class="bar">
-    <a class="ibtn" href="../" aria-label="잠만보로"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></a>
-    <div class="ttl"><b>🚪 방탈출</b><small>테마 찾기 · 내 방탈 일지 · 모임 추천</small></div>
-    <button type="button" class="acct" id="acct">로그인</button>
-  </header>
-
-  <nav class="tabs" id="tabs" role="tablist" aria-label="방탈출 메뉴">
-    <button type="button" role="tab" data-t="find">🔍 찾기</button>
-    <button type="button" role="tab" data-t="log">📔 내 일지</button>
-    <button type="button" role="tab" data-t="club">👥 모임</button>
-    <button type="button" role="tab" data-t="wish">❤️ 가고 싶어요</button>
-  </nav>
-
-  <main class="wrap">
-    <section class="panel" data-p="find" role="tabpanel" aria-label="테마 찾기">
-      <div class="search">
-        <svg class="qi" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>
-        <label class="sr" for="q">테마 찾기</label>
-        <input id="q" type="search" enterkeyhint="search" autocomplete="off" placeholder="테마 · 매장 · 지역 (초성 가능)">
-      </div>
-      <div class="filters" id="filters"></div>
-      <div class="listhead"><span id="cnt"></span><span class="sp"></span>
-        <label class="sr" for="sort">정렬</label>
-        <select id="sort" class="sel">
-          <option value="rate">별점 높은 순</option>
-          <option value="rev">리뷰 많은 순</option>
-          <option value="easy">난이도 낮은 순</option>
-          <option value="hard">난이도 높은 순</option>
-          <option value="club">모임 평점 순</option>
-          <option value="wish">가고 싶어요 많은 순</option>
-          <option value="name">이름 순</option>
-        </select>
-      </div>
-      <ul class="list" id="list" aria-live="polite"></ul>
-      <button type="button" class="more" id="more" hidden>더 보기</button>
-      <p class="src">별점(10점) · 리뷰 수 · 장르 · 시간: <a href="https://www.roomescape.co.kr/" target="_blank" rel="noopener">전국방탈출</a> (2026-10 확인) · 난이도 · 인원 · 활동성: 2022년 엑셀. ‘최근 확인 안 됨’ 은 전국방탈출에서 찾지 못한 곳(문 닫았을 수 있음). 모임 평점은 우리 회원 일지로 계산해요.</p>
-    </section>
-    <section class="panel" data-p="log" role="tabpanel" aria-label="내 방탈 일지"><div id="logBody"></div></section>
-    <section class="panel" data-p="club" role="tabpanel" aria-label="모임"><div id="clubBody"></div></section>
-    <section class="panel" data-p="wish" role="tabpanel" aria-label="가고 싶어요"><div id="wishBody"></div></section>
-  </main>
-  <button type="button" class="fab" id="fab" hidden><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span id="fabTx">일지 쓰기</span></button>
-</div>
-<div id="modal"></div>
-<div class="toast" id="toast" role="status" aria-live="polite"></div>
-<noscript><p style="padding:24px">자바스크립트를 켜야 이용할 수 있어요.</p></noscript>
-<script src="../config.js"></script>
-<script src="app.js?v=1.0.2"></script>
-</body>
+<body style="font-family:sans-serif;padding:24px">방탈출은 <a href="../games">잠만보 게임 탭</a>으로 옮겼어요.</body>
 </html>
