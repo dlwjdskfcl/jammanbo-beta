@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.19.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.19.1';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
   var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay', LS_THEME = 'tichu_theme', LS_THEME_TIP = 'tichu_theme_tip', LS_BOTLV = 'tichu_botlv';
@@ -692,7 +692,7 @@
   // AI 연습: 실력 고르기 → 바로 시작 (고른 실력은 기억)
   function practice(btn) {
     var cur = botLvPref();
-    openModal('<h2>🤖 AI와 연습<button class="x" data-x>✕</button></h2><div class="small">봇 3명과 바로 시작 · 목표 500점 · 시간 제한 없음</div><div class="lv-pick">' + BOT_LVS.map(function (L, i) {
+    openModal('<h2>🤖 AI와 연습<button class="x" data-x>✕</button></h2><div class="small">봇 3명과 바로 시작 · 목표 500점 · 시간 제한 없음<br>🙈 연습 방은 열린 방 목록에 안 보여요 (나 혼자만)</div><div class="lv-pick">' + BOT_LVS.map(function (L, i) {
       return '<button class="lv-card' + (i === cur ? ' on' : '') + '" data-lv="' + i + '"><span class="lv-ic">' + L[1] + '</span><span class="lv-tx"><b>' + L[0] + '</b><small>' + L[2] + '</small></span><span class="lv-xp">' + (L[3] ? '이기면<br><b>+' + L[3] + ' XP</b>' : '기본<br>경험치') + '</span></button>';
     }).join('') + '</div><div class="small">이기면 받는 추가 경험치는 상대 팀에 봇이 있을 때만 (내 전적 → 경험치 내역)</div>');
     $$('[data-lv]', modalEl).forEach(function (b) {
@@ -700,7 +700,7 @@
         var lv = +b.getAttribute('data-lv'); lsSet(LS_BOTLV, String(lv));
         $$('[data-lv]', modalEl).forEach(function (x) { x.disabled = true; });
         btn.disabled = true;
-        api('create', { practice: true, target: 500, timer: 0, botDelay: botDelayPref(), botLv: lv }).then(function (r) { closeModal(); applyRoom(r, true); location.hash = '#/room/' + r.id; },
+        api('create', { practice: true, target: 500, timer: 0, botDelay: botDelayPref(), botLv: lv }).then(function (r) { closeModal(); applyRoom(r, true); location.hash = '#/room/' + r.id; toast('🙈 연습 방은 열린 방 목록에 안 보여요'); },
           function (e) { btn.disabled = false; $$('[data-lv]', modalEl).forEach(function (x) { x.disabled = false; }); toast(e.message, true); });
       };
     });
