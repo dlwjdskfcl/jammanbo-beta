@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.18.2';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.18.3';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
   var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay', LS_THEME = 'tichu_theme', LS_THEME_TIP = 'tichu_theme_tip', LS_BOTLV = 'tichu_botlv';
@@ -424,6 +424,7 @@
   function setLogin(r) {
     S.token = r.token; S.user = r.user;
     lsSet(LS_TOKEN, r.token); lsSet(LS_NOAUTO, null);
+    syncTheme();
   }
   function logout(msg) {
     S.token = null; S.user = null; lsSet(LS_TOKEN, null);
@@ -560,13 +561,13 @@
     $$('[data-join]').forEach(function (b) { b.onclick = function () { S.roomPw = ''; joinRoom(b.getAttribute('data-join'), b.getAttribute('data-lock') === '1'); }; });
     $$('[data-watch]').forEach(function (b) { b.onclick = function () { S.roomPw = ''; watchRoom(b.getAttribute('data-watch'), b.getAttribute('data-lock') === '1'); }; });
   }
-  /* ----- 테마 (기기마다 저장) — 고른 테마의 themes/<id>.css 만 받음. 처음 그리기는 index.html 의 작은 스크립트가 함 ----- */
+  /* ----- 테마 (이 기기 + 로그인하면 계정에도 저장) — 고른 테마의 themes/<id>.css 만 받음. 처음 그리기는 index.html 의 작은 스크립트가 함 ----- */
   // [id, 이름, 아이콘, 미리보기 색 2개, 주소창 색]
   var THEMES = [['', '기본', '🃏', '#17563f', '#0b2e22', '#0b1a14'], ['halloween', '할로윈', '🎃', '#432570', '#ff8c1a', '#120c1c'],
     ['spring', '봄', '🌸', '#7d4b6d', '#ffc2d6', '#1c1218'], ['summer', '여름', '🍉', '#16798d', '#ffd34d', '#08161c'],
     ['autumn', '가을', '🍁', '#7d4b24', '#ff9a3c', '#170f09'], ['winter', '겨울', '⛄', '#2b5590', '#c4e8ff', '#0a1020']];
   function curTheme() { var t = lsGet(LS_THEME) || ''; return THEMES.some(function (x) { return x[0] === t; }) ? t : ''; }
-  function setTheme(id) {
+  function setTheme(id, fromServer) {
     var root = document.documentElement, old = document.getElementById('themeCss'), th = THEMES.filter(function (x) { return x[0] === id; })[0] || THEMES[0];
     root.className = root.className.replace(/\bth-\w+/g, '').trim();
     if (id) {
@@ -576,10 +577,32 @@
     if (old) old.parentNode.removeChild(old);
     var m = document.querySelector('meta[name=theme-color]'); if (m) m.setAttribute('content', th[5]);
     lsSet(LS_THEME, id || null); lsSet(LS_THEME_TIP, '1');
+    if (!fromServer) { lsSet(LS_THEME_PUSH, '1'); pushTheme(); }
+  }
+  // 계정에 저장 (다른 브라우저 · 카톡 안 브라우저 · 홈 화면 앱에서도 같은 테마). 서버에 못 보냈으면 다음 로그인 때 보냄
+  var LS_THEME_PUSH = 'tichu_theme_push', LS_THEME_SEASON = 'tichu_theme_season';
+  function pushTheme() {
+    if (!S.token) return;
+    api('theme', { set: curTheme() }).then(function () { lsSet(LS_THEME_PUSH, null); }, function () {});
+  }
+  function syncTheme() {
+    if (!S.token) return;
+    if (lsGet(LS_THEME_PUSH)) return pushTheme();
+    api('theme', {}).then(function (r) {
+      if (!r || r.theme == null) return pushTheme();   // 계정에 아직 없음 → 이 기기 테마를 올림
+      if (r.theme !== curTheme()) { setTheme(r.theme, true); if (S.route && S.route.name === 'lobby' && !S.modal) renderLobby(); }
+    }, function () {});
+  }
+  // 할로윈 기간(10/24~11/1)엔 모두 한 번 할로윈으로 바꿈 (해마다 한 번, 그 뒤에 바꾼 테마는 그대로)
+  function seasonTheme() {
+    var d = new Date(), md = (d.getMonth() + 1) * 100 + d.getDate(), tag = 'halloween' + d.getFullYear();
+    if (md < 1024 || md > 1101 || lsGet(LS_THEME_SEASON) === tag) return;
+    lsSet(LS_THEME_SEASON, tag);
+    if (curTheme() !== 'halloween') setTheme('halloween');
   }
   function themeRows() {
     var cur = curTheme();
-    return '<div class="sec-title">테마 <span class="small">이 기기에만 적용</span></div><div class="theme-grid">' + THEMES.map(function (t) {
+    return '<div class="sec-title">테마 <span class="small">' + (S.token ? '내 계정에 저장' : '이 기기에만 적용') + '</span></div><div class="theme-grid">' + THEMES.map(function (t) {
       return '<button class="theme-pick' + (t[0] === cur ? ' on' : '') + '" data-theme="' + t[0] + '" aria-pressed="' + (t[0] === cur) + '"><span class="tsw" style="background:linear-gradient(135deg,' + t[3] + ' 55%,' + t[4] + ' 55%)">' + t[2] + '</span>' + t[1] + '</button>';
     }).join('') + '</div>';
   }
@@ -2046,10 +2069,12 @@
     if (CFG.env && CFG.env !== 'prod') { var b = document.createElement('div'); b.className = 'env-badge'; b.textContent = 'TEST · ' + CFG.env; document.body.appendChild(b); }
     if (!window.TE) { app.innerHTML = '<div class="boot">엔진 파일(engine.js)을 불러오지 못했어요</div>'; return; }
     kakaoInAppNotice();
+    seasonTheme();
     var t = lsGet(LS_TOKEN), info = t && tokenInfo(t);
     var ks = kakaoSession();
     if (info && info.x > Date.now()) {
       S.token = t; S.user = { uid: info.u, name: info.n, kind: info.k, admin: info.k === '운영진' };
+      syncTheme();
       var syncKey = 'tichu_admsync' + ENV_SFX, mainAdm = !!(ks && ks.user && ks.user.admin);
       // 잠만보에서 운영진이 됐거나 빠졌는데 티츄 토큰은 예전 것 → 카카오로 한 번 다시 받음 (안 맞아도 이 탭에서 한 번만)
       if (ks && /^k:/.test(info.u) && mainAdm !== S.user.admin && !sessionStorage.getItem(syncKey)) {
