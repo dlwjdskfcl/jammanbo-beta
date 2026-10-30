@@ -1,4 +1,4 @@
-/*! 잠만보 방탈출 — 화면 v1.0.1
+/*! 잠만보 방탈출 — 화면 v1.0.2
  * 서버: 잠만보 메인 Apps Script (Escape.gs — escData · escSaveTheme · escHideTheme · escSaveLog · escDeleteLog · escWish)
  * 탭: 🔍 찾기(검색·필터·정렬) · 📔 내 일지(기록·통계) · 👥 모임(같이 갈 사람에게 맞춘 추천·랭킹) · ❤️ 가고 싶어요(같이 가요 모집 글)
  * 주소: #/t/<테마ID> = 그 테마 열기 (카톡에 공유하면 바로 그 테마)
@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.0.1';
+  var VER = '1.0.2';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   var ENV_SFX = ENV !== 'prod' ? '_' + ENV : '';
@@ -14,7 +14,7 @@
   var ROOT = (function () { var seg = location.pathname.split('/')[1] || ''; return /\.github\.io$/.test(location.hostname) && seg ? '/' + seg + '/' : '/'; })();
   var LS = { auth: 'jmb_kakao_v2' + ENV_SFX, state: 'jmb_kakao_state' + ENV_SFX, data: 'jmb_esc_v1' + ENV_SFX, tab: 'jmb_esc_tab', sort: 'jmb_esc_sort', f: 'jmb_esc_f', with: 'jmb_esc_with' };
   // 서버 Escape.gs 의 TPUB · LPUB 와 같게
-  var TCOLS = ['id', 'area', 'sub', 'store', 'name', 'rate', 'diff', 'rev', 'ppl', 'min', 'genre', 'act', 'kind', 'price', 'link', 'memo', 'src', 'by'];
+  var TCOLS = ['id', 'area', 'sub', 'store', 'name', 'rate', 'diff', 'rev', 'ppl', 'min', 'genre', 'act', 'kind', 'price', 'link', 'memo', 'src', 'by', 'chk'];
   var LCOLS = ['id', 'date', 'tid', 'nick', 'res', 'left', 'hint', 'star', 'feel', 'fear', 'note', 'with', 'by'];
   var AREAS = ['서울', '경기', '인천', '지방권'], PPL = ['2', '3', '4', '5+'];
   var DIFFS = { easy: [1, 4, '쉬움 (1~4)'], mid: [5, 7, '보통 (5~7)'], hard: [8, 10, '어려움 (8~10)'] };
@@ -114,7 +114,7 @@
     S.themes = unpack(d.themes, TCOLS).map(function (t) {
       t.rate = n(t.rate); t.diff = n(t.diff); t.rev = n(t.rev); t.min = n(t.min);
       t.ppl = String(t.ppl || '').split(',').filter(Boolean);
-      t.name = String(t.name); t.store = String(t.store);
+      t.name = String(t.name); t.store = String(t.store); t.chk = String(t.chk || '').slice(0, 10);
       t._k = norm(t.name + ' ' + t.store + ' ' + t.sub + ' ' + t.area + ' ' + t.genre);
       t._c = chosung(norm(t.name + ' ' + t.store));
       return t;
@@ -199,8 +199,9 @@
       wish: function (a, b) { return (S.wishBy[b.id] || []).length - (S.wishBy[a.id] || []).length || last(b.rate) - last(a.rate); },
       name: function (a, b) { return a.name.localeCompare(b.name, 'ko'); }
     }[by] || function () { return 0; };
-    return list.slice().sort(cmp);
+    return list.slice().sort(function (a, b) { return stale(a) - stale(b) || cmp(a, b); });   // 확인 안 된 곳은 뒤로
   }
+  function stale(t) { return (t.src === '2022-04 엑셀' || t.src === '전국방탈출') && !t.chk; }   // 전국방탈출에서 최근에 못 찾은 테마 (문 닫았을 수 있음)
   function pplLabel(t) {
     if (!t.ppl.length) return '';
     var a = t.ppl[0], b = t.ppl[t.ppl.length - 1], end = b === '5+' ? '5인 이상' : b + '인';
@@ -211,6 +212,7 @@
     if (mine) h.push('<span class="tag ' + (mine.res === '실패' ? 'fail' : 'me') + '">' + (mine.res === '실패' ? '✗ 실패' : mine.res === '성공' ? '✓ 탈출' : '✓ 해 봄') + '</span>');
     if (s) h.push('<span class="tag club">👥 ' + s.n + '명' + (s.avg != null ? ' · ★' + r1(s.avg) : '') + '</span>');
     if (w && w.length) h.push('<span class="tag wish">❤ ' + w.length + '</span>');
+    if (stale(t)) h.push('<span class="tag fail" title="전국방탈출에서 최근에 찾지 못했어요">최근 확인 안 됨</span>');
     if (t.diff != null) h.push('<span class="tag">난이도 ' + t.diff + '</span>');
     if (t.min) h.push('<span class="tag">' + t.min + '분</span>');
     if (t.ppl.length) h.push('<span class="tag">' + esc(pplLabel(t)) + '</span>');
@@ -317,7 +319,7 @@
     var who = {}; people.forEach(function (p) { who[p] = true; });
     var cnt = people.length;
     return S.themes.map(function (t) {
-      if (area && t.area !== area) return null;
+      if (stale(t) || (area && t.area !== area)) return null;
       var s = S.stat[t.id];
       if (s && s.who.some(function (p) { return who[p]; })) return null;   // 고른 사람 중 누가 이미 해 봄
       if (cnt && !fits(t, cnt)) return null;
@@ -415,6 +417,7 @@
     var canEdit = S.me && (t.by === S.me || S.admin);
     var h = '<h2><span>' + esc(t.name) + '</span><button type="button" class="x" data-x aria-label="닫기">' + X + '</button></h2>' +
       '<div class="sub">' + esc(t.store) + ' · ' + esc([t.area, t.sub].filter(Boolean).join(' ')) + '</div>' +
+      (stale(t) ? '<div class="memo"><b>최근 확인 안 됨</b> — 전국방탈출에서 2026-10 에 찾지 못했어요. 문을 닫았거나 이름이 바뀌었을 수 있어요.</div>' : '') +
       '<div class="info">' +
         cell('별점 (10점)', t.rate != null ? t.rate.toFixed(2) + (t.rev ? ' · ' + comma(t.rev) : '') : '') +
         cell('모임 평점', s && s.avg != null ? '★' + r1(s.avg) + ' · ' + s.stars.length + '명' : '') +
@@ -441,7 +444,7 @@
           (l.note ? '<div class="spoil' + (l.nick === S.me ? '' : ' hide') + '" data-spoil title="눌러서 보기 (스포일러 주의)">💬 ' + esc(l.note) + '</div>' : '') + '</div>';
       }).join('') + '<p class="hint">한줄평은 스포일러가 있을 수 있어 흐리게 보여요 — 눌러서 보기</p>' : '<p class="hint" style="margin:0">아직 우리 모임에서 간 사람이 없어요</p>') + '</div>';
     }
-    h += '<p class="src" style="margin-top:14px">' + (t.src === '2022-04 엑셀' ? '별점·리뷰 수·난이도: roomescape.co.kr (2022년 4월 기준)' : '출처: ' + esc(t.src || '') + (t.by ? ' · 등록 ' + esc(t.by) : '')) +
+    h += '<p class="src" style="margin-top:14px">출처: ' + esc(t.src || '') + (t.chk ? ' · 전국방탈출 확인 ' + esc(t.chk) : '') + (t.by ? ' · 등록 ' + esc(t.by) : '') +
       (canEdit ? ' · <a href="#" id="dEdit">고치기</a> · <a href="#" id="dHide">숨기기</a>' : '') + '</p>';
     var sh = openModal(h);
     var g = function (q) { return sh.querySelector(q); };
@@ -592,7 +595,7 @@
     var subs = {}; S.themes.forEach(function (x) { if (x.sub) subs[x.sub] = 1; });
     var genres = {}; S.themes.forEach(function (x) { if (x.genre) genres[x.genre] = 1; });
     var sh = openModal('<h2><span>' + (t ? '테마 고치기' : '＋ 테마 추가') + '</span><button type="button" class="x" data-x aria-label="닫기">' + X + '</button></h2>' +
-      (t ? '' : '<p class="hint">목록은 2022년 4월 기준이라 새로 생긴 곳은 없을 수 있어요. 우리가 간 곳을 추가해 주세요.</p>') +
+      (t ? '' : '<p class="hint">목록에 없는 곳(새로 생긴 곳 · 우리가 간 곳)을 추가해 주세요.</p>') +
       '<div class="form">' +
         '<div class="two"><label class="fld"><span>매장 *</span><input id="tfStore" maxlength="40" value="' + esc(v.store) + '" placeholder="예: 나비잠 1호점 (범계)" autofocus></label>' +
         '<label class="fld"><span>테마 *</span><input id="tfName" maxlength="60" value="' + esc(v.name) + '"></label></div>' +
