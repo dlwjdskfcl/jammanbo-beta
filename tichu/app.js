@@ -4,10 +4,10 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.19.1';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.20.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
-  var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay', LS_THEME = 'tichu_theme', LS_THEME_TIP = 'tichu_theme_tip', LS_BOTLV = 'tichu_botlv';
+  var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay', LS_THEME = 'tichu_theme', LS_THEME_TIP = 'tichu_theme_tip', LS_BOTLV = 'tichu_botlv', LS_PRACT = 'tichu_practice';
   var KAKAO_STORE = 'jmb_kakao_v2' + ENV_SFX, KAKAO_STATE = 'jmb_kakao_state' + ENV_SFX;
   var ROOT = (function () { var seg = location.pathname.split('/')[1] || ''; return /\.github\.io$/.test(location.hostname) && seg ? '/' + seg + '/' : '/'; })();
   var app = document.getElementById('app'), modalEl = document.getElementById('modal'), toastsEl = document.getElementById('toasts');
@@ -683,30 +683,41 @@
         '<button class="btn sm" data-watch="' + r.id + '" data-lock="' + (r.lock ? 1 : 0) + '">관전</button>';
       return '<div class="room-card' + (r.mine ? ' mine' : '') + '"><div class="top"><span class="name">' + (r.lock ? '🔒 ' : '') + (r.hide ? '🙈 ' : '') + esc(r.name) + '</span>' + st + '</div>' +
         '<div class="seats">' + seatLine(r.seats, 0) + seatLine(r.seats, 1) + seatLine(r.seats, 2) + seatLine(r.seats, 3) + '</div>' +
-        '<div class="meta"><span>🎯 ' + r.target + '점</span><span>⏱ ' + (r.timer ? r.timer + '초' : '없음') + '</span>' + (r.peek ? '<span title="관전자에게 패를 보여 주는 방">👀 패 공개</span>' : '') +
+        '<div class="meta"><span>' + goalLabel(r) + '</span><span>⏱ ' + (r.timer ? r.timer + '초' : '없음') + '</span>' + (r.peek ? '<span title="관전자에게 패를 보여 주는 방">👀 패 공개</span>' : '') +
         (r.scores ? '<span><b class="tA">' + r.scores[0] + '</b> : <b class="tB">' + r.scores[1] + '</b></span>' : '') + '<span class="sp"></span>' + btn + '</div></div>';
     }).join('') + '</div>';
     return h;
   }
 
-  // AI 연습: 실력 고르기 → 바로 시작 (고른 실력은 기억)
+  // AI 연습: 목표 점수(또는 타임 어택) · 실력 고르기 → 바로 시작 (고른 값은 기억)
+  function practicePref() { var v = {}; try { v = JSON.parse(lsGet(LS_PRACT) || '{}') || {}; } catch (e) {} return { target: [100, 200, 400, 500].indexOf(+v.target) >= 0 ? +v.target : 500, time: CFG.rt ? timeOf(v) : 0 }; }
   function practice(btn) {
-    var cur = botLvPref();
-    openModal('<h2>🤖 AI와 연습<button class="x" data-x>✕</button></h2><div class="small">봇 3명과 바로 시작 · 목표 500점 · 시간 제한 없음<br>🙈 연습 방은 열린 방 목록에 안 보여요 (나 혼자만)</div><div class="lv-pick">' + BOT_LVS.map(function (L, i) {
+    var cur = botLvPref(), pp = practicePref();
+    openModal('<h2>🤖 AI와 연습<button class="x" data-x>✕</button></h2>' +
+      '<div class="solo-note">🙈 연습 방은 <b>열린 방 목록에 안 보여요</b><small>나 혼자만 하는 방 · 다른 사람은 들어오거나 관전할 수 없어요</small></div>' +
+      '<div class="field"><label>🎯 목표 점수</label>' + optSeg('ptarget', [100, 200, 400, 500], pp.target, function (v) { return v + '점'; }) + '</div>' +
+      (CFG.rt ? '<div class="field"><label>⏱ 타임 어택 <span class="small">(고르면 목표 점수 대신 정한 시간 안에 점수를 많이 낸 팀이 승리)</span></label>' + optSeg('ptime', TIME_OPTS, pp.time, timeLabel) + '</div>' : '') +
+      '<div class="small" style="margin:4px 0 2px">AI 실력을 누르면 바로 시작해요 · 턴 시간 제한 없음</div><div class="lv-pick">' + BOT_LVS.map(function (L, i) {
       return '<button class="lv-card' + (i === cur ? ' on' : '') + '" data-lv="' + i + '"><span class="lv-ic">' + L[1] + '</span><span class="lv-tx"><b>' + L[0] + '</b><small>' + L[2] + '</small></span><span class="lv-xp">' + (L[3] ? '이기면<br><b>+' + L[3] + ' XP</b>' : '기본<br>경험치') + '</span></button>';
     }).join('') + '</div><div class="small">이기면 받는 추가 경험치는 상대 팀에 봇이 있을 때만 (내 전적 → 경험치 내역)</div>');
+    bindSeg(modalEl);
+    function dimTarget() { var f = $('[data-seg="ptarget"]', modalEl); if (f) f.parentNode.classList.toggle('dim', !!+segVal(modalEl, 'ptime')); }
+    $$('[data-seg="ptime"] button', modalEl).forEach(function (b) { b.addEventListener('click', dimTarget); });
+    $$('[data-seg="ptarget"] button', modalEl).forEach(function (b) { b.addEventListener('click', function () { var z = $('[data-seg="ptime"] button[data-v="0"]', modalEl); if (z) z.click(); }); });   // 목표 점수를 누르면 타임 어택은 끔
+    dimTarget();
     $$('[data-lv]', modalEl).forEach(function (b) {
       b.onclick = function () {
-        var lv = +b.getAttribute('data-lv'); lsSet(LS_BOTLV, String(lv));
+        var lv = +b.getAttribute('data-lv'), tg = +segVal(modalEl, 'ptarget') || 500, tm = +segVal(modalEl, 'ptime') || 0;
+        lsSet(LS_BOTLV, String(lv)); lsSet(LS_PRACT, JSON.stringify({ target: tg, time: tm }));
         $$('[data-lv]', modalEl).forEach(function (x) { x.disabled = true; });
         btn.disabled = true;
-        api('create', { practice: true, target: 500, timer: 0, botDelay: botDelayPref(), botLv: lv }).then(function (r) { closeModal(); applyRoom(r, true); location.hash = '#/room/' + r.id; toast('🙈 연습 방은 열린 방 목록에 안 보여요'); },
+        api('create', { practice: true, target: tg, time: tm, timer: 0, botDelay: botDelayPref(), botLv: lv }).then(function (r) { closeModal(); applyRoom(r, true); location.hash = '#/room/' + r.id; toast('🙈 연습 방은 열린 방 목록에 안 보여요 (나 혼자만)'); },
           function (e) { btn.disabled = false; $$('[data-lv]', modalEl).forEach(function (x) { x.disabled = false; }); toast(e.message, true); });
       };
     });
   }
   // AI 실력 — 방 옵션 botLv (서버 Bot.js: 0 기본 · 1 고수 · 2 신). [이름, 아이콘, 설명, 이기면 추가 XP]
-  var BOT_LVS = [['기본', '🤖', '무난하게 · 처음 배울 때', 0], ['고수', '🧠', '남은 카드를 세고 티츄를 잘 판단', 15], ['신', '⚡', '경우의 수를 수백 번 굴려 보고 두는 AI', 40]];
+  var BOT_LVS = [['기본', '🤖', '무난하게 · 처음 배울 때', 0], ['고수', '🧠', '카드를 세고 끝판엔 경우의 수를 굴려 보는 AI', 15], ['신', '⚡', '남의 패 일부(6 이상 · 특수 카드 · 폭탄)를 엿보는 AI — 거의 못 이겨요', 40]];
   function botLvPref() { var v = +lsGet(LS_BOTLV); return v === 1 || v === 2 ? v : 0; }
   function botLvOf(o) { var v = o && +o.botLv; return v === 1 || v === 2 ? v : 0; }
   function botLvLabel(v) { var L = BOT_LVS[botLvOf({ botLv: v })]; return L[1] + ' ' + L[0]; }
@@ -733,6 +744,17 @@
     $$('[data-seg="target"] button', root).forEach(function (b) { b.addEventListener('click', function () { inp.value = ''; }); });
   }
   function segVal(root, name) { var b = $('[data-seg="' + name + '"] button.on', root); return b ? b.getAttribute('data-v') : null; }
+  // 타임 어택 — 방 옵션 time(분, 0 = 목표 점수로). 실시간 서버 방만. 끝 시각이 되면 지금 라운드는 따 둔 카드 점수만 더하고 앞선 팀 승리 (같으면 연장 한 라운드)
+  var TIME_OPTS = [0, 20, 30, 45, 60];
+  function timeOf(o) { var v = o && +o.time; return v && TIME_OPTS.indexOf(v) > 0 ? v : 0; }
+  function timeLabel(v) { return +v ? v + '분' : '안 함'; }
+  function goalLabel(o) { return timeOf(o) ? '⏱ ' + o.time + '분 타임 어택' : '🎯 ' + o.target + '점'; }
+  function clockText(r) {
+    if (r.ot) return '연장';
+    if (!r.endAt) return r.opt.time + '분';
+    var sec = Math.max(0, Math.ceil((r.endAt - now()) / 1000));
+    return Math.floor(sec / 60) + ':' + ('0' + sec % 60).slice(-2);
+  }
 
   // AI 한 수 간격(초) — 방 옵션 botDelay. 0 = 바로. 마지막 고른 값을 기억해 다음 방·연습에 씀
   var BOT_DELAYS = [0, 0.5, 1, 1.5, 2, 3];
@@ -744,11 +766,13 @@
   }
   function botDelayVal(root) { var v = segVal(root, 'botDelay'); v = v == null ? botDelayPref() : +v; lsSet(LS_BOTD, String(v)); return v; }
   function roomOptForm(o) {
-    o = o || { name: '', target: 500, timer: 30, pw: '', botDelay: botDelayPref(), botLv: botLvPref(), peek: 1, hide: 0 };   // 새 방 기본: 턴 30초 · 관전자 패 보여 주기
-    var preset = [200, 400, 500].indexOf(+o.target) >= 0;
+    o = o || { name: '', target: 500, time: 0, timer: 30, pw: '', botDelay: botDelayPref(), botLv: botLvPref(), peek: 1, hide: 0 };   // 새 방 기본: 턴 30초 · 관전자 패 보여 주기
+    var preset = [100, 200, 400, 500].indexOf(+o.target) >= 0;
     return '<div class="field"><label>방 이름</label><input class="input" id="oName" maxlength="24" placeholder="' + esc(S.user.name) + '님의 방" value="' + esc(o.name) + '"></div>' +
-      '<div class="field"><label>목표 점수</label>' + optSeg('target', [200, 400, 500], preset ? o.target : '', function (v) { return v + '점'; }) +
+      '<div class="field"><label>목표 점수</label>' + optSeg('target', [100, 200, 400, 500], preset ? o.target : '', function (v) { return v + '점'; }) +
         '<input class="input" id="oTarget" type="number" inputmode="numeric" min="100" max="3000" step="10" placeholder="직접 입력 (100~3000점)" value="' + (preset ? '' : esc(o.target)) + '" style="margin-top:6px"></div>' +
+      (CFG.rt ? '<div class="field"><label>⏱ 타임 어택 <span class="small">(고르면 목표 점수 대신 시간 안에 많이 낸 팀이 승리)</span></label>' + optSeg('time', TIME_OPTS, timeOf(o), timeLabel) +
+        '<div class="small" style="margin-top:6px">게임 시작부터 정한 시간이 지나면 지금 라운드는 바로 멈추고 따 둔 카드 점수만 더해요 (티츄 · 1등 정산 없음) · 동점이면 연장 한 라운드</div></div>' : '') +
       '<div class="field"><label>턴 시간 (넘기면 자동 진행)</label>' + optSeg('timer', [0, 20, 30, 45, 60, 90], o.timer, function (v) { return v ? v + '초' : '없음'; }) + '</div>' +
       botLvSeg(botLvOf(o)) + botDelaySeg(botDelayOf(o)) +
       // 관전자 패 보기 (실시간 서버 방만) — 배우는 사람 · 대회 중계용
@@ -763,7 +787,7 @@
     bindSeg(modalEl); bindTarget(modalEl);
     $('#oGo').onclick = function () {
       var b = $('#oGo'); b.disabled = true;
-      api('create', { name: $('#oName').value, target: targetVal(modalEl), timer: +segVal(modalEl, 'timer'), botDelay: botDelayVal(modalEl), botLv: botLvVal(modalEl), peek: +segVal(modalEl, 'peek') || 0, hide: +segVal(modalEl, 'hide') || 0, pw: $('#oPw').value }).then(function (r) {
+      api('create', { name: $('#oName').value, target: targetVal(modalEl), time: +segVal(modalEl, 'time') || 0, timer: +segVal(modalEl, 'timer'), botDelay: botDelayVal(modalEl), botLv: botLvVal(modalEl), peek: +segVal(modalEl, 'peek') || 0, hide: +segVal(modalEl, 'hide') || 0, pw: $('#oPw').value }).then(function (r) {
         closeModal(); applyRoom(r, true); location.hash = '#/room/' + r.id;
       }, function (e) { b.disabled = false; toast(e.message, true); });
     };
@@ -968,7 +992,7 @@
     if (rec.games.length) {
       h += '<div class="sec-title">최근 게임</div>' + rec.games.map(function (g) {
         return '<div class="game-row"><span class="wl ' + (g.win ? 'w' : 'l') + '">' + (g.win ? '승' : '패') + '</span><div class="mid"><div><span class="tA">' + esc(g.a) + '</span> vs <span class="tB">' + esc(g.b) + '</span></div>' +
-          '<div class="small">' + esc(g.end.slice(0, 16)) + ' · ' + g.rounds + '라운드 · 목표 ' + g.target + ' · <span class="gkind ' + (g.bot ? 'ai">🤖 AI전' : 'hu">👥 사람전') + '</span></div></div>' +
+          '<div class="small">' + esc(g.end.slice(0, 16)) + ' · ' + g.rounds + '라운드 · ' + (String(g.target).charAt(0) === '⏱' ? esc(g.target) + ' 타임 어택' : '목표 ' + g.target) + ' · <span class="gkind ' + (g.bot ? 'ai">🤖 AI전' : 'hu">👥 사람전') + '</span></div></div>' +
           '<div style="text-align:right"><b>' + g.sa + ' : ' + g.sb + '</b>' + (g.ranked && g.delta != null ? '<div class="small" style="color:' + (g.delta >= 0 ? '#86efac' : '#fda4af') + '">' + (g.delta >= 0 ? '+' : '') + g.delta + '</div>' : '') + '</div></div>';
       }).join('');
     }
@@ -984,7 +1008,7 @@
   function rulesBody() {
     return '<div class="rules">' +
       '<div class="sec-title">티츄 규칙 한눈에</div>' +
-      '<p>마주 앉은 두 사람이 한 팀(2 대 2)입니다. 손패를 먼저 비우고, 점수 카드를 모아 <b>목표 점수(방마다 정함, 기본 500점)</b>에 먼저 도달하는 팀이 이깁니다.</p>' +
+      '<p>마주 앉은 두 사람이 한 팀(2 대 2)입니다. 손패를 먼저 비우고, 점수 카드를 모아 <b>목표 점수(방마다 정함, 기본 500점)</b>에 먼저 도달하는 팀이 이깁니다. ⏱ 타임 어택 방은 정한 시간(20~60분) 안에 점수를 더 많이 낸 팀이 이깁니다.</p>' +
       '<h3>1. 라운드 준비</h3><ul><li>처음 8장을 보고 <b>라지 티츄</b>(±200점)를 선언할 수 있어요.</li><li>나머지 6장을 받은 뒤 첫 카드를 내기 전까지 <b>스몰 티츄</b>(±100점)를 선언할 수 있어요.</li>' +
       '<li>왼쪽 상대·파트너·오른쪽 상대에게 한 장씩, 3장을 동시에 교환해요.</li><li><b>참새(1)</b>를 가진 사람이 먼저 시작해요.</li></ul>' +
       '<h3>2. 낼 수 있는 조합</h3>' + ex(['T9'], '싱글') + ex(['J8', 'S8'], '페어') + ex(['J12', 'P12', 'T12'], '트리플') + ex(['J5', 'S5', 'P5', 'T11', 'J11'], '풀하우스') +
@@ -1018,7 +1042,7 @@
       wx(7, ['J3', 'S4', 'P5', 'T6', 'J7'], ['T9', 'S12', 'P13', 'J14', 'PH', 'J2'], false, '9 는 있지만 10 과 J 가 둘 다 비어서 봉황 한 장으로는 스트레이트를 못 이어요.') +
       wx(8, null, ['T9', 'J9', 'J3', 'S12'], true, '내가 선이에요. 9 가 들어간 조합으로 시작해야 해요 (싱글 9 도, 9 페어도 OK).') +
       '<h3>잠만보 티츄에서는</h3><ul><li>턴 시간을 넘기면 자동으로 진행돼요(낼 의무가 없으면 패스). ‘돌아왔어요’를 누르면 다시 직접 해요.</li>' +
-      '<li>게임 중 나가면 봇이 대신하고, 그 판은 전적에 들어가지 않아요.</li><li>AI 실력은 🤖 기본 · 🧠 고수 · ⚡ 신 — 방 설정이나 ‘AI와 연습’에서 골라요. AI전에서 이기면 고수 +15 · 신 +40 경험치를 더 받아요 (상대 팀에 봇이 있을 때). 자리를 비운 사람 대신 두는 자동 진행은 늘 기본이에요.</li><li>레이팅은 사람 4명이 끝까지 한 게임만 반영돼요. 분기마다(1·4·7·10월 1일) 새 시즌이 시작되고 모두 1500 에서 다시 겨뤄요 — 지난 시즌 순위는 랭킹에서 볼 수 있어요.</li><li>라운드 중에는 각자 따간 점수가 보이지 않아요. 라운드가 끝나면 결과에서 확인해요.</li><li>판을 끝낼 때마다 경험치가 쌓여 레벨·칭호가 오르고, 조건을 채우면 배지를 받아요 (내 전적 탭).</li></ul>' +
+      '<li>게임 중 나가면 봇이 대신하고, 그 판은 전적에 들어가지 않아요.</li><li>AI 실력은 🤖 기본 · 🧠 고수 · ⚡ 신 — 방 설정이나 ‘AI와 연습’에서 골라요. 기본 · 고수는 남의 패를 보지 않고, ⚡ 신만 남의 패 일부(6 이상 · 특수 카드 · 폭탄)를 엿봐요. AI전에서 이기면 고수 +15 · 신 +40 경험치를 더 받아요 (상대 팀에 봇이 있을 때). 자리를 비운 사람 대신 두는 자동 진행은 늘 기본이에요.</li><li>⏱ 타임 어택: 게임 시작부터 정한 시간(20 · 30 · 45 · 60분)이 지나면 지금 라운드를 바로 멈추고, 그 라운드에 따 둔 카드 점수만 더해요(티츄 · 1등 정산 없음). 점수가 더 많은 팀이 이기고, 동점이면 연장으로 한 라운드를 끝까지 더 해요. 경험치 · 레이팅은 보통 게임과 같아요(라운드가 많을수록 경험치도 많이).</li><li>레이팅은 사람 4명이 끝까지 한 게임만 반영돼요. 분기마다(1·4·7·10월 1일) 새 시즌이 시작되고 모두 1500 에서 다시 겨뤄요 — 지난 시즌 순위는 랭킹에서 볼 수 있어요.</li><li>라운드 중에는 각자 따간 점수가 보이지 않아요. 라운드가 끝나면 결과에서 확인해요.</li><li>판을 끝낼 때마다 경험치가 쌓여 레벨·칭호가 오르고, 조건을 채우면 배지를 받아요 (내 전적 탭).</li></ul>' +
       '<h3>🔎 참새 콜 — 특수 상황</h3><p class="small" style="margin-top:0">자주 나오진 않지만 헷갈리는 경우예요.</p><ul class="wish-special">' +
       '<li><b>차례가 아닐 때 폭탄:</b> 폭탄은 차례가 아니어도 낼 수 있으니, 콜 숫자가 든 폭탄을 먼저 내서 소원을 들어줘도 돼요. 단 ‘반드시’는 <b>내 차례에만</b> 확인해요 — 차례가 아닐 때 안 내도 반칙이 아니에요.</li>' +
       '<li><b>더 센 폭탄이 이미 나왔을 때:</b> 5 콜인데 테이블에 7 포카드가 있으면, 내 5 포카드로는 못 이기니 패스해도 돼요.' + cardsHTML(['J7', 'S7', 'P7', 'T7'], 'sm') + '</li>' +
@@ -1281,7 +1305,7 @@
       '<button class="iconbtn" id="wPeople" aria-label="참가자·관전자">👥</button>' +
       '<button class="iconbtn" id="wChat" aria-label="채팅">💬' + (S.unread ? '<span class="badge-dot">' + S.unread + '</span>' : '') + '</button></div>' +
       '<div class="content wait-wrap">' +
-      '<div class="wait-info"><span class="chip">🎯 목표 ' + r.opt.target + '점</span><span class="chip">⏱ ' + (r.opt.timer ? '턴 ' + r.opt.timer + '초' : '시간 제한 없음') + '</span><span class="chip">' + botLvLabel(botLvOf(r.opt)) + ' AI · ' + botDelayLabel(botDelayOf(r.opt)) + '</span>' + (r.opt.lock ? '<span class="chip">🔒 비밀방</span>' : '') + (r.opt.hide ? '<span class="chip">🙈 목록에 숨김</span>' : '') + (r.opt.peek ? '<span class="chip">👀 관전자 패 보기</span>' : '') + '</div>' +
+      '<div class="wait-info"><span class="chip">' + (timeOf(r.opt) ? '⏱ ' + r.opt.time + '분 타임 어택' : '🎯 목표 ' + r.opt.target + '점') + '</span><span class="chip">⏱ ' + (r.opt.timer ? '턴 ' + r.opt.timer + '초' : '시간 제한 없음') + '</span><span class="chip">' + botLvLabel(botLvOf(r.opt)) + ' AI · ' + botDelayLabel(botDelayOf(r.opt)) + '</span>' + (r.opt.lock ? '<span class="chip">🔒 비밀방</span>' : '') + (r.opt.hide ? '<span class="chip">🙈 목록에 숨김</span>' : '') + (r.opt.peek ? '<span class="chip">👀 관전자 패 보기</span>' : '') + '</div>' +
       watchersHTML(r) + '<div class="idle-note" id="wIdle" hidden></div>' +
       '<div class="wait-table">' + seats + '<div class="wait-center"><b style="font-size:20px">' + r.seats.filter(Boolean).length + ' / 4</b><br>마주 앉은<br>두 사람이 한 팀</div></div>' +
       (r.host ? '<button class="btn primary block" id="wStart" ' + (full ? '' : 'disabled') + '>' + (full ? '게임 시작' : '네 자리가 차면 시작할 수 있어요') + '</button>' +
@@ -1374,10 +1398,10 @@
   }
   function optSheet() {
     var r = S.room;
-    openModal('<h2>방 설정<button class="x" data-x>✕</button></h2>' + roomOptForm({ name: r.name, target: r.opt.target, timer: r.opt.timer, botDelay: botDelayOf(r.opt), botLv: botLvOf(r.opt), peek: r.opt.peek, hide: r.opt.hide, pw: '' }) +
+    openModal('<h2>방 설정<button class="x" data-x>✕</button></h2>' + roomOptForm({ name: r.name, target: r.opt.target, time: timeOf(r.opt), timer: r.opt.timer, botDelay: botDelayOf(r.opt), botLv: botLvOf(r.opt), peek: r.opt.peek, hide: r.opt.hide, pw: '' }) +
       '<div class="small">비밀번호 칸을 비우면 공개방이 돼요.</div><button class="btn primary block" id="oGo">저장</button>');
     bindSeg(modalEl); bindTarget(modalEl);
-    $('#oGo').onclick = function () { var pk = segVal(modalEl, 'peek'); roomCall('opt', { name: $('#oName').value, target: targetVal(modalEl), timer: +segVal(modalEl, 'timer'), botDelay: botDelayVal(modalEl), botLv: botLvVal(modalEl), peek: pk == null ? undefined : +pk, hide: +segVal(modalEl, 'hide') || 0, pw: $('#oPw').value }, $('#oGo')).then(closeModal); };
+    $('#oGo').onclick = function () { var pk = segVal(modalEl, 'peek'); roomCall('opt', { name: $('#oName').value, target: targetVal(modalEl), time: CFG.rt ? +segVal(modalEl, 'time') || 0 : undefined, timer: +segVal(modalEl, 'timer'), botDelay: botDelayVal(modalEl), botLv: botLvVal(modalEl), peek: pk == null ? undefined : +pk, hide: +segVal(modalEl, 'hide') || 0, pw: $('#oPw').value }, $('#oGo')).then(closeModal); };
   }
   function copyInvite() {
     // ?reset: 잠만보 앱의 예전 서비스 워커(v2.2)가 남은 기기에서도 티츄 페이지가 바로 열리게 (티츄는 이 값을 쓰지 않고 지움)
@@ -1508,7 +1532,7 @@
     // 상단: 점수
     h += '<div class="gbar"><button class="iconbtn" id="gMenu" aria-label="메뉴">≡</button>' +
       '<div class="score"><div class="tm ' + (myTeam ? 'tB' : 'tA') + '"><span>' + scoreUs + '</span><small>' + (me >= 0 ? '우리 · ' : '') + esc(nmUs) + '</small></div>' +
-      '<div class="vs">' + g.round + 'R<small>/' + g.target + '</small></div>' +
+      '<div class="vs">' + g.round + 'R<small>' + (timeOf(r.opt) ? '<span id="gClock" title="타임 어택 남은 시간">⏱ ' + clockText(r) + '</span>' : '/' + g.target) + '</small></div>' +
       '<div class="tm ' + (myTeam ? 'tA' : 'tB') + '"><span>' + scoreThem + '</span><small>' + (me >= 0 ? '상대 · ' : '') + esc(nmThem) + '</small></div></div>' +
       '<button class="iconbtn" id="gSheet" aria-label="점수표">📋</button>' +
       '<button class="iconbtn" id="gPeople" aria-label="참가자·관전자">👥' + ((r.watchers || []).length ? '<span class="cnt">' + r.watchers.length + '</span>' : '') + '</button>' +
@@ -1966,10 +1990,10 @@
   function scoreSheet() {
     var r = S.room, g = r.g, view = r.me < 0 ? 0 : r.me, us = team(view), them = 1 - us;
     var rows = g.history.map(function (h) {
-      return '<tr><td>' + h.round + 'R' + (h.dbl ? ' 원투' : '') + '</td><td>' + signed(h.total[us]) + '</td><td>' + signed(h.total[them]) + '</td><td>' + h.scores[us] + '</td><td>' + h.scores[them] + '</td></tr>';
+      return '<tr><td>' + h.round + 'R' + (h.dbl ? ' 원투' : '') + (h.cut ? ' ⏱' : '') + '</td><td>' + signed(h.total[us]) + '</td><td>' + signed(h.total[them]) + '</td><td>' + h.scores[us] + '</td><td>' + h.scores[them] + '</td></tr>';
     }).join('');
     openModal('<h2>점수표<button class="x" data-x>✕</button></h2><table class="result-table"><thead><tr><th>라운드</th><th>' + (r.me >= 0 ? '우리' : 'A팀') + '</th><th>' + (r.me >= 0 ? '상대' : 'B팀') + '</th><th>누적</th><th>누적</th></tr></thead><tbody>' +
-      (rows || '<tr><td colspan="5">아직 끝난 라운드가 없어요</td></tr>') + '</tbody></table><div class="small">목표 ' + g.target + '점 · 먼저 넘고 앞선 팀이 승리</div>');
+      (rows || '<tr><td colspan="5">아직 끝난 라운드가 없어요</td></tr>') + '</tbody></table><div class="small">' + (timeOf(r.opt) ? '⏱ ' + r.opt.time + '분 타임 어택 · 시간이 끝났을 때 앞선 팀이 승리 (⏱ = 시간이 끝나 멈춘 라운드, 따 둔 카드 점수만)' + (r.ot ? ' · 동점이라 연장 중' : '') : '목표 ' + g.target + '점 · 먼저 넘고 앞선 팀이 승리') + '</div>');
   }
   function signed(n) { return (n > 0 ? '+' : '') + n; }
 
@@ -1983,8 +2007,10 @@
     if (ended) {
       var won = g.winner === us;
       html += '<div class="big-win"><div class="t" style="color:' + (r.me < 0 ? 'var(--gold2)' : won ? '#86efac' : '#fda4af') + '">' + (r.me < 0 ? (g.winner === 0 ? 'A팀 승리' : 'B팀 승리') : won ? '🎉 우리 팀 승리!' : '아쉽게 졌어요') + '</div>' +
-        '<div class="s"><span class="' + (us ? 'tB' : 'tA') + '">' + g.scores[us] + '</span> : <span class="' + (us ? 'tA' : 'tB') + '">' + g.scores[them] + '</span></div><div class="small">' + g.round + '라운드 · 목표 ' + g.target + '점</div></div>';
+        '<div class="s"><span class="' + (us ? 'tB' : 'tA') + '">' + g.scores[us] + '</span> : <span class="' + (us ? 'tA' : 'tB') + '">' + g.scores[them] + '</span></div><div class="small">' + g.round + '라운드 · ' + (timeOf(r.opt) ? '⏱ ' + r.opt.time + '분 타임 어택' + (h.cut ? '' : ' · 연장') : '목표 ' + g.target + '점') + '</div></div>';
     }
+    if (h.cut) html += '<div class="notice" style="text-align:center">⏱ 시간이 끝나 라운드를 멈췄어요 — 따 둔 카드 점수만 더해요 (티츄 · 1등 정산 없음)</div>';
+    else if (r.ot && !ended) html += '<div class="notice" style="text-align:center">⚖️ 아직 동점 — 한 라운드 더!</div>';
     html += adHTML('ad-result');
     if (h.dbl) html += '<div class="notice" style="text-align:center">🎊 원투! ' + esc(seatName(h.out[0])) + ' · ' + esc(seatName(h.out[1])) + ' 팀 +200</div>';
     html += '<div class="order">' + order.map(function (s, i) {
@@ -2051,6 +2077,7 @@
       if (ms) ms.classList.toggle('low', left < 6000);
       if (mine && dl && g.phase !== 'roundEnd' && left > 0 && sec <= 5 && sec !== S.tickSec) { S.tickSec = sec; sfx('tick'); }
     }
+    var gc = $('#gClock'); if (gc) { gc.textContent = '⏱ ' + clockText(r); gc.classList.toggle('low', !r.ot && !!r.endAt && r.endAt - now() < 60000); }
     var rc = $('#rCount'); if (rc) rc.textContent = r.nextAt && g.phase === 'roundEnd' ? '(' + Math.ceil(Math.max(0, r.nextAt - now()) / 1000) + ')' : '';
   }
   setInterval(tickTimers, 250);

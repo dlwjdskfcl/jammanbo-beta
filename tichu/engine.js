@@ -166,11 +166,12 @@ var TE = (function () {
 
   /* 손패로 top 위에 낼 수 있는 조합들 (종류·장수·높이별 대표 1개씩, 봉황 사용/미사용 각각) */
   function plays(hand, top) {
-    var by = {}, has = {}, out = [];
+    var by = {}, has = {}, out = [], ns = {};
     hand.forEach(function (id) {
       has[id] = 1;
       var r = rank(id);
       if (id !== 'PH' && r >= 1 && r <= 14) (by[r] = by[r] || []).push(id);
+      if (r >= 2 && r <= 14) ns[id[0]] = (ns[id[0]] || 0) + 1;   // 문양별 장수 (스트레이트 플러시는 5장 이상인 문양만)
     });
     var ph = !!has.PH;
     function cnt(r) { return by[r] ? by[r].length : 0; }
@@ -238,11 +239,14 @@ var TE = (function () {
     }
     // 스트레이트 플러시
     SUITS.forEach(function (s) {
+      if ((ns[s] || 0) < 5) return;
+      var run = [0, 0];   // run[x] = x 에서 끝나는 같은 문양 연속 장수 (2 부터) — 봇이 수없이 부르므로 미리 셈
+      for (var x = 2; x <= 14; x++) run[x] = has[s + x] ? run[x - 1] + 1 : 0;
       for (var h = 6; h <= 14; h++) {
-        for (var L = 5; L <= h - 1; L++) {
-          var l = h - L + 1, cs = [], okk = true;
-          for (var x = l; x <= h; x++) { if (has[s + x]) cs.push(s + x); else { okk = false; break; } }
-          if (okk) add('sf', L, h, cs, false);
+        for (var L = 5; L <= h - 1 && L <= run[h]; L++) {
+          var cs = [];
+          for (x = h - L + 1; x <= h; x++) cs.push(s + x);
+          add('sf', L, h, cs, false);
         }
       }
     });

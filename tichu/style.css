@@ -162,6 +162,8 @@ a.ad:active { transform: scale(.99); }
 .score .tm small { font-size: 10px; font-weight: 700; color: var(--muted); max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .score .vs { color: var(--dim); font-size: 12px; font-weight: 700; display: flex; flex-direction: column; align-items: center; }
 .score .vs small { font-size: 10px; }
+.score .vs #gClock { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.score .vs #gClock.low { color: #fda4af; font-weight: 800; }
 .felt { position: relative; background: radial-gradient(ellipse at 50% 45%, var(--felt-hi) 0%, var(--felt) 50%, var(--felt2) 100%); overflow: hidden; min-height: 300px; }
 .seat { position: absolute; display: flex; flex-direction: column; align-items: center; gap: 3px; width: 92px; z-index: 2; }
 .seat.p2 { left: 50%; top: 8px; transform: translateX(-50%); }
@@ -569,6 +571,10 @@ body.ingame .toasts { top: auto; bottom: calc(var(--ch) + 150px); }
 .theme-tip span { flex: 1; min-width: 0; }
 /* AI 실력 고르기 (AI와 연습) */
 .lv-pick { display: flex; flex-direction: column; gap: 8px; }
+/* AI와 연습 창: 연습 방은 목록에 안 보인다는 안내 (눈에 띄게) */
+.solo-note { margin: 2px 0 12px; padding: 12px 14px; border-radius: 14px; border: 2px solid rgba(245,179,1,.7); background: rgba(245,179,1,.14); color: var(--gold2); font-size: 15px; text-align: center; line-height: 1.45; }
+.solo-note small { display: block; margin-top: 2px; font-size: 12px; color: var(--dim); }
+.field.dim .seg { opacity: .4; }
 .lv-card { display: flex; align-items: center; gap: 12px; text-align: left; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line2); background: var(--bg2); }
 .lv-card.on { border-color: var(--gold); box-shadow: 0 0 0 2px var(--gold); }
 .lv-card .lv-ic { font-size: 28px; width: 40px; text-align: center; flex: none; }
