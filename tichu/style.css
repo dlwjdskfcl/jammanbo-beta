@@ -575,6 +575,8 @@ body.ingame .toasts { top: auto; bottom: calc(var(--ch) + 150px); }
 .solo-note { margin: 2px 0 12px; padding: 12px 14px; border-radius: 14px; border: 2px solid rgba(245,179,1,.7); background: rgba(245,179,1,.14); color: var(--gold2); font-size: 15px; text-align: center; line-height: 1.45; }
 .solo-note small { display: block; margin-top: 2px; font-size: 12px; color: var(--dim); }
 .field.dim .seg { opacity: .4; }
+.tb-filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
+.btn.coach { border-color: rgba(134,239,172,.45); }
 .lv-card { display: flex; align-items: center; gap: 12px; text-align: left; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line2); background: var(--bg2); }
 .lv-card.on { border-color: var(--gold); box-shadow: 0 0 0 2px var(--gold); }
 .lv-card .lv-ic { font-size: 28px; width: 40px; text-align: center; flex: none; }
