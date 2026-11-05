@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.21.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.22.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
   var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay', LS_THEME = 'tichu_theme', LS_THEME_TIP = 'tichu_theme_tip', LS_BOTLV = 'tichu_botlv', LS_PRACT = 'tichu_practice';
@@ -699,7 +699,7 @@
       '<div class="solo-note">🙈 연습 방은 <b>열린 방 목록에 안 보여요</b><small>나 혼자만 하는 방 · 다른 사람은 들어오거나 관전할 수 없어요</small></div>' +
       '<div class="field"><label>🎯 목표 점수</label>' + optSeg('ptarget', [100, 200, 400, 500], pp.target, function (v) { return v + '점'; }) + '</div>' +
       (CFG.rt ? '<div class="field"><label>⏱ 타임 어택 <span class="small">(고르면 목표 점수 대신 정한 시간 안에 점수를 많이 낸 팀이 승리)</span></label>' + optSeg('ptime', TIME_OPTS, pp.time, timeLabel) + '</div>' : '') +
-      '<div class="small" style="margin:4px 0 2px">AI 실력을 누르면 바로 시작해요 · 턴 시간 제한 없음</div><div class="lv-pick">' + BOT_LVS.map(function (L, i) {
+      '<div class="small" style="margin:4px 0 2px">AI 실력을 누르면 바로 시작해요 · 턴 시간 제한 없음</div><div class="lv-pick">' + BOT_LVS.map(function (L) { var i = L[4];
       return '<button class="lv-card' + (i === cur ? ' on' : '') + '" data-lv="' + i + '"><span class="lv-ic">' + L[1] + '</span><span class="lv-tx"><b>' + L[0] + '</b><small>' + L[2] + '</small></span><span class="lv-xp">' + (L[3] ? '이기면<br><b>+' + L[3] + ' XP</b>' : '기본<br>경험치') + '</span></button>';
     }).join('') + '</div><div class="small">이기면 받는 추가 경험치는 상대 팀에 봇이 있을 때만 (내 전적 → 경험치 내역)</div>');
     bindSeg(modalEl);
@@ -718,13 +718,16 @@
       };
     });
   }
-  // AI 실력 — 방 옵션 botLv (서버 Bot.js: 0 기본 · 1 고수 · 2 신). [이름, 아이콘, 설명, 이기면 추가 XP]
-  var BOT_LVS = [['기본', '🤖', '무난하게 · 처음 배울 때', 0], ['고수', '🧠', '카드를 세고 끝판엔 경우의 수를 굴려 보는 AI', 15], ['신', '⚡', '남의 패 일부(6 이상 · 특수 카드 · 폭탄)를 엿보는 AI — 거의 못 이겨요', 60]];
-  function botLvPref() { var v = +lsGet(LS_BOTLV); return v === 1 || v === 2 ? v : 0; }
-  function botLvOf(o) { var v = o && +o.botLv; return v === 1 || v === 2 ? v : 0; }
-  function botLvLabel(v) { var L = BOT_LVS[botLvOf({ botLv: v })]; return L[1] + ' ' + L[0]; }
+  // AI 실력 — 방 옵션 botLv (서버 Bot.js: 0 기본 · 1 마스터 · 2 신 · 3 고수). [이름, 아이콘, 설명, 이기면 추가 XP, 서버 코드] — 약한 순으로 보여 줌 (코드는 예전 화면과 안 어긋나게 그대로, 고수만 3)
+  var BOT_LVS = [['기본', '🤖', '무난하게 · 처음 배울 때', 0, 0], ['고수', '🧠', '카드를 세며 상황을 읽는 AI', 5, 3],
+    ['마스터', '🎓', '카드를 세고 끝판엔 경우의 수를 굴리는 AI · 티츄 판단까지', 15, 1],
+    ['신', '⚡', '모든 사람의 패(파트너 · 상대 · 나머지 6장까지, 사람 패도)를 다 보는 AI — 거의 못 이겨요', 100, 2]];
+  function botLvInfo(v) { return BOT_LVS.filter(function (L) { return L[4] === v; })[0] || BOT_LVS[0]; }
+  function botLvPref() { var v = +lsGet(LS_BOTLV); return v === 1 || v === 2 || v === 3 ? v : 0; }
+  function botLvOf(o) { var v = o && +o.botLv; return v === 1 || v === 2 || v === 3 ? v : 0; }
+  function botLvLabel(v) { var L = botLvInfo(botLvOf({ botLv: v })); return L[1] + ' ' + L[0]; }
   function botLvSeg(cur) {
-    return '<div class="field"><label>🎓 AI 실력 <span class="small">(이기면 고수 +15 · 신 +60 XP)</span></label>' + optSeg('botLv', [0, 1, 2], cur, botLvLabel) + '</div>';
+    return '<div class="field"><label>🎓 AI 실력 <span class="small">(이기면 고수 +5 · 마스터 +15 · 신 +100 XP)</span></label>' + optSeg('botLv', [0, 3, 1, 2], cur, botLvLabel) + '<div class="small">⚡ 신은 모든 사람의 패(내 패 포함)를 다 보는 AI예요 — 거의 못 이겨요</div></div>';
   }
   function botLvVal(root) { var v = segVal(root, 'botLv'); v = v == null ? botLvPref() : +v; lsSet(LS_BOTLV, String(v)); return v; }
 
@@ -828,7 +831,7 @@
   // 경험치: 끝까지 한 판 10 · 사람 4명 대전 +20 · 승 10 · 라운드 1 · 1등 3 · 원투 8 · 스몰 성공 10 · 라지 성공 30 · 티츄 도전(실패) 2
   var XP_RULE = [['games', '끝까지 한 판', 10], ['ranked', '사람 4명 대전', 20], ['win', '승리', 10], ['rounds', '라운드', 1], ['fc', '1등으로 나감', 3],
     ['onetwo', '원투', 8], ['sts', '스몰 티츄 성공', 10], ['gts', '라지 티츄 성공', 30], ['tfail', '티츄 도전', 2],
-    ['pw', '🧠 고수 AI전 승리', 15], ['gw', '⚡ 신 AI전 승리', 60]];   // 서버 apiSummary_ 의 xp 식과 같게
+    ['hw', '🧠 고수 AI전 승리', 5], ['mw', '🎓 마스터 AI전 승리', 15], ['gw', '⚡ 신 AI전 승리', 100]];   // 서버 apiSummary_ 의 xp 식과 같게
   // 레벨 L 까지 누적 필요 XP = 25·L·(L−1) (잠만보 트레이너 레벨과 같은 곡선)
   var TITLES = [[1, '🐣', '참새 견습생'], [3, '🐕', '개 조련사'], [5, '🃏', '트릭 수집가'], [8, '💣', '폭탄 장인'], [12, '🔥', '봉황 기사'], [16, '🐉', '용의 주인'], [22, '👑', '티츄 마스터']];
   function stats(p) {   // 랭킹 항목 / 내 전적 둘 다 받아서 같은 모양으로
@@ -837,7 +840,7 @@
     var st = p.st || [0, 0], gt = p.gt || [0, 0];
     return { games: p.games || 0, ranked: +p.ranked || 0, win: p.win || 0, lose: p.lose || 0, rounds: rounds, fc: fc, onetwo: p.onetwo || 0,
       sts: st[0], stf: st[1], gts: gt[0], gtf: gt[1], tfail: st[1] + gt[1], rating: p.rating || 1500,
-      peak: p.peak != null ? +p.peak || 0 : (+p.ranked ? p.rating || 1500 : 0), pw: +p.pw || 0, gw: +p.gw || 0 };   // peak = 시즌 상관없이 최고 레이팅 (예전 서버면 지금 레이팅)
+      peak: p.peak != null ? +p.peak || 0 : (+p.ranked ? p.rating || 1500 : 0), mw: +p.mw || 0, gw: +p.gw || 0, hw: +p.hw || 0 };   // peak = 시즌 상관없이 최고 레이팅 (예전 서버면 지금 레이팅)
   }
   function xpOf(x) { return XP_RULE.reduce(function (a, r) { return a + (x[r[0]] || 0) * r[2]; }, 0); }
   function lvOf(xp) { var L = 1; while (25 * (L + 1) * L <= xp) L++; return L; }
@@ -870,7 +873,8 @@
     ['🤝', '진짜 대전', '사람 4명 대전 10판', function (x) { return [x.ranked, 10]; }],
     ['🧠', '정확한 선언', '티츄 성공률 70% 이상 (10번 이상 선언)', function (x) { var n = x.sts + x.stf + x.gts + x.gtf; return n < 10 ? [n, 10] : [(x.sts + x.gts) / n >= 0.7 ? 1 : 0, 1]; }],
     ['💎', '레이팅 1600', '사람 4명 대전 레이팅 1600 넘기기 (어느 시즌이든)', function (x) { return [Math.max(0, x.peak - 1500), 100]; }],
-    ['🧠', '고수 격파', '고수 AI전 1번 이기기', function (x) { return [x.pw, 1]; }],
+    ['🧠', '고수 격파', '고수 AI전 1번 이기기', function (x) { return [x.hw, 1]; }],
+    ['🎓', '마스터 격파', '마스터 AI전 1번 이기기', function (x) { return [x.mw, 1]; }],
     ['⚡', '신을 이긴 자', '신 AI전 1번 이기기', function (x) { return [x.gw, 1]; }],
     ['🌌', '신의 영역', '신 AI전 10번 이기기', function (x) { return [x.gw, 10]; }, 1],
     ['🙈', '용감한 도전', '티츄 실패 10번 (그래도 또 외쳐요)', function (x) { return [x.tfail, 10]; }, 1],
@@ -919,7 +923,7 @@
     api('timeBoard', { week: w }).then(function (r) { S.tb = S.tb || {}; S.tb[w] = r; if (S.route.name === 'rank' && S.rankSort === 'time' && !S.modal) renderLobby(); },
       function (e) { if (S.route.name === 'rank') toast(e.message, true); });
   }
-  var TB_KINDS = [['all', '전체'], ['사람', '👥 사람전'], ['신', '⚡ 신'], ['고수', '🧠 고수'], ['기본', '🤖 기본']];
+  var TB_KINDS = [['all', '전체'], ['사람', '👥 사람전'], ['신', '⚡ 신'], ['마스터', '🎓 마스터'], ['고수', '🧠 고수'], ['기본', '🤖 기본']];
   function tbBody(h) {
     var f = tbF(), d = S.tb && S.tb[f.w];
     function seg(k, opts) { return '<div class="seg mini">' + opts.map(function (o) { return '<button data-tbf="' + k + '" data-v="' + o[0] + '" class="' + (String(f[k]) === String(o[0]) ? 'on' : '') + '">' + o[1] + '</button>'; }).join('') + '</div>'; }
@@ -934,7 +938,7 @@
     });
     var list = Object.keys(best).map(function (n) { return best[n]; }).sort(function (a, b) { return b.sc - a.sc || (b.sc - b.op) - (a.sc - a.op); });
     if (!list.length) return h + '<div class="empty">' + (f.w ? '지난주' : '이번 주') + ' ' + f.m + '분 타임 어택 기록이 아직 없어요.<br>AI와 연습이나 방 만들기에서 ⏱ 타임 어택을 골라 보세요!</div>';
-    var KI = { '사람': '👥', '신': '⚡', '고수': '🧠', '기본': '🤖' };
+    var KI = { '사람': '👥', '신': '⚡', '마스터': '🎓', '고수': '🧠', '기본': '🤖' };
     return h + '<div style="overflow-x:auto"><table class="table-list"><thead><tr><th>#</th><th>이름</th><th>점수</th><th>상대</th><th>날짜</th></tr></thead><tbody>' +
       list.slice(0, 50).map(function (x, i) {
         var med = i < 3 ? '<span class="medal">' + ['🥇', '🥈', '🥉'][i] + '</span>' : String(i + 1);
@@ -1074,7 +1078,7 @@
       wx(7, ['J3', 'S4', 'P5', 'T6', 'J7'], ['T9', 'S12', 'P13', 'J14', 'PH', 'J2'], false, '9 는 있지만 10 과 J 가 둘 다 비어서 봉황 한 장으로는 스트레이트를 못 이어요.') +
       wx(8, null, ['T9', 'J9', 'J3', 'S12'], true, '내가 선이에요. 9 가 들어간 조합으로 시작해야 해요 (싱글 9 도, 9 페어도 OK).') +
       '<h3>잠만보 티츄에서는</h3><ul><li>턴 시간을 넘기면 자동으로 진행돼요(낼 의무가 없으면 패스). ‘돌아왔어요’를 누르면 다시 직접 해요.</li>' +
-      '<li>게임 중 나가면 봇이 대신하고, 그 판은 전적에 들어가지 않아요.</li><li>AI 실력은 🤖 기본 · 🧠 고수 · ⚡ 신 — 방 설정이나 ‘AI와 연습’에서 골라요. 기본 · 고수는 남의 패를 보지 않고, ⚡ 신만 남의 패 일부(6 이상 · 특수 카드 · 폭탄)를 엿봐요. AI전에서 이기면 고수 +15 · 신 +60 경험치를 더 받아요 (상대 팀에 봇이 있을 때). 자리를 비운 사람 대신 두는 자동 진행은 늘 기본이에요.</li><li>⏱ 타임 어택: 게임 시작부터 정한 시간(20 · 30 · 45 · 60분)이 지나면 지금 라운드를 바로 멈추고, 그 라운드에 따 둔 카드 점수만 더해요(티츄 · 1등 정산 없음). 점수가 더 많은 팀이 이기고, 동점이면 연장으로 한 라운드를 끝까지 더 해요. 경험치 · 레이팅은 보통 게임과 같아요(라운드가 많을수록 경험치도 많이).</li><li>레이팅은 사람 4명이 끝까지 한 게임만 반영돼요. 분기마다(1·4·7·10월 1일) 새 시즌이 시작되고 모두 1500 에서 다시 겨뤄요 — 지난 시즌 순위는 랭킹에서 볼 수 있어요.</li><li>라운드 중에는 각자 따간 점수가 보이지 않아요. 라운드가 끝나면 결과에서 확인해요.</li><li>판을 끝낼 때마다 경험치가 쌓여 레벨·칭호가 오르고, 조건을 채우면 배지를 받아요 (내 전적 탭).</li></ul>' +
+      '<li>게임 중 나가면 봇이 대신하고, 그 판은 전적에 들어가지 않아요.</li><li>AI 실력은 🤖 기본 · 🧠 고수 · 🎓 마스터 · ⚡ 신 — 방 설정이나 ‘AI와 연습’에서 골라요. 기본 · 고수 · 마스터는 남의 패를 보지 않고, ⚡ 신만 모든 사람의 패(파트너 · 상대 · 나머지 6장까지, 사람 패도)를 다 봐요. AI전에서 이기면 고수 +5 · 마스터 +15 · 신 +100 경험치를 더 받아요 (상대 팀에 봇이 있을 때). 자리를 비운 사람 대신 두는 자동 진행은 늘 기본이에요.</li><li>⏱ 타임 어택: 게임 시작부터 정한 시간(20 · 30 · 45 · 60분)이 지나면 지금 라운드를 바로 멈추고, 그 라운드에 따 둔 카드 점수만 더해요(티츄 · 1등 정산 없음). 점수가 더 많은 팀이 이기고, 동점이면 연장으로 한 라운드를 끝까지 더 해요. 경험치 · 레이팅은 보통 게임과 같아요(라운드가 많을수록 경험치도 많이).</li><li>레이팅은 사람 4명이 끝까지 한 게임만 반영돼요. 분기마다(1·4·7·10월 1일) 새 시즌이 시작되고 모두 1500 에서 다시 겨뤄요 — 지난 시즌 순위는 랭킹에서 볼 수 있어요.</li><li>라운드 중에는 각자 따간 점수가 보이지 않아요. 라운드가 끝나면 결과에서 확인해요.</li><li>판을 끝낼 때마다 경험치가 쌓여 레벨·칭호가 오르고, 조건을 채우면 배지를 받아요 (내 전적 탭).</li></ul>' +
       '<h3>🔎 참새 콜 — 특수 상황</h3><p class="small" style="margin-top:0">자주 나오진 않지만 헷갈리는 경우예요.</p><ul class="wish-special">' +
       '<li><b>차례가 아닐 때 폭탄:</b> 폭탄은 차례가 아니어도 낼 수 있으니, 콜 숫자가 든 폭탄을 먼저 내서 소원을 들어줘도 돼요. 단 ‘반드시’는 <b>내 차례에만</b> 확인해요 — 차례가 아닐 때 안 내도 반칙이 아니에요.</li>' +
       '<li><b>더 센 폭탄이 이미 나왔을 때:</b> 5 콜인데 테이블에 7 포카드가 있으면, 내 5 포카드로는 못 이기니 패스해도 돼요.' + cardsHTML(['J7', 'S7', 'P7', 'T7'], 'sm') + '</li>' +
@@ -1758,7 +1762,7 @@
     else if (g.phase === 'play' && g.counts[me] > 0) {
       var must = myTurn && TE.wishPlays(fakeG(g, me), me);
       if (myTurn) acts += '<button class="btn hint" id="bHint" aria-label="추천 조합">💡<small>추천</small></button>';
-      if (myTurn && coachOn()) acts += '<button class="btn hint coach" id="bCoach" aria-label="고수라면?">🧠<small>고수라면</small></button>';
+      if (myTurn && coachOn()) acts += '<button class="btn hint coach" id="bCoach" aria-label="마스터라면?">🎓<small>마스터라면</small></button>';
       if (r.canTichu) acts += '<button class="btn tichu" id="bTichu">티츄<small>+100</small></button>';
       acts += '<button class="btn pass" id="bPass" ' + (myTurn && top && !must ? '' : 'disabled') + '>패스</button>';
       acts += '<button class="btn primary play" id="bPlay" disabled>내기</button>';
@@ -1823,9 +1827,9 @@
     updateSelInfo();
   }
 
-  /* 🧠 연습 힌트 (AI와 연습 방 · 실시간 서버만): 고수 AI(남의 패를 안 봄)라면 어떻게 할지 서버에 물어 봄 */
+  /* 🧠 연습 힌트 (AI와 연습 방 · 실시간 서버만): 마스터 AI(남의 패를 안 봄)라면 어떻게 할지 서버에 물어 봄 */
   function coachOn() { var r = S.room; return !!(CFG.rt && r && r.solo && r.rt && r.me >= 0); }
-  function coachBtn() { return coachOn() ? '<button class="btn sm ghost block coach" id="bCoach" style="margin-top:8px">🧠 고수라면 어떻게 할까?</button>' : ''; }
+  function coachBtn() { return coachOn() ? '<button class="btn sm ghost block coach" id="bCoach" style="margin-top:8px">🎓 마스터라면 어떻게 할까?</button>' : ''; }
   function coach(btn) {
     if (S.busy || !S.room) return;
     if (btn) btn.disabled = true;
@@ -1834,17 +1838,17 @@
       var x = r && r.hint, me = S.room.me;
       if (!x) return;
       var ti = x.tichu ? ' · 그리고 스몰 티츄를 불러요' : '';
-      if (x.k === 'grand') toast('🧠 고수라면 ' + (x.call ? '라지 티츄!' : '라지 티츄는 패스'));
+      if (x.k === 'grand') toast('🎓 마스터라면 ' + (x.call ? '라지 티츄!' : '라지 티츄는 패스'));
       else if (x.k === 'exch') {
         S.exch = [x.cards[2], x.cards[1], x.cards[0]];   // 화면 칸 = [왼쪽 상대, 파트너, 오른쪽 상대], 서버 = [오른쪽, 파트너, 왼쪽]
-        render(); toast('🧠 고수라면 이렇게 줘요 · 보내기를 누르거나 바꿔 보세요' + ti);
-      } else if (x.k === 'pass') { S.sel = []; render(); toast('🧠 고수라면 패스' + ti); }
+        render(); toast('🎓 마스터라면 이렇게 줘요 · 보내기를 누르거나 바꿔 보세요' + ti);
+      } else if (x.k === 'pass') { S.sel = []; render(); toast('🎓 마스터라면 패스' + ti); }
       else if (x.k === 'play') {
         S.sel = x.cards.slice();
         $$('#hand .card').forEach(function (el) { el.classList.toggle('sel', S.sel.indexOf(el.getAttribute('data-c')) >= 0); });
         updateSelInfo();
-        toast('🧠 고수라면 이걸 내요' + (x.wish ? ' (참새 콜 ' + TE.rankLabel(x.wish) + ')' : '') + ti);
-      } else toast(x.tichu ? '🧠 고수라면 스몰 티츄를 불러요' : '🧠 지금은 내 차례가 아니에요');
+        toast('🎓 마스터라면 이걸 내요' + (x.wish ? ' (참새 콜 ' + TE.rankLabel(x.wish) + ')' : '') + ti);
+      } else toast(x.tichu ? '🎓 마스터라면 스몰 티츄를 불러요' : '🧠 지금은 내 차례가 아니에요');
       sfx('tap');
     }, function (e) { if (btn) btn.disabled = false; toast(e.message, true); });
   }
