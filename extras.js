@@ -17,8 +17,8 @@
     { id: 'aging', admin: true, href: ROOT + 'aging/?reset', emoji: '🕹️', name: '에이징 커브 검사', desc: '미니게임으로 재는 게임 피지컬 나이 · 주 1회 기록', bg: 'linear-gradient(135deg,#fff4e6,#ffd8a8)', bgDark: 'linear-gradient(135deg,#3a2a12,#4a3315)' },
     { id: 'map', href: ROOT + 'map/?reset', emoji: '📍', name: '장소 지도', desc: '모임 장소 · 맛집 지도', bg: 'linear-gradient(135deg,#e6fcf5,#c3fae8)', bgDark: 'linear-gradient(135deg,#0f2f27,#134235)' },
     // ext: 외부 사이트 — 새 창으로 열고 ↗ 표시. 결과는 앱의 '내 기록 > 방탈출 탱쫄'에서 기록
-    // 아르마니여름 디펜스 — 별도 사이트(GitHub Pages 저장소 jammanbo-defense). 카카오 로그인은 같은 출처 저장소(localStorage)를 게임이 읽어 서버에서 전용 입장권으로 바꿔 씀. 테스트 사이트는 ?env=beta 로 테스트 서버 사용
-    { id: 'defense', ext: true, admin: true, href: 'https://dlwjdskfcl.github.io/jammanbo-defense/' + (window.JMB_CONFIG && JMB_CONFIG.env !== 'prod' ? '?env=beta' : ''), emoji: '🐾', name: '아르마니여름 디펜스', desc: '랜덤 타워디펜스 · 내 기록 · 랭킹', bg: 'linear-gradient(135deg,#ecfdf3,#d3f9d8)', bgDark: 'linear-gradient(135deg,#12301f,#17402a)' },
+    // 아르마니여름 디펜스 — 별도 사이트(GitHub Pages 저장소 jammanbo-defense). 카카오 로그인은 같은 출처 저장소(localStorage)를 게임이 읽어 서버에서 전용 입장권으로 바꿔 씀. 운영 사이트(ROOT=/jammanbo/)가 아니면 ?env=beta 로 게임이 테스트 서버를 씀 (화면 안쪽 JMB_CONFIG 에는 env 가 없어 ROOT 로 구분)
+    { id: 'defense', ext: true, admin: true, href: 'https://dlwjdskfcl.github.io/jammanbo-defense/' + (/^\/jammanbo\/$/.test(ROOT) ? '' : '?env=beta'), emoji: '🐾', name: '아르마니여름 디펜스', desc: '랜덤 타워디펜스 · 내 기록 · 랭킹', bg: 'linear-gradient(135deg,#ecfdf3,#d3f9d8)', bgDark: 'linear-gradient(135deg,#12301f,#17402a)' },
     { id: 'tangzzol', ext: true, href: 'https://bangpot-tangzzol-test.vercel.app/test/tangzzol', emoji: '🚪', name: '방탈출 탱쫄 판별기', desc: '나는 탱일까 쫄일까? 20종 유형 테스트', bg: 'linear-gradient(135deg,#f3f0ff,#e5dbff)', bgDark: 'linear-gradient(135deg,#2a1f47,#36295e)' }
   ];
   function attrs(g) { return 'href="' + g.href + '" data-g="' + g.id + '"' + (g.ext ? ' target="_blank" rel="noopener"' : ''); }
