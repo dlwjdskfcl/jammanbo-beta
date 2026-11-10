@@ -1,6 +1,7 @@
 /*! 잠만보 던전 — 게임 규칙 core.js (화면 없음: 브라우저 window.ROGUE_CORE · node require 둘 다)
  * 주사위를 굴려 장비 칸에 넣는 로그라이크. 판 상태 g 는 순수 JSON (그대로 localStorage 에 저장 → 이어하기)
- * 난수는 씨앗 3줄기 g.rs = {m 지도, r 보상·사건, c 전투} — 같은 씨앗이면 지도·보상이 같음 ('오늘의 던전')
+ * 난수는 씨앗 3줄기 g.rs = {m 지도, r 보상·사건, c 전투}. 세 막의 지도와 방마다 나올 적 · 사건은 newRun 에서 미리 정하고(m),
+ * r · c 는 방에 들어갈 때 (씨앗, 막, 줄, 칸) 으로 다시 맞춤 → 같은 씨앗이면 어느 길로 왔든 같은 방에서 같은 적 · 같은 보상 후보 · 같은 주사위 ('오늘의 던전')
  *   newRun({seed, cls, asc, daily}) → g      act(g, {t, …}) → true/false (g 를 바꿈)
  *   g.phase: map · combat · pick(보상 고르기) · shop · rest · event · over
  *   행동: go{col} · place{die, slot} · unplace{slot} · reroll{die|-1} · end · pick{i, rep} · skip · rest{how} · buy{what, i, rep} · leave · opt{i} · cont
@@ -11,7 +12,7 @@
   else root.ROGUE_CORE = factory();
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
-  var SAVE_VER = 1, MAXEQ = 6, MAXDICE = 8, ROWS = 7, ACTS = 3, ENRAGE = 10;
+  var SAVE_VER = 2, MAXEQ = 6, MAXDICE = 8, ROWS = 7, ACTS = 3, ENRAGE = 10;
 
   /* ================= 난수 ================= */
   function hashStr(s) { var h = 2166136261; s = String(s); for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
@@ -133,6 +134,8 @@
   Q('scan', '약점 분석', '🔍', 'u', 5, function (u) { var b = u ? 3 : 2; return { need: ['max', 2], d: '취약 ' + b, fx: function (g) { foe(g, 'vuln', b); } }; });
   Q('wallet', '지갑', '👛', 'u', 3, function (u) { var b = u ? 3 : 0; return { need: ['even'], cu: 3, d: nn(b) + ' 골드', fx: function (g, d) { gold(g, d + b); } }; });
 
+  function GV(id, a, b) { EQ[id].v[0].gv = a; EQ[id].v[1].gv = b == null ? a : b; }   // gv: 발동하면 돌려받는 주사위 수 — 주사위는 MAXDICE 개까지라 넘치면 못 넣음
+  GV('bump', 1); GV('flip', 1); GV('split', 2); GV('merge', 2); GV('copy', 2); GV('cup', 1); GV('charm', 2, 3);
   function variant(q) { return EQ[q.id].v[q.up ? 1 : 0]; }
   function needText(need) {
     switch (need[0]) {
@@ -155,7 +158,7 @@
   var RELIC = {
     clover: { n: '네잎클로버', e: '🍀', r: 'r', d: '턴마다 다시 굴리기 +1' },
     coffee: { n: '진한 커피', e: '☕', r: 'c', d: '전투 첫 턴에 주사위 +2' },
-    heavy: { n: '묵직한 주사위', e: '🪨', r: 'c', d: '굴린 주사위의 1 이 2 가 돼요' },
+    heavy: { n: '묵직한 주사위', e: '🪨', r: 'c', d: '굴린 주사위의 1 이 2 가 돼요 (1 이 필요한 뱀눈 폭탄 · 뱀눈 부적과는 같이 나오지 않아요)' },
     gmeeple: { n: '황금 미플', e: '🏅', r: 'c', d: '전투에서 얻는 골드 +50%' },
     sleeve: { n: '프리미엄 슬리브', e: '🎴', r: 'c', d: '전투를 방어 8 로 시작' },
     mat: { n: '플레이매트', e: '🟩', r: 'c', d: '최대 체력 +12 (얻을 때 바로)' },
@@ -199,7 +202,7 @@
     plan: { n: '전략가', e: '♟️', hp: 58, eq: ['sword', 'shield', 'bump'], relic: 'c_plan', d: '검과 방패의 정석. 처음이라면 이 직업으로.', unlock: '' },
     party: { n: '파티 게이머', e: '🎉', hp: 50, eq: ['dagger', 'twin', 'buckler', 'cup'], relic: 'c_party', d: '낮은 눈과 같은 눈을 노려요. 다시 굴리기가 하나 더.', unlock: '1막 보스를 쓰러뜨리면 열려요' },
     rule: { n: '룰 마스터', e: '📖', hp: 48, eq: ['wand', 'book', 'sword'], relic: 'c_rule', d: '카운트다운 장비를 차곡차곡 채워 한 방에.', unlock: '2막 보스를 쓰러뜨리면 열려요' },
-    troll: { n: '트롤러', e: '😈', hp: 50, eq: ['dart', 'torch', 'cactus'], relic: 'c_troll', d: '독 · 화상 · 가시로 서서히 말려 죽여요.', unlock: '던전을 한 번 클리어하면 열려요' }
+    troll: { n: '트롤러', e: '😈', hp: 47, eq: ['dart', 'torch', 'cactus'], relic: 'c_troll', d: '독 · 화상 · 가시로 서서히 말려 죽여요.', unlock: '던전을 한 번 클리어하면 열려요' }
   };
   var CLASS_IDS = ['plan', 'party', 'rule', 'troll'];
 
@@ -262,17 +265,20 @@
       hp: C.hp, max: C.hp, gold: 30, dice: 3, rerolls: 1,
       eq: C.eq.map(function (id) { return { id: id, up: 0 }; }), relics: [C.relic],
       act: 0, row: -1, col: 1, path: [], map: null, phase: 'map', pend: [], adv: false,
-      cb: null, shop: null, evt: null, last: null, decks: {}, evdeck: null, win: false, over: null,
+      cb: null, shop: null, evt: null, last: null, win: false, over: null,
       stats: { kills: 0, elites: 0, bosses: 0, dmg: 0, taken: 0, gold: 0, turns: 0, rooms: 0 },
       seen: { e: [], r: [C.relic], q: C.eq.slice() }, ev: []
     };
     if (asc >= 3) { g.max -= 6; g.hp -= 6; }
-    g.map = genMap(g);
+    // 세 막의 지도와 방마다 나올 적 · 사건을 지금 다 정함 → 어느 길로 가든 같은 씨앗이면 같은 던전
+    var decks = {};
+    g.maps = []; for (var a = 0; a < ACTS; a++) g.maps.push(genMap(g, a, decks));
+    g.map = g.maps[0].rows; g.ids = g.maps[0].ids;
     return g;
   }
   // 한 막 = 7줄 × 3칸 + 보스. 다음 줄은 바로 위 · 대각선 칸으로만. f 전투 · e 정예 · s 상점 · r 휴식 · v 사건
-  function genMap(g) {
-    var rows = [], r, c;
+  function genMap(g, act, decks) {
+    var rows = [], ids = [], r, c;
     for (r = 0; r < ROWS; r++) {
       var row = [];
       for (c = 0; c < 3; c++) {
@@ -296,7 +302,10 @@
     if (!any('s', 1, 5)) rows[2 + ri(g, 'm', 3)][ri(g, 'm', 3)] = 's';
     if (!any('e', 2, 5)) rows[3 + ri(g, 'm', 2)][ri(g, 'm', 3)] = 'e';
     for (r = 1; r < ROWS - 1; r++) if (rows[r].indexOf('f') < 0 && rows[r].indexOf('v') < 0) rows[r][ri(g, 'm', 3)] = 'f';   // 줄마다 전투·사건이 하나는 있게
-    return rows;
+    for (r = 0; r < ROWS; r++) {   // 방마다 나올 적 · 사건 (섞은 더미에서 차례로 — 사건 더미는 세 막이 같이 씀)
+      ids.push(rows[r].map(function (t) { return t === 'f' ? draw(g, decks, 'f' + act, pool(act, 'f')) : t === 'e' ? draw(g, decks, 'e' + act, pool(act, 'e')) : t === 'v' ? draw(g, decks, 'ev', EVENT_IDS) : ''; }));
+    }
+    return { rows: rows, ids: ids };
   }
   function floorOf(g) { return g.act * (ROWS + 1) + Math.max(0, g.row) + 1; }
   function nextCols(g) {
@@ -305,9 +314,9 @@
     var a = []; for (var c = 0; c < 3; c++) if (Math.abs(c - g.col) <= 1) a.push(c);
     return a;
   }
-  function draw(g, key, ids) {   // 섞은 더미에서 한 장 (다 쓰면 다시 섞음)
-    var d = g.decks[key];
-    if (!d || !d.length) d = g.decks[key] = shuffle(g, 'm', ids);
+  function draw(g, decks, key, ids) {   // 섞은 더미에서 한 장 (다 쓰면 다시 섞음)
+    var d = decks[key];
+    if (!d || !d.length) d = decks[key] = shuffle(g, 'm', ids);
     return d.pop();
   }
   function go(g, col) {
@@ -317,13 +326,13 @@
     g.row++; g.col = boss ? 1 : col; g.stats.rooms++;
     if (!boss) g.path.push(col);
     if (has(g, 'piggy')) { g.gold += 4; g.stats.gold += 4; }
-    var t = boss ? 'b' : g.map[g.row][col];
-    if (t === 'f') startCombat(g, draw(g, 'f' + g.act, pool(g.act, 'f')));
-    else if (t === 'e') startCombat(g, draw(g, 'e' + g.act, pool(g.act, 'e')));
+    var t = boss ? 'b' : g.map[g.row][col], h = hashStr(g.seed + ':' + g.act + ':' + g.row + ':' + g.col);
+    g.rs.r = h | 0; g.rs.c = (h ^ 0x5bd1e995) | 0;   // 방마다 난수를 다시 맞춤 — 지나온 길과 상관없이 같은 방은 같게
+    if (t === 'f' || t === 'e') startCombat(g, g.ids[g.row][col]);
     else if (t === 'b') startCombat(g, BOSS[g.act]);
     else if (t === 's') { g.shop = genShop(g); g.phase = 'shop'; }
     else if (t === 'r') g.phase = 'rest';
-    else { g.evt = { id: draw(g, 'ev', EVENT_IDS), res: '' }; g.phase = 'event'; }
+    else { g.evt = { id: g.ids[g.row][col], res: '' }; g.phase = 'event'; }
     return true;
   }
 
@@ -343,7 +352,7 @@
     if (has(g, 'sleeve')) g.cb.blk += 8;
     if (has(g, 'first')) g.cb.e.st.vuln = (g.cb.e.st.vuln || 0) + 2;
     if (has(g, 'tsleeve')) g.cb.st.thorns = 2;
-    if (has(g, 'dartboard')) g.cb.e.st.poison = (g.cb.e.st.poison || 0) + 4;
+    if (has(g, 'dartboard')) g.cb.e.st.poison = (g.cb.e.st.poison || 0) + 4 + (has(g, 'vial') ? 1 : 0) + (has(g, 'c_troll') ? 1 : 0);   // foe() 와 같은 보너스
     if (has(g, 'chip')) g.cb.st.str = 1;
     startTurn(g, true);
   }
@@ -376,24 +385,28 @@
     var cb = g.cb, m = moves(cb.e)[cb.e.mi];
     return { t: m.t, a: m.a ? eDmg(g, m.a) : 0, h: m.a ? (m.h || 1) : 0, b: m.b || 0, p: m.p || null, s: m.s || null };
   }
-  function canPlace(g, di, si) {
-    var cb = g.cb; if (g.phase !== 'combat' || !cb) return false;
-    var q = g.eq[si], v = cb.dice[di]; if (!q || !v) return false;
-    var V = variant(q), sl = cb.slots[si], nd = V.need;
-    if (sl.u >= (V.uses || 1)) return false;
-    if (V.cu && sl.cu >= V.cu) return false;
+  // 왜 못 넣는지: '' 넣을 수 있음 · x 잘못된 요청 · used 이번 턴에 다 씀 · cu 이번 전투에 다 씀 · need 눈이 안 맞음 · full 돌려받을 주사위 자리가 없음
+  function whyNot(g, di, si) {
+    var cb = g.cb; if (g.phase !== 'combat' || !cb) return 'x';
+    var q = g.eq[si], v = cb.dice[di]; if (!q || !v) return 'x';
+    var V = variant(q), sl = cb.slots[si], nd = V.need, ok = false, two = nd[0] === 'pair' || nd[0] === 'two' || nd[0] === 'sum';
+    if (sl.u >= (V.uses || 1)) return 'used';
+    if (V.cu && sl.cu >= V.cu) return 'cu';
     switch (nd[0]) {
-      case 'any': case 'two': case 'cd': return true;
-      case 'even': return v % 2 === 0;
-      case 'odd': return v % 2 === 1;
-      case 'max': return v <= nd[1];
-      case 'min': return v >= nd[1];
-      case 'eq': return v === nd[1];
-      case 'pair': return !sl.held.length || sl.held[0] === v;
-      case 'sum': return sl.held.length ? sl.held[0] + v === nd[1] : (v < nd[1] && nd[1] - v <= 6);
+      case 'any': case 'two': case 'cd': ok = true; break;
+      case 'even': ok = v % 2 === 0; break;
+      case 'odd': ok = v % 2 === 1; break;
+      case 'max': ok = v <= nd[1]; break;
+      case 'min': ok = v >= nd[1]; break;
+      case 'eq': ok = v === nd[1]; break;
+      case 'pair': ok = !sl.held.length || sl.held[0] === v; break;
+      case 'sum': ok = sl.held.length ? sl.held[0] + v === nd[1] : (v < nd[1] && nd[1] - v <= 6); break;
     }
-    return false;
+    if (!ok) return 'need';
+    if (V.gv && (!two || sl.held.length) && cb.dice.length - 1 + V.gv > MAXDICE) return 'full';
+    return '';
   }
+  function canPlace(g, di, si) { return whyNot(g, di, si) === ''; }
   function slotOpen(g, si) {   // 이번 턴에 아직 쓸 수 있는 칸인가 (화면 표시용)
     var V = variant(g.eq[si]), sl = g.cb.slots[si];
     return sl.u < (V.uses || 1) && !(V.cu && sl.cu >= V.cu);
@@ -461,8 +474,9 @@
   function endTurn(g) {
     var cb = g.cb; if (g.phase !== 'combat' || !cb) return false;
     var e = cb.e, st = cb.st, i;
-    for (i = 0; i < cb.slots.length; i++) cb.slots[i].held = [];
-    if (has(g, 'tidy') && !cb.dice.length) { cb.blk += 4; ev(g, { k: 'blk', n: 4 }); }
+    var held = false;
+    for (i = 0; i < cb.slots.length; i++) { if (cb.slots[i].held.length) held = true; cb.slots[i].held = []; }
+    if (has(g, 'tidy') && !cb.dice.length && !held) { cb.blk += 4; ev(g, { k: 'blk', n: 4 }); }   // 칸에 걸쳐만 둔 주사위는 쓴 것이 아님
     cb.dice = [];
     if (st.weak > 0) st.weak--;
     if (e.st.vuln > 0) e.st.vuln--;
@@ -527,7 +541,7 @@
   /* ================= 보상 ================= */
   function rollEquips(g, n, lift) {   // lift: 0 보통 · 1 드묾 이상 하나 보장 · 2 희귀가 잘 나옴
     if (has(g, 'expansion')) n++;
-    var own = g.eq.map(function (q) { return q.id; }), out = [], ids = EQ_IDS.filter(function (id) { return own.indexOf(id) < 0; });
+    var own = g.eq.map(function (q) { return q.id; }), out = [], ids = EQ_IDS.filter(function (id) { return own.indexOf(id) < 0 && !(id === 'snake' && has(g, 'heavy')); });   // 1 이 안 나오면 뱀눈 폭탄은 못 씀
     var W = [{ c: 60, u: 33, r: 7 }, { c: 44, u: 42, r: 14 }, { c: 30, u: 46, r: 24 }][g.act];
     for (var i = 0; i < n && ids.length; i++) {
       var id = wpick(g, 'r', ids, function (x) { var r = EQ[x].r, w = W[r]; if (lift === 2 && r === 'r') w *= 3; if (lift >= 1 && i === 0 && r === 'c') w = 0; return w; });
@@ -537,9 +551,15 @@
     return out;
   }
   function rollRelics(g, n, rare) {
-    var ids = RELIC_IDS.filter(function (id) { return g.relics.indexOf(id) < 0 && !(id === 'errata' && g.usedErrata); }), out = [];
+    var ones = has(g, 'snakeeye') || g.eq.some(function (q) { return q.id === 'snake'; });
+    var ids = RELIC_IDS.filter(function (id) {
+      if (id === 'heavy' && ones) return false;   // 묵직한 주사위(1→2)와 1 이 필요한 것은 같이 안 나옴
+      if (id === 'snakeeye' && has(g, 'heavy')) return false;
+      return g.relics.indexOf(id) < 0 && !(id === 'errata' && g.usedErrata);
+    }), out = [];
     for (var i = 0; i < n && ids.length; i++) {
-      var id = wpick(g, 'r', ids, function (x) { return RELIC[x].r === 'r' ? (rare ? 3 : 0.6) : 1; });
+      var only = rare === 2 && ids.some(function (x) { return RELIC[x].r === 'r'; });   // rare: 2 = 희귀만 (다 모았으면 일반)
+      var id = wpick(g, 'r', ids, function (x) { return RELIC[x].r === 'r' ? (only ? 1 : rare ? 3 : 0.6) : (only ? 0 : 1); });
       ids.splice(ids.indexOf(id), 1); out.push(id);
     }
     return out;
@@ -550,6 +570,7 @@
     if (g.seen.r.indexOf(id) < 0) g.seen.r.push(id);
     if (id === 'mat') { g.max += 12; g.hp += 12; }
     if (id === 'errata') g.usedErrata = 1;
+    if (g.phase === 'event' && g.evt) (g.evt.got = g.evt.got || []).push(id);   // 사건 결과 화면에 효과를 보여 줌
   }
   function addEquip(g, it, rep) {   // 칸이 꽉 찼으면 rep 번 칸과 바꿈
     var q = { id: it.id, up: it.up ? 1 : 0 };
@@ -567,7 +588,7 @@
       if (p.k === 'rm' && g.eq.length <= 2) { g.pend.shift(); continue; }
       g.phase = 'pick'; return;
     }
-    if (g.adv) { g.adv = false; g.act++; g.row = -1; g.col = 1; g.path = []; g.map = genMap(g); }
+    if (g.adv) { g.adv = false; g.act++; g.row = -1; g.col = 1; g.path = []; g.map = g.maps[g.act].rows; g.ids = g.maps[g.act].ids; }
     g.shop = null; g.evt = null;
     g.phase = 'map';
   }
@@ -588,7 +609,9 @@
   }
   function skipReward(g) {
     if (g.phase !== 'pick') return false;
-    g.pend.shift(); proceed(g);
+    var p = g.pend.shift();
+    if (p.back === 'rest') { g.phase = 'rest'; return true; }   // 휴식의 장비 손질을 그만두면 휴식 선택으로 돌아감
+    proceed(g);
     return true;
   }
 
@@ -596,7 +619,7 @@
   function restHeal(g) { return Math.round(g.max * (g.asc >= 7 ? 0.24 : 0.32) * (has(g, 'cushion') ? 1.5 : 1)); }
   function rest(g, how) {
     if (g.phase !== 'rest') return false;
-    if (how === 'up') { if (!upgradable(g).length) return false; g.pend.push({ k: 'up', why: '장비 손질' }); }
+    if (how === 'up') { if (!upgradable(g).length) return false; g.pend.push({ k: 'up', why: '장비 손질', back: 'rest' }); }
     else heal(g, restHeal(g));
     proceed(g);
     return true;
@@ -635,7 +658,7 @@
       { l: '처음부터 차근차근 설명한다', h: '체력 -6 · 무작위 장비 강화', fx: function (g) { hpCost(g, 6); var n = upRandom(g); return '목이 쉬었지만 설명하다 보니 나도 룰이 정리됐다.' + (n ? ' 【' + n + '】 강화!' : ''); } },
       { l: '룰 영상 링크를 보내 준다', h: '골드 +18', fx: function (g) { gain(g, 18); return '“오, 이해했어요!” 고맙다며 음료값을 내 줬다. 골드 +18'; } }] },
     tower: { e: '🗼', t: '주사위 탑이 무너졌다', d: '와르르! 누군가 쌓던 주사위 탑이 무너져 사방으로 굴러간다.', opts: [
-      { l: '굴러간 주사위를 주우러 간다', h: '운에 맡김 — 유물 또는 체력 -7', fx: function (g) { if (rnd(g, 'r') < 0.55) { var id = oneRelic(g, false); return id ? '소파 밑에서 반짝이는 것을 찾았다. 【' + RELIC[id].n + '】 획득!' : '소파 밑에서 동전을 주웠다. 골드 +30'; } hpCost(g, 7); return '탁자 모서리에 머리를 박았다. 체력 -7'; } },
+      { l: '굴러간 주사위를 주우러 간다', h: '반반 — 무작위 유물 또는 체력 -7', fx: function (g) { if (rnd(g, 'r') < 0.55) { var id = oneRelic(g, false); return id ? '소파 밑에서 반짝이는 것을 찾았다. 【' + RELIC[id].n + '】 획득!' : '소파 밑에서 동전을 주웠다. 골드 +30'; } hpCost(g, 7); return '탁자 모서리에 머리를 박았다. 체력 -7'; } },
       { l: '탑을 다시 쌓아 준다', h: '최대 체력 +4', fx: function (g) { g.max += 4; g.hp += 4; return '집중해서 한 층씩… 완성! 마음이 단단해졌다. 최대 체력 +4'; } }] },
     late: { e: '⏰', t: '벙주가 지각했다', d: '단톡방에 “10분만요 ㅠㅠ” 가 올라왔다. 문은 잠겨 있다.', opts: [
       { l: '계단에 앉아 쉰다', h: '체력 +12', fx: function (g) { var h = heal(g, 12); return '멍하니 쉬었더니 개운하다. 체력 +' + h; } },
@@ -645,10 +668,10 @@
       { l: '하나만 집고 참는다', h: '최대 체력 +3 · 골드 +8', fx: function (g) { g.max += 3; g.hp += 3; gain(g, 8); return '절제의 미덕. 최대 체력 +3, 남은 간식비 골드 +8'; } }] },
     market: { e: '🏷️', t: '중고 장터', d: '한쪽 탁자에서 중고 거래가 한창이다. “박스 상태 A급이에요!”', opts: [
       { l: '안 쓰는 장비를 판다', h: '장비 하나 버리고 골드 +40', can: function (g) { return g.eq.length > 2; }, fx: function (g) { g.pend.push({ k: 'rm', gold: 40, why: '팔 장비 고르기' }); return '어떤 걸 팔까?'; } },
-      { l: '랜덤 박스를 산다', h: '골드 -30 · 드문 장비 중 하나', can: function (g) { return g.gold >= 30; }, fx: function (g) { g.gold -= 30; g.pend.push({ k: 'eq', items: rollEquips(g, 3, 1), why: '랜덤 박스' }); return '두근두근, 상자를 열어 보자.'; } },
+      { l: '랜덤 박스를 산다', h: '골드 -30 · 장비 셋 중 하나 (드묾 이상 하나 보장)', can: function (g) { return g.gold >= 30; }, fx: function (g) { g.gold -= 30; g.pend.push({ k: 'eq', items: rollEquips(g, 3, 1), why: '랜덤 박스' }); return '두근두근, 상자를 열어 보자.'; } },
       { l: '구경만 한다', h: '아무 일 없음', fx: function () { return '구경하는 것만으로도 재미있었다.'; } }] },
     promo: { e: '✨', t: '수상한 프로모 카드', d: '후드를 눌러쓴 사람이 속삭인다. “한정판인데… 대가가 좀 있어.”', opts: [
-      { l: '받는다', h: '유물 하나 · 최대 체력 -6', fx: function (g) { var id = oneRelic(g, true); g.max -= 6; g.hp = Math.max(1, Math.min(g.hp, g.max)); return '손끝이 찌릿하다. ' + (id ? '【' + RELIC[id].n + '】 획득, ' : '골드 +30, ') + '최대 체력 -6'; } },
+      { l: '받는다', h: '무작위 유물 하나 · 최대 체력 -6', fx: function (g) { var id = oneRelic(g, true); g.max -= 6; g.hp = Math.max(1, Math.min(g.hp, g.max)); return '손끝이 찌릿하다. ' + (id ? '【' + RELIC[id].n + '】 획득, ' : '골드 +30, ') + '최대 체력 -6'; } },
       { l: '정중히 거절한다', h: '체력 +5', fx: function (g) { var h = heal(g, 5); return '수상한 건 안 받는 게 상책. 마음이 편하다. 체력 +' + h; } }] },
     after: { e: '🍻', t: '뒤풀이 제안', d: '“끝나고 치킨 어때요?” 다들 눈이 반짝인다.', opts: [
       { l: '간다!', h: '골드 -25 · 체력 절반 회복', can: function (g) { return g.gold >= 25; }, fx: function (g) { g.gold -= 25; var h = heal(g, Math.round(g.max * 0.5)); return '치킨은 진리다. 체력 +' + h; } },
@@ -659,21 +682,21 @@
       { l: '내 전략을 알려 주며 복기한다', h: '장비 하나 강화', can: function (g) { return upgradable(g).length > 0; }, fx: function (g) { g.pend.push({ k: 'up', why: '복기하며 깨달음' }); return '가르치다 보니 내가 더 배웠다.'; } }] },
     altar: { e: '🎲', t: '주사위 신의 제단', d: '선반 꼭대기에 먼지 쌓인 20면체가 놓여 있다. 무언가를 바치면 답한다고 한다.', opts: [
       { l: '체력을 바친다', h: '체력 -10 · 유물 둘 중 하나', can: function (g) { return g.hp > 10; }, fx: function (g) { hpCost(g, 10); g.pend.push({ k: 'rl', items: rollRelics(g, 2, true), why: '주사위 신의 선물' }); return '20면체가 빙글 돌더니 빛난다.'; } },
-      { l: '골드를 바친다', h: '골드 -40 · 좋은 장비 중 하나', can: function (g) { return g.gold >= 40; }, fx: function (g) { g.gold -= 40; g.pend.push({ k: 'eq', items: rollEquips(g, 3, 2).map(function (x) { x.up = 1; return x; }), why: '주사위 신의 선물' }); return '동전이 사라지고 상자가 나타났다.'; } },
+      { l: '골드를 바친다', h: '골드 -40 · 강화된 장비 셋 중 하나', can: function (g) { return g.gold >= 40; }, fx: function (g) { g.gold -= 40; g.pend.push({ k: 'eq', items: rollEquips(g, 3, 2).map(function (x) { x.up = 1; return x; }), why: '주사위 신의 선물' }); return '동전이 사라지고 상자가 나타났다.'; } },
       { l: '먼지만 털어 주고 간다', h: '아무 일 없음', fx: function () { return '20면체가 고맙다는 듯 반짝였다. (기분 탓)'; } }] },
     lost: { e: '📦', t: '분실물 상자', d: '카페 구석에 ‘분실물’ 이라고 적힌 상자가 있다.', opts: [
-      { l: '뒤져 본다', h: '운에 맡김 — 골드 · 장비 · 함정', fx: function (g) { var x = rnd(g, 'r'); if (x < 0.45) { gain(g, 32); return '누가 두고 간 동전 지갑! 골드 +32'; } if (x < 0.8) { g.pend.push({ k: 'eq', items: rollEquips(g, 2, 1), why: '분실물' }); return '쓸 만한 물건이 있다.'; } hpCost(g, 6); return '압정이 들어 있었다. 체력 -6'; } },
+      { l: '뒤져 본다', h: '운에 맡김 — 골드 +32 · 장비 고르기 · 함정(체력 -6)', fx: function (g) { var x = rnd(g, 'r'); if (x < 0.45) { gain(g, 32); return '누가 두고 간 동전 지갑! 골드 +32'; } if (x < 0.8) { g.pend.push({ k: 'eq', items: rollEquips(g, 2, 1), why: '분실물' }); return '쓸 만한 물건이 있다.'; } hpCost(g, 6); return '압정이 들어 있었다. 체력 -6'; } },
       { l: '주인을 찾아 준다', h: '최대 체력 +3', fx: function (g) { g.max += 3; g.hp += 3; return '착한 일을 하니 기운이 난다. 최대 체력 +3'; } }] },
     kick: { e: '🚀', t: '크라우드 펀딩 알림', d: '“목표 금액 300% 달성! 마감 1시간 전!” 알림이 울린다.', opts: [
-      { l: '올인 에디션 후원', h: '골드 -55 · 희귀 유물', can: function (g) { return g.gold >= 55; }, fx: function (g) { g.gold -= 55; var id = oneRelic(g, true); return id ? '놀랍게도 바로 도착했다! 【' + RELIC[id].n + '】 획득' : '배송 대신 환불이 왔다. 골드 +30'; } },
+      { l: '올인 에디션 후원', h: '골드 -55 · 희귀 유물 (다 모았으면 일반 유물)', can: function (g) { return g.gold >= 55; }, fx: function (g) { g.gold -= 55; var id = oneRelic(g, 2); return id ? '놀랍게도 바로 도착했다! 【' + RELIC[id].n + '】 획득' : '배송 대신 환불이 왔다. 골드 +30'; } },
       { l: '얼리버드만 살짝', h: '골드 -20 · 60% 확률로 무작위 장비 강화', can: function (g) { return g.gold >= 20 && upgradable(g).length > 0; }, fx: function (g) { g.gold -= 20; if (rnd(g, 'r') < 0.6) { var n = upRandom(g); return '업그레이드 키트가 왔다. 【' + n + '】 강화!'; } return '배송이 1년 미뤄졌다는 메일이 왔다…'; } },
       { l: '지갑을 닫는다', h: '아무 일 없음', fx: function () { return '현명한 소비자였다.'; } }] },
     clean: { e: '🧹', t: '정리의 시간', d: '모임이 끝나 간다. 다 같이 게임을 정리하는 중.', opts: [
       { l: '안 쓰는 장비를 기부한다', h: '장비 하나 버리고 최대 체력 +7', can: function (g) { return g.eq.length > 2; }, fx: function (g) { g.pend.push({ k: 'rm', max: 7, why: '기부할 장비 고르기' }); return '무엇을 기부할까?'; } },
       { l: '토큰을 종류별로 정리한다', h: '골드 +14', fx: function (g) { gain(g, 14); return '지퍼백 사이에서 동전이 나왔다. 골드 +14'; } }] },
     dispute: { e: '⚖️', t: '룰 분쟁', d: '두 사람이 룰 해석을 두고 다투고 있다. “아니 동시에 발동이라니까!”', opts: [
-      { l: '룰북을 찾아 판정해 준다', h: '운에 맡김 — 골드 +30 또는 체력 -5', fx: function (g) { if (rnd(g, 'r') < 0.65) { gain(g, 30); return '정확한 조항을 찾았다. 박수와 함께 골드 +30'; } hpCost(g, 5); return '둘 다 틀렸다고 했다가 양쪽에서 혼났다. 체력 -5'; } },
-      { l: '“주사위로 정하죠”', h: '반반 — 유물 또는 체력 -9', fx: function (g) { if (rnd(g, 'r') < 0.5) { var id = oneRelic(g, false); return id ? '명쾌한 해결! 감사의 선물 【' + RELIC[id].n + '】' : '명쾌한 해결! 골드 +30'; } hpCost(g, 9); return '주사위가 탁자 밑으로 굴러가 한참 찾았다. 체력 -9'; } }] },
+      { l: '룰북을 찾아 판정해 준다', h: '대체로 골드 +30, 가끔 체력 -5', fx: function (g) { if (rnd(g, 'r') < 0.65) { gain(g, 30); return '정확한 조항을 찾았다. 박수와 함께 골드 +30'; } hpCost(g, 5); return '둘 다 틀렸다고 했다가 양쪽에서 혼났다. 체력 -5'; } },
+      { l: '“주사위로 정하죠”', h: '반반 — 무작위 유물 또는 체력 -9', fx: function (g) { if (rnd(g, 'r') < 0.5) { var id = oneRelic(g, false); return id ? '명쾌한 해결! 감사의 선물 【' + RELIC[id].n + '】' : '명쾌한 해결! 골드 +30'; } hpCost(g, 9); return '주사위가 탁자 밑으로 굴러가 한참 찾았다. 체력 -9'; } }] },
     cursed: { e: '👁️', t: '바닥에 떨어진 주사위', d: '의자 밑에 혼자 굴러다니는 주사위가 있다. 어쩐지 이쪽을 보는 것 같다.', opts: [
       { l: '굴려 본다', h: '6: 주사위 +1 영구 · 1: 체력 -12 · 그 외: 골드 +20', fx: function (g) { var v = 1 + ri(g, 'r', 6); if (v === 6) { g.dice++; return '⚅! 주사위가 주머니로 쏙 들어왔다. 굴리는 주사위 +1'; } if (v === 1) { hpCost(g, 12); return '⚀… 불길한 기운이 스친다. 체력 -12'; } gain(g, 20); return '눈 ' + v + '. 주인이 사례금을 줬다. 골드 +20'; } },
       { l: '모른 척한다', h: '아무 일 없음', fx: function () { return '등 뒤에서 데구르르 소리가 났다.'; } }] }
@@ -719,7 +742,7 @@
   return {
     SAVE_VER: SAVE_VER, MAXEQ: MAXEQ, MAXDICE: MAXDICE, ROWS: ROWS, ACTS: ACTS, ENRAGE: ENRAGE,
     ST: ST, EQ: EQ, EQ_IDS: EQ_IDS, RELIC: RELIC, RELIC_IDS: RELIC_IDS, CLASS: CLASS, CLASS_IDS: CLASS_IDS, ENEMY: ENEMY, ENEMY_IDS: ENEMY_IDS, EVENT: EVENT, BOSS: BOSS, ACT_NAME: ACT_NAME, ASC: ASC,
-    newRun: newRun, act: act, canPlace: canPlace, slotOpen: slotOpen, intent: intent, variant: variant, needText: needText, cdFull: cdFull,
+    newRun: newRun, act: act, canPlace: canPlace, whyNot: whyNot, slotOpen: slotOpen, intent: intent, variant: variant, needText: needText, cdFull: cdFull,
     nextCols: nextCols, floorOf: floorOf, upgradable: upgradable, restHeal: restHeal, shopHeal: shopHeal, score: score,
     hashStr: hashStr, dailySeed: dailySeed, dailyClass: dailyClass, has: has
   };

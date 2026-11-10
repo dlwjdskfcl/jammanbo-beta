@@ -7,7 +7,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.0.0';
+  var VER = '1.0.1';
   var C = window.ROGUE_CORE, FX = window.JMB_FX || null, ARC = window.JMB_ARCADE || null, CFG = window.JMB_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
   var ROOT = (function () { var seg = location.pathname.split('/')[1] || ''; return /\.github\.io$/.test(location.hostname) && seg ? '/' + seg + '/' : '/'; })();
@@ -23,7 +23,19 @@
   function lsJSON(k) { try { return JSON.parse(lsGet(k) || 'null'); } catch (e) { return null; } }
   function num(n) { return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
   var toastT = 0;
-  function toast(msg, ms) { var t = $('toast'); t.textContent = msg; t.className = 'toast on'; clearTimeout(toastT); toastT = setTimeout(function () { t.className = 'toast'; }, ms || 2200); }
+  // 알림: 전투 중에는 '다음 행동' · 체력을 가리지 않게 주사위 아래 안내 줄(#tip)에, 그 밖에는 화면 아래에 띄움
+  function toast(msg, ms) {
+    ms = ms || 2200; clearTimeout(toastT);
+    if (document.documentElement.classList.contains('in-cmb')) {
+      UI.hot = { m: msg, t: Date.now() + ms };
+      var tp = $('tip'); if (tp) { tp.textContent = msg; tp.className = 'tip hot'; }
+      toastT = setTimeout(function () { UI.hot = null; var e = $('tip'); if (e && G && G.cb) { e.textContent = tipText(); e.className = 'tip'; } }, ms);
+      return;
+    }
+    var t = $('toast'); t.textContent = msg; t.className = 'toast on';
+    toastT = setTimeout(function () { t.className = 'toast'; }, ms);
+  }
+  function hotTip() { return UI.hot && UI.hot.t > Date.now() ? UI.hot.m : ''; }
   function today() { return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); }   // 한국 날짜
   function md(d) { var p = String(d || '').split('-'); return p.length === 3 ? (+p[1]) + '월 ' + (+p[2]) + '일' : d; }
   function nick() { var s = lsJSON(LS.auth); return s && s.user && s.user.nickname ? String(s.user.nickname) : ''; }
@@ -165,7 +177,7 @@
     h += '<div class="cdesc"><p>' + (ok ? cls.d : '🔒 ' + cls.unlock) + '</p><div class="cst"><span>❤️ ' + cls.hp + '</span>' + cls.eq.map(function (id) { return '<span>' + C.EQ[id].e + ' ' + C.EQ[id].n + '</span>'; }).join('') + '<span>' + C.RELIC[cls.relic].e + ' ' + C.RELIC[cls.relic].d + '</span></div></div>';
     if (M.asc > 0) h += '<div class="ascr"><button type="button" class="stp" data-a="asc" data-d="-1" aria-label="승천 낮추기"' + (UI.asc <= 0 ? ' disabled' : '') + '>−</button><div><b>' + (UI.asc ? '승천 ' + UI.asc : '기본 난이도') + '</b><small>' + (UI.asc ? C.ASC[UI.asc - 1] + (UI.asc > 1 ? ' (+ 아래 단계 모두)' : '') : '승천을 올리면 더 어려워져요') + '</small></div><button type="button" class="stp" data-a="asc" data-d="1" aria-label="승천 올리기"' + (UI.asc >= M.asc ? ' disabled' : '') + '>+</button></div>';
     h += '<button type="button" class="btn pri wide" data-a="new"' + (ok ? '' : ' disabled') + '>🎲 새 판 시작</button></div>';
-    h += '<button type="button" class="mode" data-a="daily"><span class="ic">📅</span><span><b>오늘의 던전</b><small>' + md(d) + ' · ' + C.CLASS[dc].n + ' · 모두 같은 지도와 보상' + (dr ? '<br>내 기록 ' + num(dr.score) + '점 (' + (dr.win ? '클리어' : dr.floor + '층') + ')' : '') + '</small></span><span class="go">›</span></button>';
+    h += '<button type="button" class="mode" data-a="daily"><span class="ic">📅</span><span><b>오늘의 던전</b><small>' + md(d) + ' · ' + C.CLASS[dc].n + ' · 모두 같은 던전' + (dr ? (dr.live ? '<br>도전 중 — 이어서 할 수 있어요' : '<br>내 기록 ' + num(dr.score) + '점 (' + (dr.win ? '클리어' : dr.floor + '층') + ')') : '') + '</small></span><span class="go">›</span></button>';
     var seen = M.seen.e.length + M.seen.q.length + M.seen.r.length, all = C.ENEMY_IDS.length + C.EQ_IDS.length + Object.keys(C.RELIC).length;
     h += '<div class="two"><button type="button" class="btn" data-a="board" data-m="run">🏆 모임 랭킹</button><button type="button" class="btn" data-a="rec">📊 내 기록</button></div>';
     h += '<div class="two"><button type="button" class="btn ghost" data-a="codex">📖 도감 ' + seen + '/' + all + '</button><button type="button" class="btn ghost" data-a="help">❓ 하는 법</button></div>';
@@ -258,7 +270,7 @@
     h += '</section><section class="tray" id="tray">';
     if (!cb.dice.length) h += '<span class="tray-x">주사위를 다 썼어요</span>';
     for (i = 0; i < cb.dice.length; i++) h += '<button type="button" class="dbtn' + (i === sel ? ' on' : '') + '" data-a="die" data-i="' + i + '">' + dieH(cb.dice[i]) + '</button>';
-    h += '</section><p class="tip" id="tip">' + tipText() + '</p>';
+    h += '</section><p class="tip' + (hotTip() ? ' hot' : '') + '" id="tip">' + (hotTip() ? esc(hotTip()) : tipText()) + '</p>';
     h += '<section class="acts"><button type="button" class="btn ab undo" data-a="undo"' + (UI.undo.length ? '' : ' disabled') + ' aria-label="되돌리기">↩</button>' +
       '<button type="button" class="btn ab rr" data-a="reroll"' + (cb.rr > 0 && cb.dice.length ? '' : ' disabled') + '>🎲 ' + (sel >= 0 ? '이것만 다시' : '다시 굴리기') + ' <i class="cnt">' + cb.rr + '</i></button>' +
       '<button type="button" class="btn pri ab end" data-a="end">턴 종료</button></section></div>';
@@ -267,7 +279,8 @@
   function tipText() {
     var cb = G.cb;
     if (!cb.dice.length) return '‘턴 종료’ 를 누르면 적이 행동해요';
-    if (UI.sel >= 0) return '넣을 장비 칸을 누르세요 (파란 테두리)';
+    if (!anyUsable()) return '넣을 수 있는 칸이 없어요 — ' + (cb.rr > 0 ? '다시 굴리거나 턴 종료' : '턴 종료를 누르세요');
+    if (UI.sel >= 0) { for (var s = 0; s < G.eq.length; s++) if (C.canPlace(G, UI.sel, s)) return '넣을 장비 칸을 누르세요 (파란 테두리)'; return '이 주사위는 넣을 칸이 없어요 — 다른 주사위를 고르세요'; }
     if (cb.st.burn > 0) return '🔥 화상: 주사위를 쓸 때마다 체력 -1';
     return '주사위를 누른 뒤 장비 칸을 누르세요';
   }
@@ -331,7 +344,7 @@
     } else if (p.k === 'up') {
       h += '<h2>' + (p.why || '강화') + ' <small>강화할 장비를 고르세요</small></h2><div class="its">';
       for (i = 0; i < G.eq.length; i++) if (!G.eq[i].up) h += eqItem(G.eq[i], 'data-a="pk" data-i="' + i + '"', '<span class="arrow">→ ' + C.variant({ id: G.eq[i].id, up: 1 }).d + '</span>');
-      h += '</div><button type="button" class="btn wide ghost" data-a="skip">강화하지 않기</button>';
+      h += '</div><button type="button" class="btn wide ghost" data-a="skip">' + (p.back ? '← 돌아가기 (쉴지 다시 고르기)' : '강화하지 않기') + '</button>';
     } else {
       h += '<h2>' + (p.why || '장비 버리기') + ' <small>' + (p.gold ? '골드 +' + p.gold : '최대 체력 +' + p.max) + '</small></h2><div class="its">';
       for (i = 0; i < G.eq.length; i++) h += eqItem(G.eq[i], 'data-a="pk" data-i="' + i + '"');
@@ -402,7 +415,7 @@
   }
   function vEvent() {
     var E = C.EVENT[G.evt.id], h = runHead() + '<div class="intro evt"><div class="ic">' + E.e + '</div><h2>' + E.t + '</h2><p>' + E.d + '</p></div>';
-    if (G.evt.res) return h + '<div class="note res">' + G.evt.res + '</div><button type="button" class="btn pri wide" data-a="evc">계속</button>';
+    if (G.evt.res) return h + '<div class="note res">' + G.evt.res + '</div>' + (G.evt.got && G.evt.got.length ? '<div class="its got">' + G.evt.got.map(function (id) { return relItem(id, 'disabled'); }).join('') + '</div>' : '') + '<button type="button" class="btn pri wide" data-a="evc">계속</button>';
     h += '<div class="modes">';
     for (var i = 0; i < E.opts.length; i++) {
       var o = E.opts[i], ok = !o.can || o.can(G);
@@ -472,6 +485,7 @@
   function render() {
     var v = $('view'), h, ph = UI.scr === 'run' && G ? G.phase : UI.scr, cmb = ph === 'combat';
     document.documentElement.classList.toggle('in-cmb', cmb);
+    document.documentElement.classList.toggle('in-map', ph === 'map');
     if (UI.scr === 'home') h = vHome();
     else if (UI.scr === 'codex') h = vCodex();
     else if (UI.scr === 'rec') h = vRec();
@@ -480,7 +494,12 @@
     $('ttl').textContent = UI.scr === 'run' && G && G.daily ? '오늘의 던전' : '잠만보 던전';
     drawMap(); hSync();
     $('sub').textContent = UI.scr !== 'run' || !G ? '주사위 로그라이크' : G.phase === 'over' ? '결과' : floorText(G) + (cmb ? ' · ' + G.cb.turn + '턴' : '') + (G.asc ? ' · 승천 ' + G.asc : '');
-    if (ph !== UI.lastPhase) { window.scrollTo(0, 0); UI.lastPhase = ph; }
+    if (ph !== UI.lastPhase) {   // 화면이 바뀌면 떠 있던 알림은 지움 (전투에서 막 뜬 알림만 새 화면으로 옮김)
+      window.scrollTo(0, 0); UI.lastPhase = ph;
+      var keep = cmb ? '' : hotTip();
+      clearTimeout(toastT); UI.hot = null; $('toast').className = 'toast';
+      if (keep) toast(keep, 2600);
+    }
   }
 
   /* ================= 효과 (떠오르는 숫자 · 소리) ================= */
@@ -538,14 +557,13 @@
       M.hist.unshift({ d: today(), cls: G.cls, asc: G.asc, score: sc, floor: fl, win: G.win ? 1 : 0, daily: G.daily ? 1 : 0 });
       M.hist = M.hist.slice(0, 12);
       if (G.daily) {
-        if (!M.daily[G.daily]) M.daily[G.daily] = { score: sc, floor: fl, win: G.win ? 1 : 0, cls: G.cls };
-        else news.push('오늘의 던전 기록은 첫 도전(' + num(M.daily[G.daily].score) + '점)만 남아요.');
+        if (G.rec) M.daily[G.daily] = { score: sc, floor: fl, win: G.win ? 1 : 0, cls: G.cls };   // 첫 도전 (시작할 때 '도전 중' 으로 적어 둔 판)
+        else if (M.daily[G.daily]) news.push('연습이에요 — 오늘의 던전 기록은 첫 도전(' + num(M.daily[G.daily].score) + '점)만 남아요.');
         var ks = Object.keys(M.daily).sort(); while (ks.length > 14) delete M.daily[ks.shift()];
       }
       UI.res = { score: sc, best: best && M.runs > 1, news: news };
       // 모임 랭킹: 일반 판은 run, 오늘의 던전은 첫 도전만 daily (연습은 안 보냄). 0점은 안 보냄
-      var mode = !G.daily ? 'run' : M.daily[G.daily] && M.daily[G.daily].sent ? '' : 'daily';
-      if (G.daily && M.daily[G.daily]) M.daily[G.daily].sent = 1;
+      var mode = !G.daily ? 'run' : G.rec ? 'daily' : '';
       if (ARC && mode && sc > 0) {
         var note = (C.CLASS[G.cls].n + ' · ' + (G.win ? '3막 클리어' : floorText(G)) + (G.asc ? ' · 승천 ' + G.asc : '')).slice(0, 40);
         try { ARC.report('rogue', mode, Math.max(0, Math.min(9999999, Math.round(sc))), note); } catch (e) {}
@@ -592,15 +610,26 @@
     document.body.appendChild(el); haptic(cb.kind === 'b' ? 'bomb' : 'turn'); sfx('debuff');
     setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 1500);
   }
+  // 오늘의 던전 첫 도전을 끝내지 않고 버릴 때(새 판 시작): 그 시점 점수로 확정하고 이후는 연습
+  function settleDaily(old) {
+    if (!old || !old.daily || !old.rec) return;
+    var sc = C.score(old);
+    M.daily[old.daily] = { score: sc, floor: C.floorOf(old), win: 0, cls: old.cls }; saveMeta();
+    if (ARC && sc > 0) { try { ARC.report('rogue', 'daily', Math.min(9999999, sc), (C.CLASS[old.cls].n + ' · ' + floorText(old) + ' · 그만둠').slice(0, 40), { quiet: true }); } catch (e) {} }
+  }
+  function liveDaily() { var sv = savedRun(), d = today(); return sv && sv.daily === d && sv.rec && M.daily[d] && M.daily[d].live ? sv : null; }   // 이어서 할 수 있는 오늘의 첫 도전
   function startRun(cls, asc, daily) {
     var seed = daily ? C.dailySeed(daily) : ((Date.now() ^ (Math.random() * 4294967296)) >>> 0) || 1;
+    settleDaily(savedRun());
     G = C.newRun({ seed: seed, cls: cls, asc: asc, daily: daily || '' });
+    if (daily && !M.daily[daily]) { G.rec = 1; M.daily[daily] = { score: 0, floor: 1, win: 0, cls: cls, live: 1 }; saveMeta(); }   // 시작하는 순간 '도전 중' — 다시 시작해도 첫 도전은 하나뿐
     UI.scr = 'run'; UI.undo = []; UI.sel = -1; UI.res = null; UI.busy = false;
     saveRun(); closeSheet(); sfx('go'); render();
   }
   function endTurn(force) {
     if (UI.busy || !G || G.phase !== 'combat') return;
-    if (!force && anyUsable()) { confirmSheet('턴을 끝낼까요?', '아직 넣을 수 있는 주사위가 있어요.', '턴 종료', 'endok'); return; }
+    var half = G.cb.slots.some(function (x) { return x.held.length > 0; });
+    if (!force && (half || anyUsable())) { confirmSheet('턴을 끝낼까요?', half ? '칸에 하나만 걸쳐 둔 주사위가 있어요 — 턴을 끝내면 그냥 사라져요. (그 칸을 누르면 주사위를 되찾아요)' : '아직 넣을 수 있는 주사위가 있어요.', '턴 종료', 'endok'); return; }
     closeSheet();
     var it = C.intent(G), foe = $('foe'), say = $('say');
     if (foe) foe.classList.add(it.a ? 'lunge' : 'cast');
@@ -622,7 +651,8 @@
     }
     if (!C.canPlace(G, UI.sel, i)) {
       var V = C.variant(G.eq[i]);
-      toast(!C.slotOpen(G, i) ? '이 장비는 ' + (V.cu && cb.slots[i].cu >= V.cu ? '이번 전투에 다 썼어요' : '이번 턴에 이미 썼어요') : '이 칸은 【' + C.needText(V.need) + '】 만 받아요', 1500);
+      var why = C.whyNot(G, UI.sel, i);
+      toast(why === 'cu' ? '이 장비는 이번 전투에 다 썼어요' : why === 'used' ? '이 장비는 이번 턴에 이미 썼어요' : why === 'full' ? '주사위 자리가 모자라요 (최대 ' + C.MAXDICE + '개) — 다른 주사위를 먼저 쓰세요' : '이 칸은 【' + C.needText(V.need) + '】 만 받아요', 1800);
       sfx('no'); bump('tray', 'nudge'); return;
     }
     haptic('tap');
@@ -655,18 +685,18 @@
   /* ================= 누르기 ================= */
   var ACT = {
     close: closeSheet,
-    cont: function () { var g = savedRun(); if (!g) { toast('이어할 판이 없어요'); render(); return; } G = g; UI.scr = 'run'; UI.undo = []; UI.sel = -1; UI.res = null; UI.busy = false; sfx('go');
+    cont: function () { closeSheet(); var g = savedRun(); if (!g) { toast('이어할 판이 없어요'); render(); return; } G = g; UI.scr = 'run'; UI.undo = []; UI.sel = -1; UI.res = null; UI.busy = false; sfx('go');
       try { render(); } catch (e) { if (window.console) console.warn(e); G = null; lsSet(LS.run, null); UI.scr = 'home'; render(); toast('저장된 판을 불러오지 못해 지웠어요'); }   // 예전 형식 · 깨진 저장
     },
     cls: function (d) { UI.cls = d.id; saveSet(); render(); },
     asc: function (d) { UI.asc = Math.max(0, Math.min(M.asc, UI.asc + (+d.d))); saveSet(); render(); },
-    'new': function () { if (!unlocked(UI.cls)) return; if (savedRun()) confirmSheet('새 판을 시작할까요?', '진행 중인 판은 사라져요.', '새로 시작', 'newok'); else startRun(UI.cls, UI.asc, ''); },
+    'new': function () { if (!unlocked(UI.cls)) return; if (savedRun()) confirmSheet('새 판을 시작할까요?', '진행 중인 판은 사라져요.' + (liveDaily() ? ' 오늘의 던전 도전은 지금 점수로 확정돼요.' : ''), '새로 시작', 'newok'); else startRun(UI.cls, UI.asc, ''); },
     newok: function () { startRun(UI.cls, UI.asc, ''); },
     daily: function () {
-      var d = today(), cls = C.dailyClass(d), r = M.daily[d], sv = savedRun();
-      sheet('<h2>📅 오늘의 던전 <small>' + md(d) + '</small></h2><p>오늘은 모두가 <b>' + C.CLASS[cls].e + ' ' + C.CLASS[cls].n + '</b> (으)로 같은 지도 · 같은 보상의 던전에 들어가요. 기록은 <b>첫 도전</b>만 남아요.</p>' +
-        (r ? '<div class="note ok">내 기록 ' + num(r.score) + '점 · ' + (r.win ? '클리어' : r.floor + '층') + ' — 다시 하면 연습이에요.</div>' : '') + (sv ? '<p class="bad">진행 중인 판은 사라져요.</p>' : '') +
-        '<div class="btns"><button type="button" class="btn pri" data-a="dailyok">' + (r ? '연습으로 다시 하기' : '도전하기') + '</button><button type="button" class="btn" data-a="board" data-m="daily">🏆 모임 랭킹</button><button type="button" class="btn" data-a="close">취소</button></div>');
+      var d = today(), cls = C.dailyClass(d), r = M.daily[d], sv = savedRun(), live = liveDaily();
+      sheet('<h2>📅 오늘의 던전 <small>' + md(d) + '</small></h2><p>오늘은 모두가 <b>' + C.CLASS[cls].e + ' ' + C.CLASS[cls].n + '</b> (으)로 같은 던전에 들어가요 — 지도가 같고, 같은 방에서는 같은 적 · 같은 보상 후보 · 같은 주사위가 나와요. 기록은 <b>첫 도전</b>만 남아요 (도중에 새로 시작하면 그때 점수로 확정).</p>' +
+        (live ? '<div class="note ok">첫 도전을 하는 중이에요 — ' + floorText(live) + ' · ❤️ ' + live.hp + '/' + live.max + '</div>' : r ? '<div class="note ok">내 기록 ' + num(r.score) + '점 · ' + (r.win ? '클리어' : r.floor + '층') + ' — 다시 하면 연습이에요.</div>' : '') + (sv && !live ? '<p class="bad">진행 중인 판은 사라져요.</p>' : '') +
+        '<div class="btns">' + (live ? '<button type="button" class="btn pri" data-a="cont">이어서 도전하기</button>' : '<button type="button" class="btn pri" data-a="dailyok">' + (r ? '연습으로 다시 하기' : '도전하기') + '</button>') + '<button type="button" class="btn" data-a="board" data-m="daily">🏆 모임 랭킹</button><button type="button" class="btn" data-a="close">취소</button></div>');
     },
     dailyok: function () { var d = today(); startRun(C.dailyClass(d), 0, d); },
     board: function (d) { openBoard(d.m); },
