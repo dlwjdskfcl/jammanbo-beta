@@ -1,0 +1,25 @@
+/* 잠만보 미니게임 공통 '화면에 맞추기' adaptive.css v1 (2026-11-10)
+ * adaptive.js 가 <html> 에 data-device(win|android|ios) · data-pointer(fine|coarse) · data-orient · data-game 을 달아 주고,
+ * 여기서는 그 값과 미디어 쿼리로 '모든 게임에 안전한 것'만 맞춤: 확대 지연 없애기 · 안전 영역 · 손가락 크기 · 입력 16px · 넓은 PC 화면.
+ * 게임 고유 배치(티츄 테이블 · 룰렛 판 · 지도)는 건드리지 않음. */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%;touch-action:manipulation}
+button,a,select,summary,label,[role=button]{-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+/* 손가락(터치)으로 쓰는 기기: 아이폰이 입력창을 자동 확대하지 않게 16px, 누르기 쉬운 크기 */
+@media (pointer:coarse){
+  input:not([type=range]):not([type=checkbox]):not([type=radio]),select,textarea{font-size:16px}
+  html[data-game=timer] button,html[data-game=sound] button,html[data-game=map] .chip,html[data-game=map] .sort{min-height:44px}
+  html[data-game=aging] .acct,html[data-game=semantle] .acct{min-height:44px;min-width:44px}
+}
+/* 노치 · 홈 막대가 있는 화면(아이폰 · 가로 모드): 가장자리 글자가 가려지지 않게 */
+@supports (padding:max(0px)){
+  html[data-device=ios] body,html[data-orient=landscape][data-pointer=coarse] body{
+    padding-left:max(0px,env(safe-area-inset-left));padding-right:max(0px,env(safe-area-inset-right))}
+}
+/* 마우스를 쓰는 넓은 화면: 폰 화면 폭에 갇힌 게임은 가운데 정렬 (고유 배치가 있는 티츄 · 지도 · 룰렛은 제외) */
+@media (min-width:900px) and (pointer:fine){
+  html[data-game=timer] body,html[data-game=sound] body,html[data-game=aging] body{margin-left:auto;margin-right:auto}
+}
+/* 가로로 눕힌 폰: 세로 공간이 모자라니 위아래 여백을 줄임 */
+@media (pointer:coarse) and (orientation:landscape) and (max-height:480px){
+  html[data-game=timer] body,html[data-game=sound] body,html[data-game=aging] body,html[data-game=semantle] body{padding-top:0;padding-bottom:0}
+}
