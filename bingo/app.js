@@ -9,7 +9,7 @@
   var C = window.BingoCore;
   if (!C) return;
   var FX = window.JMB_FX || { avatar: function () { return ''; }, haptic: function () {}, confetti: function () {}, capture: function () { return Promise.reject(new Error('이미지 도구를 불러오지 못했어요')); } };
-  var VER = '1.0.2';
+  var VER = '1.0.3';
   var $ = function (id) { return document.getElementById(id); };
   var ROOT = (function () { var seg = location.pathname.split('/')[1] || ''; return /\.github\.io$/.test(location.hostname) && seg ? '/' + seg + '/' : '/'; })();
   var COARSE = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
@@ -771,7 +771,7 @@
     // 뒤로가기 기준점. 새로고침이면 보던 화면 그대로, 링크로 바로 들어온 화면은 홈 위에 한 칸
     var st = hstate();
     try {
-      if (!room && !w && VIEWS[st.v] && Array.isArray(st.st)) { S.view = st.v; if (st.m) history.replaceState({ v: st.v, st: st.st }, ''); }
+      if (!room && !w && VIEWS[st.v] && Array.isArray(st.st)) { S.view = st.v; if (st.m) history.back(); }   // 창을 연 채 새로고침: 창은 사라졌으니 창 칸(m)을 뒤로 빼서, 뒤로가기 첫 번이 같은 화면으로 헛돌지 않게
       else {
         history.replaceState({ v: 'home', st: ['home'] }, '', location.pathname);
         if (S.view !== 'home') history.pushState({ v: S.view, st: ['home', S.view] }, '');
