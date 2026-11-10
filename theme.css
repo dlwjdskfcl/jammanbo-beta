@@ -226,3 +226,33 @@ div[style*="#e11d48"]{bottom:calc(var(--nav-h) + 10px + env(safe-area-inset-bott
 /* 계정 모듈 */
 .jmb-chip.on{background:var(--accent);border-color:var(--accent)}
 @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+
+/* ===== 사용성 개선 (2026-11-10) ===== */
+/* 두 번 탭해도 확대 · 300ms 지연 없음 (안드로이드 · 아이폰) */
+html{touch-action:manipulation;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+button,.btn,.tab,.row,.card[data-mem],.card[data-game],.mcard,.chip,summary{-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+/* 손가락으로 누르는 화면(터치): 누르기 쉬운 크기 · 아이폰 입력창 자동 확대 방지(16px) */
+@media (pointer:coarse){
+  .btn{min-height:44px}
+  .btn.sm{min-height:40px}
+  .top-row button,.top-row .jmb-tichu-btn,#btnRefresh,#btnAdmin{min-width:44px;min-height:44px}
+  .trend-item{min-height:44px;display:flex;align-items:center}
+  .trend-src,.trend-more{min-height:40px;display:inline-flex;align-items:center;padding:0 8px}
+  #jmbTichuBtn,.jmb-tichu-btn{min-height:44px;height:auto}
+  .today-news-item{min-height:44px;display:flex;align-items:center}
+  #btnMoreNews{min-height:40px;display:inline-flex;align-items:center;padding:0 8px}
+  input,select,textarea{font-size:16px}
+}
+/* 홈 카드: 실시간 검색어 · 소식만 남은 파란 카드 (눌러도 동작 없음) / 로그인 안내 카드 */
+.card.today{cursor:default}
+.card.today>:first-child{border-top:0!important;margin-top:0!important;padding-top:0!important}
+.card.lockcard{display:flex;align-items:center;gap:10px;justify-content:space-between;margin-top:8px;color:var(--ink2)}
+.card.lockcard span{flex:1;min-width:0;font-size:14px}
+/* 컴퓨터(넓은 화면 · 마우스): 폭을 넓히고 모임 카드를 2열로 */
+@media (min-width:1100px) and (pointer:fine){
+  .wrap,.top-row,.tabs{max-width:1120px}
+  #view{display:grid;grid-template-columns:1fr 1fr;column-gap:14px;align-items:start}
+  #view>*{grid-column:1/-1}
+  #view>.card.mcard{grid-column:auto}
+  .jmb-mini-cards{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))!important}   /* 미니게임 카드: 넓은 화면에서는 한 줄에 여러 개 */
+}

@@ -19,13 +19,14 @@
     { id: 'map', href: ROOT + 'map/?reset', emoji: '📍', name: '장소 지도', desc: '모임 장소 · 맛집 지도', bg: 'linear-gradient(135deg,#e6fcf5,#c3fae8)', bgDark: 'linear-gradient(135deg,#0f2f27,#134235)' },
     // ext: 외부 사이트 — 새 창으로 열고 ↗ 표시. 결과는 앱의 '내 기록 > 방탈출 탱쫄'에서 기록
     // 아르마니여름 디펜스 — 별도 사이트(GitHub Pages 저장소 jammanbo-defense). 카카오 로그인은 같은 출처 저장소(localStorage)를 게임이 읽어 서버에서 전용 입장권으로 바꿔 씀. 운영 사이트(ROOT=/jammanbo/)가 아니면 ?env=beta 로 게임이 테스트 서버를 씀 (화면 안쪽 JMB_CONFIG 에는 env 가 없어 ROOT 로 구분)
-    { id: 'defense', ext: true, admin: true, href: 'https://dlwjdskfcl.github.io/jammanbo-defense/' + (/^\/jammanbo\/$/.test(ROOT) ? '' : '?env=beta'), emoji: '🐾', name: '아르마니여름 디펜스', desc: '랜덤 타워디펜스 · 내 기록 · 랭킹', bg: 'linear-gradient(135deg,#ecfdf3,#d3f9d8)', bgDark: 'linear-gradient(135deg,#12301f,#17402a)' },
-    { id: 'tangzzol', ext: true, href: 'https://bangpot-tangzzol-test.vercel.app/test/tangzzol', emoji: '🚪', name: '방탈출 탱쫄 판별기', desc: '나는 탱일까 쫄일까? 20종 유형 테스트', bg: 'linear-gradient(135deg,#f3f0ff,#e5dbff)', bgDark: 'linear-gradient(135deg,#2a1f47,#36295e)' }
+    { id: 'defense', ext: true, admin: true, beta: true, href: 'https://dlwjdskfcl.github.io/jammanbo-defense/' + (/^\/jammanbo\/$/.test(ROOT) ? '' : '?env=beta'), emoji: '🐾', name: '아르마니여름 디펜스', desc: '랜덤 타워디펜스 · 내 기록 · 랭킹', bg: 'linear-gradient(135deg,#ecfdf3,#d3f9d8)', bgDark: 'linear-gradient(135deg,#12301f,#17402a)' },
+    { id: 'tangzzol', ext: true, home: false, href: 'https://bangpot-tangzzol-test.vercel.app/test/tangzzol', emoji: '🚪', name: '방탈출 탱쫄 판별기', desc: '나는 탱일까 쫄일까? 20종 유형 테스트', bg: 'linear-gradient(135deg,#f3f0ff,#e5dbff)', bgDark: 'linear-gradient(135deg,#2a1f47,#36295e)' }
   ];
   function attrs(g) { return 'href="' + g.href + '" data-g="' + g.id + '"' + (g.ext ? ' target="_blank" rel="noopener"' : ''); }
   function nm(g) { return g.name + (g.ext ? ' <span class="jmb-ext" aria-label="새 창">↗</span>' : '') + (g.admin ? ' <span class="jmb-adm">운영진</span>' : ''); }
   function isAdm() { return !!window.ADMIN_PW; }   // auth.js isAdmin() 과 같은 기준
-  function shown() { var a = isAdm(); return GAMES.filter(function (g) { return !g.admin || a; }); }
+  var IS_PROD = /^\/jammanbo\/$/.test(ROOT);
+  function shown() { var a = isAdm(); return GAMES.filter(function (g) { return (!g.admin || a) && (!g.beta || !IS_PROD); }); }
 
   // 글꼴: 늦게 와도 화면은 먼저 뜸 (시스템 글꼴로 보이다가 바뀜)
   if (!document.getElementById('jmbFont')) {
@@ -190,7 +191,7 @@
     var tiles = view.querySelector('.tiles');
     var box = document.createElement('div');
     box.id = 'jmbMiniCards'; box.className = 'jmb-mini-cards'; box.setAttribute('data-adm', adm);
-    var list = shown(), n = list.filter(function (g) { return !g.ext; }).length;   // 한 줄에 몇 칸: 혼자 남는 카드가 적게 (1·2개 → 그대로, 4개 → 2칸, 그 밖 → 3칸)
+    var list = shown().filter(function (g) { return g.home !== false; }), n = list.filter(function (g) { return !g.ext; }).length;   // 한 줄에 몇 칸: 혼자 남는 카드가 적게 (1·2개 → 그대로, 4개 → 2칸, 그 밖 → 3칸)
     var cols = n <= 2 ? n : n === 4 ? 2 : 3;
     box.className += ' c' + cols; box.style.setProperty('--cols', cols);
     var dark = isDark();
