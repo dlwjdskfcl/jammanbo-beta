@@ -81,12 +81,13 @@ svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-l
 .card .big{right:4px;bottom:3px;font-size:calc(var(--cw)*.56);opacity:.9}
 .card.jk .r{font-size:calc(var(--cw)*.34)}
 .card.jk .big{font-size:calc(var(--cw)*.2);font-weight:800;letter-spacing:.02em;right:0;left:0;text-align:center;bottom:7px}
-.card .tag{position:absolute;right:0;top:0;font:800 8.5px/1 var(--sans);padding:3px 3px;border-radius:0 0 0 7px;background:var(--gold);color:#3a2a00;font-style:normal;letter-spacing:-.03em}
+.card .tag{position:absolute;right:0;top:0;font:800 max(7px,calc(var(--cw)*.17))/1 var(--sans);padding:3px 3px;border-radius:0 0 0 7px;white-space:nowrap;background:var(--gold);color:#3a2a00;font-style:normal;letter-spacing:-.03em}
 .trick .card .tag{top:auto;bottom:0;left:0;border-radius:0;text-align:center;padding:2px 0}
 .card.tr::after{content:"";position:absolute;left:0;right:0;bottom:0;height:4px;background:currentColor;opacity:.55}
 .card.mi{border-color:var(--gold);box-shadow:0 0 0 1.5px var(--gold),0 1px 3px rgba(16,24,40,.18)}
 .card.sm{--cw:34px;--ch:46px;border-radius:6px}
 .card.sm .tag{display:none}
+.hand .card .tag{left:0;right:auto;top:auto;bottom:0;border-radius:0 7px 0 0}
 .card.sm .big{display:none}
 .card.sm .r{font-size:15px;left:4px;top:4px}
 .card.sm .s{font-size:14px;left:4px;top:auto;bottom:4px}
@@ -176,11 +177,12 @@ svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-l
 .hrow + .hrow{margin-top:-26px}
 .hrow .card + .card{margin-left:var(--ov,4px)}
 .hand .card{transition:transform .12s,box-shadow .12s,opacity .12s;cursor:pointer}
-.hand .card.dim{opacity:.38}
+.hand .card.dim{filter:saturate(.3) brightness(.8) contrast(.85)}
+@media (prefers-color-scheme: dark){.hand .card.dim{filter:saturate(.3) brightness(.55) contrast(.85)}}
 .hand .card.ok{box-shadow:0 0 0 1.5px var(--accent),0 2px 6px rgba(16,24,40,.2)}
-.hand .card.sel{transform:translateY(-11px);box-shadow:0 0 0 2.5px var(--accent),0 8px 16px rgba(16,24,40,.28)}
+.hand .card.sel{transform:translateY(-16px);z-index:5;box-shadow:0 0 0 3px var(--accent),0 0 0 6px color-mix(in srgb,var(--accent) 28%,transparent),0 10px 18px rgba(16,24,40,.3)}
 .hand .card.new{box-shadow:0 0 0 2px var(--gold),0 2px 6px rgba(16,24,40,.2)}
-.hand .card.new.sel{box-shadow:0 0 0 2.5px var(--accent),0 8px 16px rgba(16,24,40,.28)}
+.hand .card.new.sel{box-shadow:0 0 0 3px var(--accent),0 0 0 6px color-mix(in srgb,var(--accent) 28%,transparent),0 10px 18px rgba(16,24,40,.3)}
 .hand .card.hintc{animation:hint 1s ease-in-out 3}
 @keyframes hint{50%{transform:translateY(-14px);box-shadow:0 0 0 3px var(--ok),0 8px 16px rgba(16,24,40,.28)}}
 
@@ -243,7 +245,7 @@ table.sc tr.sum td{font-weight:800;font-size:14px;border-bottom:2px solid var(--
 .opt .l small{display:block;font-weight:500;color:var(--muted);font-size:12px}
 .opt .seg{flex:none;width:186px}
 /* 알림은 맨 위 제목 줄 위에 — 아래 정보 줄(공약 · 여당 점수)을 가리지 않게 */
-.toast{position:fixed;left:50%;top:max(4px,env(safe-area-inset-top));transform:translate(-50%,-12px);z-index:40;background:var(--ink);color:var(--bg);font-weight:700;font-size:13px;border-radius:14px;padding:6px 12px;width:max-content;max-width:min(96vw,460px);text-align:center;opacity:0;pointer-events:none;transition:opacity .18s,transform .18s;box-shadow:var(--shadow-lg);line-height:1.4}
+.toast{position:fixed;left:50%;top:calc(max(4px,env(safe-area-inset-top)) + 80px);transform:translate(-50%,-12px);z-index:40;background:var(--ink);color:var(--bg);font-weight:700;font-size:13px;border-radius:14px;padding:6px 12px;width:max-content;max-width:min(96vw,460px);text-align:center;opacity:0;pointer-events:none;transition:opacity .18s,transform .18s;box-shadow:var(--shadow-lg);line-height:1.4}
 .toast.on{opacity:1;transform:translate(-50%,0)}
 
 /* ---------- 화면 크기별 ---------- */

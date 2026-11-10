@@ -78,20 +78,20 @@
   function chooseDiscard(st, me) {
     var h = st.hands[me], cur = planKitty(h, st.giruda), best = cur, bg = st.giruda, g;
     var bv = predict(cur.S, st.giruda);
-    if (st.bid + 2 <= 20) for (g = 0; g <= 4; g++) {   // 바꾸면 공약 +2 → 그만큼(+여유) 더 좋아야 바꿈
-      if (g === st.giruda) continue;
-      var p = planKitty(h, g), v = predict(p.S, g) - 2.8;
+    for (g = 0; g <= 4; g++) {   // 바꾸면 공약이 오름(노기루다 +1 · 그 밖 +2) → 그만큼(+여유) 더 좋아야 바꿈
+      if (g === st.giruda || st.bid + E.changeCost(st, g) > 20) continue;
+      var p = planKitty(h, g), v = predict(p.S, g) - (g === NT ? 1.4 : 2.8);
       if (v > bv) { bv = v; best = p; bg = g; }
     }
     var a = { t: 'discard', cards: best.discards, why: '지키기 어려운 점수 카드와 짧은 무늬를 버려요' };
-    if (bg !== st.giruda) { a.giruda = bg; a.why = '바닥패를 받고 보니 ' + (bg === NT ? '노기루다' : E.SUIT_CH[bg]) + ' 쪽이 훨씬 강해요 (공약 +2)'; }
+    if (bg !== st.giruda) { a.giruda = bg; a.why = '바닥패를 받고 보니 ' + (bg === NT ? '노기루다' : E.SUIT_CH[bg]) + ' 쪽이 훨씬 강해요 (공약 +' + E.changeCost(st, bg) + ')'; }
     return a;
   }
 
   /* ---------- 프렌드 ---------- */
   function chooseFriend(st, me) {
     var h = st.hands[me], g = st.giruda, own = h.concat(st.discards), list = [E.mightyOf(g), JOKER], s, r;
-    if (predict(strength(h, g), g) + 0.55 * E.points(st.discards) >= st.bid + 5.5 && st.bid <= 16) return { t: 'friend', kind: 'none', why: '혼자서도 충분한 손패예요 (성공하면 2배)' };
+    if (predict(strength(h, g), g) + 0.55 * E.points(st.discards) >= st.bid + 5.5 && st.bid <= 16) return { t: 'friend', kind: 'none', why: '혼자서도 충분한 손패예요 (점수가 2배 — 실패해도 2배예요)' };
     if (g !== NT) { list.push(E.card(g, 14), E.card(g, 13)); }
     var su = bySuit(h), ord = [0, 1, 2, 3].filter(function (x) { return x !== g; }).sort(function (a, b) { return su[b].length - su[a].length; });
     for (r = 14; r >= 12; r--) for (s = 0; s < ord.length; s++) list.push(E.card(ord[s], r));

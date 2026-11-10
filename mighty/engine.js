@@ -6,7 +6,7 @@
  *
  *   deal({seed, starter, mult})                  새 판을 나눔 → state (점수 카드가 한 장도 없는 손이 있으면 phase 'misdeal')
  *   act(st, seat, {t:'bid', n, s} | {t:'pass'})  공약 (숫자가 높아야 함, 같은 숫자는 노기루다만 위) · 패스는 그 판 끝까지
- *   act(st, seat, {t:'discard', cards:[3], giruda})  주공이 3장 버림 (+기루다를 바꾸면 공약 +2)
+ *   act(st, seat, {t:'discard', cards:[3], giruda})  주공이 3장 버림 (+기루다를 바꾸면 공약 +2, 노기루다로 바꾸면 +1)
  *   act(st, seat, {t:'friend', kind:'card'|'first'|'none', card})
  *   act(st, seat, {t:'play', card, callSuit, jokerCall})   조커를 선으로 내면 callSuit(0~3), 조커콜 카드를 선으로 내며 jokerCall
  *   legalPlays(st, seat) · canBid(st, n, s) · trickWinner(st, plays, ...) · result 는 st.result
@@ -123,8 +123,9 @@
     if (st.phase !== 'play' || st.turn !== seat) return out;
     if (!st.trick.length) {
       if (st.trickNo === 0 && g !== NT) {   // 첫 트릭: 기루다를 선으로 못 냄 (기루다뿐이면 가능)
-        for (i = 0; i < h.length; i++) if (suitOf(h[i]) !== g) out.push(h[i]);
-        if (out.length) return out;
+        var real = 0;
+        for (i = 0; i < h.length; i++) if (suitOf(h[i]) !== g) { out.push(h[i]); if (h[i] !== JOKER) real++; }
+        if (real) return out;   // 기루다 아닌 (조커 말고) 카드가 있으면 그것 · 조커 + 기루다뿐이면 기루다도 가능
       }
       return h.slice();
     }
@@ -154,9 +155,10 @@
     return n;
   }
 
+  function changeCost(st, g) { return g === NT ? 1 : 2; }   // 기루다를 바꿀 때 공약이 오르는 만큼: 노기루다로 +1, 다른 무늬로 +2
   function finish(st) {
     var d = st.declarer, f = st.friendSeat, made = rulingPoints(st), bid = st.bid, win = made >= bid;
-    var base = win ? (made - bid) + (bid - 13) * 2 + 1 : bid - made;
+    var base = win ? (made - bid) + (bid - 13) * 2 : bid - made;
     var tags = [], mult = 1;
     if (win && made === 20) { mult *= 2; tags.push('런'); }
     if (!win && made <= 9) { mult *= 2; tags.push('백런'); }
@@ -188,8 +190,8 @@
       var nh = h.slice();
       for (i = 0; i < 3; i++) { var k = nh.indexOf(a.cards[i]); if (k < 0) fail('없는 카드'); nh.splice(k, 1); }
       if (a.giruda != null && a.giruda !== st.giruda) {
-        if (!(a.giruda >= 0 && a.giruda <= 4) || st.bid + 2 > 20) fail('기루다를 바꿀 수 없음');
-        st.giruda = a.giruda; st.bid += 2; st.changed = 1;
+        if (!(a.giruda >= 0 && a.giruda <= 4) || st.bid + changeCost(st, a.giruda) > 20) fail('기루다를 바꿀 수 없음');
+        st.bid += changeCost(st, a.giruda); st.giruda = a.giruda; st.changed = 1;
       }
       st.hands[seat] = nh; st.discards = a.cards.slice(); st.phase = 'friend';
       return st;
@@ -237,7 +239,7 @@
     JOKER: JOKER, NT: NT, SUIT_CH: SUIT_CH, SUIT_KO: SUIT_KO,
     suitOf: suitOf, rankOf: rankOf, card: card, isPoint: isPoint, points: points, mightyOf: mightyOf, jokerCallOf: jokerCallOf,
     cardName: cardName, rng: rng, shuffle: shuffle, sortHand: sortHand, deal: deal, clone: clone,
-    canBid: canBid, minBid: minBid, legalPlays: legalPlays, callSuits: callSuits, canJokerCall: canJokerCall,
+    changeCost: changeCost, canBid: canBid, minBid: minBid, legalPlays: legalPlays, callSuits: callSuits, canJokerCall: canJokerCall,
     winnerIdx: winnerIdx, curWinner: curWinner, jokerPower: jokerPower, friendHolder: friendHolder, rulingPoints: rulingPoints, act: act
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = E; else root.MightyEngine = E;

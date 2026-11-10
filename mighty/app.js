@@ -2,7 +2,7 @@
  * 기기 저장: jmb_mighty_save(진행 중인 게임) · jmb_mighty_set(설정) · jmb_mighty_stats(전적) */
 (function () {
   'use strict';
-  var VER = '1.0.0';
+  var VER = '1.0.1';
   var E = window.MightyEngine, AI = window.MightyAI, FX = window.JMB_FX, ARC = window.JMB_ARCADE;
   var ROOT = (function () { var seg = location.pathname.split('/')[1] || ''; return /\.github\.io$/.test(location.hostname) && seg ? '/' + seg + '/' : '/'; })();
   var LS = { save: 'jmb_mighty_save', set: 'jmb_mighty_set', stats: 'jmb_mighty_stats' };
@@ -56,6 +56,7 @@
   function haptic(k) { if (FX && touched) try { FX.haptic(k); } catch (e) {} }
 
   /* ---------- 작은 도구 ---------- */
+  function hideToast() { var el = $('toast'); if (el) el.classList.remove('on'); clearTimeout(toastT); }   // 카드를 내면 지난 알림(힌트 등)을 바로 지움
   function toast(msg, ms) {
     var el = $('toast'); el.textContent = msg; el.classList.add('on');
     clearTimeout(toastT); toastT = setTimeout(function () { el.classList.remove('on'); }, ms || 2600);
@@ -286,7 +287,7 @@
       '<div class="two"><button type="button" class="mode" data-a="tour" data-v="0"><span class="ic">👋</span><span><b>빠른 안내</b><small>30초</small></span></button>' +
       '<button type="button" class="mode" data-a="help"><span class="ic">📖</span><span><b>규칙</b><small>자세히</small></span></button></div></div>' +
       '<div class="box"><h3>AI 실력</h3><div class="seg" id="lvSeg">' + [1, 2, 3].map(function (l) { return '<button type="button" data-a="level" data-v="' + l + '" class="' + (SET.level === l ? 'on' : '') + '">' + LEVELS[l] + '</button>'; }).join('') + '</div>' +
-      '<p class="hint">쉬움 — 가끔 실수하고 공약이 소극적 · 보통 — 기본기 · 고수 — 남은 카드를 따져 여러 경우를 굴려 봄. 게임 중에도 설정에서 바꿀 수 있어요.' + (ARC ? '<br>🏆 모임 랭킹에는 <b>고수</b>로 <b>힌트 없이</b> 이긴 판만 올라가요 (쉬움 · 보통은 안 올라감).' : '') + '</p></div>' +
+      '<p class="hint">🏆 모임 랭킹은 <b>AI 고수 · 힌트 없이</b> 이긴 판만 올라가요.</p><p class="hint">쉬움 — 가끔 실수하고 공약이 소극적 · 보통 — 기본기 · 고수 — 남은 카드를 따져 여러 경우를 굴려 봄. 게임 중에도 설정에서 바꿀 수 있어요.' + (ARC ? '<br>🏆 모임 랭킹에는 <b>고수</b>로 <b>힌트 없이</b> 이긴 판만 올라가요 (쉬움 · 보통은 안 올라감).' : '') + '</p></div>' +
       '<div class="box"><h3>내 전적<small>이 기기에 저장</small></h3><div class="stats">' +
       '<div><b>' + STATS.n + '</b><small>판</small></div><div><b>' + p(STATS.win, STATS.n) + '</b><small>승률</small></div><div><b>' + sign(STATS.sum) + '</b><small>누적 점수</small></div>' +
       '<div><b>' + p(STATS.dw, STATS.d) + '</b><small>주공 ' + STATS.d + '판</small></div><div><b>' + p(STATS.fw, STATS.f) + '</b><small>프렌드 ' + STATS.f + '판</small></div><div><b>' + p(STATS.ow, STATS.o) + '</b><small>야당 ' + STATS.o + '판</small></div>' +
@@ -370,10 +371,10 @@
         '<button type="button" class="btn sm" data-a="bn" data-v="1"' + (UI.bn < 20 ? '' : ' disabled') + ' aria-label="공약 올리기">+</button>' +
         '<button type="button" class="btn" data-a="pass">패스</button><button type="button" class="btn pri" data-a="bid"' + (can ? '' : ' disabled') + '>공약 ' + bidH(UI.bn, UI.bs) + '</button></div>';
     } else if (st.phase === 'kitty') {
-      var kg = UI.kg == null ? st.giruda : UI.kg, canCh = st.bid + 2 <= 20;
+      var kg = UI.kg == null ? st.giruda : UI.kg, cost = function (g) { return E.changeCost(st, g); };
       h += '<div class="prow"><span class="plabel">기루다</span>';
-      for (s = 0; s <= 4; s++) h += '<button type="button" class="pick' + (kg === s ? ' on' : '') + '" data-a="kg" data-v="' + s + '"' + (s === st.giruda || canCh ? '' : ' disabled') + '>' + suitH(s) + '<small>' + (s === st.giruda ? '그대로' : '공약 +2') + '</small></button>';
-      h += '</div><div class="prow"><button type="button" class="btn pri" data-a="discard"' + (UI.sel.length === 3 ? '' : ' disabled') + '>3장 버리기 (' + UI.sel.length + '/3)' + (kg !== st.giruda ? ' · ' + suitH(kg) + ' ' + (st.bid + 2) : '') + '</button></div>';
+      for (s = 0; s <= 4; s++) h += '<button type="button" class="pick' + (kg === s ? ' on' : '') + '" data-a="kg" data-v="' + s + '"' + (s === st.giruda || st.bid + cost(s) <= 20 ? '' : ' disabled') + '>' + suitH(s) + '<small>' + (s === st.giruda ? '그대로' : '공약 +' + cost(s)) + '</small></button>';
+      h += '</div><div class="prow"><button type="button" class="btn pri" data-a="discard"' + (UI.sel.length === 3 ? '' : ' disabled') + '>3장 버리기 (' + UI.sel.length + '/3)' + (kg !== st.giruda ? ' · ' + suitH(kg) + ' ' + (st.bid + cost(kg)) : '') + '</button></div>';
     } else if (st.phase === 'friend') {
       var g = st.giruda, own = st.hands[ME], q = [[E.mightyOf(g), '마이티'], [JOKER, '조커']], fr = UI.fr;
       if (g !== NT) q.push([E.card(g, 14), '기루다 A'], [E.card(g, 13), '기루다 K']); else q.push([E.card(0, 13), '♠K'], [E.card(2, 14), '♥A']);
@@ -384,7 +385,7 @@
       }
       h += '</div><div class="prow"><button type="button" class="pick" data-a="frpick">다른 카드<small>직접 고르기</small></button>' +
         '<button type="button" class="pick' + (fr && fr.kind === 'first' ? ' on' : '') + '" data-a="fr" data-k="first">초구<small>첫 트릭 승자</small></button>' +
-        '<button type="button" class="pick' + (fr && fr.kind === 'none' ? ' on' : '') + '" data-a="fr" data-k="none">노프렌드<small>성공 시 2배</small></button></div>' +
+        '<button type="button" class="pick' + (fr && fr.kind === 'none' ? ' on' : '') + '" data-a="fr" data-k="none">노프렌드<small>점수 2배 (실패해도)</small></button></div>' +
         '<div class="prow"><button type="button" class="btn pri" data-a="friend"' + (fr ? '' : ' disabled') + '>' + (fr ? (fr.kind === 'card' ? cardSpan(fr.card) + ' 프렌드로 시작' : fr.kind === 'first' ? '초구 프렌드로 시작' : '노프렌드로 시작') : '프렌드를 골라 주세요') + '</button></div>';
     } else if (st.phase === 'play') {
       var p = UI.pend, c = UI.sel[0];
@@ -467,7 +468,7 @@
       }
       if (st.phase !== 'play') return;
       if (E.legalPlays(st, ME).indexOf(c) < 0) { haptic('warn'); return toast(whyNot(st, c)); }
-      haptic('tap');
+      haptic('tap'); hideToast();
       if (UI.pend) UI.pend = null;
       if (SET.oneTap || UI.sel[0] === c) return tryPlay(c);
       UI.sel = [c]; UI.hintCard = -1; render();
@@ -539,7 +540,7 @@
     modal('마이티 규칙', '<div class="help">' +
       '<h4>목표</h4><p>공약을 건 <b>주공</b>과 숨은 <b>프렌드</b>(여당)가 <b>점수 카드</b>(A · K · Q · J · 10, 모두 20장)를 공약한 수만큼 먹으면 여당 승리, 못 먹으면 나머지 <b>야당</b> 승리.</p>' +
       '<h4>순서</h4><ul><li><b>공약</b> — 13~20 과 기루다(으뜸 무늬)를 부르거나 패스. 숫자가 높아야 하고, 같은 숫자면 노기루다(NT)만 위. 한 번 패스하면 그 판은 끝까지 패스.</li>' +
-      '<li><b>바닥패</b> — 주공이 바닥 3장을 받고 3장을 버림(버린 점수 카드는 여당 점수). 이때 기루다를 바꾸면 공약 +2.</li>' +
+      '<li><b>바닥패</b> — 주공이 바닥 3장을 받고 3장을 버림(버린 점수 카드는 여당 점수). 이때 기루다를 바꾸면 공약이 오름(다른 무늬로 +2, 노기루다로 +1).</li>' +
       '<li><b>프렌드</b> — 카드를 하나 부르면 그 카드를 가진 사람이 프렌드(그 카드가 나올 때 공개). 초구 프렌드(첫 트릭을 딴 사람) · 노프렌드도 가능.</li>' +
       '<li><b>10트릭</b> — 주공이 먼저 내고, 트릭을 딴 사람이 다음 선.</li></ul>' +
       '<h4>카드 내기</h4><ul><li>선이 낸 무늬가 있으면 <b>반드시 그 무늬</b>. 없으면 아무 카드(기루다로 자를 수 있음).</li>' +
@@ -547,11 +548,15 @@
       '<li><b>마이티</b> = ♠A (기루다가 ♠ 면 ◆A). 언제든 낼 수 있음.</li>' +
       '<li><b>조커</b> — 언제든 낼 수 있음. <b>첫 트릭 · 마지막 트릭엔 힘이 없음</b>. 선으로 내면 무늬를 부름.</li>' +
       '<li><b>조커콜</b> = ♣3 (기루다가 ♣ 면 ♠3)을 선으로 내며 "조커콜" → 조커를 가진 사람은 조커를 내야 하고 그 조커는 힘이 없음(마이티로 대신 가능). 첫 · 마지막 트릭엔 못 함.</li>' +
-      '<li>첫 트릭에는 기루다를 선으로 낼 수 없음.</li></ul>' +
-      '<h4>점수</h4><ul><li>성공: (먹은 수 − 공약) + (공약 − 13) × 2 + 1 · 실패: 공약 − 먹은 수</li>' +
+      '<li>첫 트릭에는 기루다를 선으로 낼 수 없음 (기루다와 조커뿐이면 가능).</li></ul>' +
+      '<h4>점수</h4><ul><li>성공: (먹은 수 − 공약) + (공약 − 13) × 2 · 실패: 공약 − 먹은 수 (예: 15 공약에 19장 = 4 + 4 = 8점)</li>' +
       '<li>× 2 씩: <b>런</b>(여당 20장 전부) · <b>백런</b>(여당 9장 이하) · <b>노기루다</b> · <b>노프렌드</b> · 배판</li>' +
       '<li>주공 ×2 · 프렌드 ×1 · 야당 각자 −1 (프렌드가 없으면 주공 ×4). 실패하면 부호가 반대.</li>' +
       '<li>모두 패스하거나 점수 카드가 한 장도 없는 손이 나오면(딜 미스) 다시 나누고 다음 판은 <b>배판</b> ×2 (최대 ×4).</li></ul>' +
+      '<h4>이 게임의 규칙 <small>(모임마다 다른 부분)</small></h4><ul><li>노기루다도 최소 공약은 13 (한 장 낮추지 않음). 노기루다로 바꿀 때는 +1.</li>' +
+      '<li>노기루다 · 노프렌드의 ×2 는 <b>실패해도</b> 적용돼요 (노프렌드면 주공 점수는 ×8).</li>' +
+      '<li>딜 미스는 선언 없이 자동으로 다시 나눠요. 패스는 그 판 끝까지.</li>' +
+      '<li>주공이 자기 손(또는 버린) 카드를 프렌드로 부르면 프렌드 없이 진행하고 ×4 (노프렌드 ×2 는 안 붙어요).</li></ul>' +
       '<h4>화면</h4><ul><li>밝은 테두리 카드만 낼 수 있어요. 카드를 누르면 올라오고, 한 번 더 누르거나 [내기]를 누르면 냅니다.</li>' +
       '<li>아래에 색 띠가 있는 카드가 기루다, 금색 테두리가 마이티. ★ 숫자는 먹은 점수 카드 수.</li>' +
       '<li>💡 힌트 — 고수 AI 가 고른 수와 이유를 알려 줘요.</li></ul></div>');
@@ -604,7 +609,7 @@
     var st = G.st, r = st.result; if (!r) return;
     $('toast').classList.remove('on');
     var mineWon = r.delta[ME] > 0, myR = r.declarer === ME || r.friendSeat === ME;
-    var calc = r.win ? '(' + r.made + ' − ' + r.bid + ') + (' + r.bid + ' − 13) × 2 + 1 = <b>' + r.base + '</b>' : r.bid + ' − ' + r.made + ' = <b>' + r.base + '</b>';
+    var calc = r.win ? '(' + r.made + ' − ' + r.bid + ') + (' + r.bid + ' − 13) × 2 = <b>' + r.base + '</b>' : r.bid + ' − ' + r.made + ' = <b>' + r.base + '</b>';
     if (r.mult > 1) calc += ' · ' + r.tags.join(' · ') + ' → × ' + r.mult + ' = <b>' + r.base * r.mult + '</b>';
     var rk = G.rank, rankLine = !rk ? '' : rk.ok && rk.streak ? '🏆 랭킹 기록 — <b>' + rk.streak + '연승</b> · 이 판 <b>' + sign(rk.score) + '점</b>' + (NICK ? '' : '<br>잠만보에 로그인하면 모임 랭킹에 올라가요') :
       rk.ok ? '🏆 졌어요 — 연승이 0 으로 돌아갔어요' : '🏆 모임 랭킹은 <b>AI 고수 · 힌트 없이</b> 한 판만 올라가요';
@@ -615,7 +620,7 @@
       '<p>공약 ' + bidH(r.bid, r.giruda) + ' · 여당이 먹은 점수 카드 <b>' + r.made + '</b>장 · 나는 ' + (myR ? '여당' : '야당') + '</p>' +
       '<div class="calc">' + calc + '<br>주공 ' + (r.friendSeat < 0 ? '×4' : '×2 · 프렌드 ×1') + ' · 야당 각 ×1</div></div>' + rows +
       (rankLine ? '<p class="rankln">' + rankLine + '</p>' : '') + '<p class="hint">주공이 버린 카드: <span class="mini" style="display:inline-flex;vertical-align:middle">' + st.discards.map(function (c) { return cardH(c, { sm: 1 }); }).join('') + '</span></p>',
-      '<button type="button" class="btn" data-a="tricks">트릭 보기</button>' + (ARC ? '<button type="button" class="btn sm" data-a="board" data-v="' + (rk && rk.streak > 1 ? 'streak' : 'score') + '" aria-label="모임 랭킹">🏆</button>' : '') + '<button type="button" class="btn pri" data-a="next">다음 판</button>', true, true);
+      '<button type="button" class="btn" data-a="tricks">트릭 보기</button>' + (ARC ? '<button type="button" class="btn sm" data-a="board" data-v="' + (rk && rk.streak > 1 ? 'streak' : 'score') + '" aria-label="모임 랭킹">🏆 랭킹</button>' : '') + '<button type="button" class="btn pri" data-a="next">다음 판</button>', true, true);
   }
   function showTricks() {
     var st = G.st, back = st.phase === 'done', h = '<div class="tk"><div class="h"><b>먹은 점수 카드</b></div>';
