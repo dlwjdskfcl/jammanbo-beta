@@ -9,7 +9,7 @@
   var C = window.BingoCore;
   if (!C) return;
   var FX = window.JMB_FX || { avatar: function () { return ''; }, haptic: function () {}, confetti: function () {}, capture: function () { return Promise.reject(new Error('이미지 도구를 불러오지 못했어요')); } };
-  var VER = '1.0.1';
+  var VER = '1.0.2';
   var $ = function (id) { return document.getElementById(id); };
   var ROOT = (function () { var seg = location.pathname.split('/')[1] || ''; return /\.github\.io$/.test(location.hostname) && seg ? '/' + seg + '/' : '/'; })();
   var COARSE = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);

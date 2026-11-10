@@ -276,3 +276,9 @@ button.cell:not(.on):not(.free):hover{border-color:var(--accent)}
 .toast.err{background:var(--bad)}
 @media (max-width:359px){.cell{font-size:20px;border-radius:11px}.board,.bhead{gap:4px}.code i{width:40px;height:52px;font-size:30px}}
 @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+
+/* 가로로 눕힌 폰: 판이 화면 높이에 들어오게 (판 폭을 높이로 제한) */
+@media (orientation:landscape) and (max-height:520px){
+  .board:not(.mini){max-width:max(236px,min(100%,calc(100vh - 156px)))}
+  .board{gap:3px}
+}
