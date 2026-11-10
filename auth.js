@@ -80,6 +80,7 @@
   /* ---------- 상태 ---------- */
   function user() { return session ? session.user : null; }
   function isAdmin() { return !!window.ADMIN_PW; }
+  function isDev() { var u = user(); return !!(u && u.dev && isAdmin()); }   // 개발자 계정이면서 운영진 모드가 켜져 있을 때 (모드를 끄면 회원 화면 미리보기)
   function changed() {
     paintHeader();
     listeners.forEach(function (f) { try { f(user()); } catch (e) {} });
@@ -367,6 +368,7 @@
     user: user,
     nickname: function () { return user() && user().nickname || null; },
     isAdmin: isAdmin,
+    isDev: isDev,
     token: function () { return session ? session.token : null; },
     login: startKakao,
     logout: api_logout,
