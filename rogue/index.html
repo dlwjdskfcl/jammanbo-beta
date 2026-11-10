@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow, noai, noimageai">
+<!-- 보안: 이 페이지가 불러오거나 접속할 수 있는 곳 (게임은 서버 없음 — 밖으로 나가는 것은 글꼴과 모임 랭킹(arcade.js → 메인 GAS)뿐) -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://cdn.jsdelivr.net data:; img-src 'self' data: blob:; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://cdn.jsdelivr.net; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>잠만보 던전</title>
+<meta name="description" content="주사위를 굴려 장비에 넣는 로그라이크 — 3막의 던전을 지나 잠만보를 깨워라">
+<meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1014" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="잠만보 던전">
+<link rel="icon" type="image/png" href="../icon-192.png">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" integrity="sha384-GIdEBaqGN9mNkDkMkzMHW8EKUqtpPIe/sLj1X7DIrnc9uPtLROJgmuDlh+3rBw0j" crossorigin="anonymous">
+<link rel="stylesheet" href="style.css?v=1.0.0">
+<link rel="stylesheet" href="../adaptive.css?v=1">
+<script src="../adaptive.js?v=1"></script>
+</head>
+<body>
+<div id="app">
+  <header class="bar">
+    <button type="button" class="ibtn" id="back" aria-label="뒤로"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <div class="ttl"><b id="ttl">잠만보 던전</b><small id="sub">주사위 로그라이크</small></div>
+    <button type="button" class="ibtn" id="menu" aria-label="메뉴"><svg viewBox="0 0 24 24"><path d="M5 12h.01M12 12h.01M19 12h.01" stroke-width="3"/></svg></button>
+  </header>
+  <main class="wrap" id="view"></main>
+</div>
+<div id="modal"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<noscript><p style="padding:24px">자바스크립트를 켜야 이용할 수 있어요.</p></noscript>
+<script src="../config.js"></script>
+<script src="../fx.js?v=1"></script>
+<script src="../arcade.js?v=1"></script>
+<script src="core.js?v=1.0.0"></script>
+<script src="app.js?v=1.0.0"></script>
+</body>
+</html>

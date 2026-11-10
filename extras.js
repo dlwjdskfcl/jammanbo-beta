@@ -1,4 +1,5 @@
-/* 잠만보 화면 추가 기능 v4 — 화면 코드(Apps Script Index.html)는 고치지 않고 덧붙입니다.
+/* 잠만보 화면 추가 기능 v5 — 화면 코드(Apps Script Index.html)는 고치지 않고 덧붙입니다.
+ *  (v5) 게임 목록을 games.js 로 옮김 · 홈 카드는 최근에 한 게임 5개 + 오락실 · NEW 표시
  *  1) 홈의 '폰 홈 화면에 추가' 안내 카드 숨김
  *  2) 미니게임 들어가는 곳: 상단 바 '미니게임' 버튼 → 메뉴(티츄 · 순서 룰렛 · 타이머 · 사운드보드 · 장소 지도 · 탱쫄 판별기↗) + 홈 화면 카드
  *     (v3) 예전 '티츄' 버튼 자리. 새 미니게임은 아래 GAMES 에 한 줄 추가
@@ -7,23 +8,20 @@
  * index.html 의 boot() 가 router.js 다음에 이 파일을 넣습니다. 화면 코드의 render 가 없으면 조용히 끔.
  */
 (function (ROOT) {
-  // ?reset: 예전 서비스 워커(미니게임 폴더를 모르는 버전)를 거치지 않고 열기 — 각 게임 화면이 주소에서 지움
-  var GAMES = [
-    { id: 'tichu', href: ROOT + 'tichu/?reset', emoji: '🃏', name: '티츄', desc: '2 대 2 카드게임 · AI 연습', bg: 'linear-gradient(135deg,#fff4e6,#ffe8cc)', bgDark: 'linear-gradient(135deg,#3a2a12,#4a3315)' },
-    { id: 'roulette', href: ROOT + 'roulette/?reset', emoji: '🎯', name: '순서 룰렛', desc: '구슬로 순서 · 당첨자 정하기', bg: 'linear-gradient(135deg,#e7f5ff,#dbe4ff)', bgDark: 'linear-gradient(135deg,#142447,#1d2f5e)' },
-    { id: 'timer', href: ROOT + 'timer/?reset', emoji: '⏱️', name: '타이머', desc: '체스 클락 · 턴 타이머 · 모래시계', bg: 'linear-gradient(135deg,#fff0f6,#ffdeeb)', bgDark: 'linear-gradient(135deg,#3d1528,#4f1c34)' },
-    // dev: 개발자 계정(설정 '개발자계정')일 때만 보임 = 아직 공개 안 한 게임 (주소로는 열림). 공개할 때 dev: true 만 지우면 회원 전체에게 보임. admin: true 는 운영진까지
-    { id: 'sound', dev: true, href: ROOT + 'sound/?reset', emoji: '🔊', name: '사운드보드', desc: '대회 · 머더미스터리 · 할로윈 BGM · 효과음', bg:'linear-gradient(135deg,#fff9db,#ffec99)', bgDark: 'linear-gradient(135deg,#3b3010,#4a3c12)' },
-    { id: 'aging', dev: true, href: ROOT + 'aging/?reset', emoji: '🕹️', name: '에이징 커브 검사', desc: '미니게임으로 재는 게임 피지컬 나이 · 주 1회 기록', bg: 'linear-gradient(135deg,#fff4e6,#ffd8a8)', bgDark: 'linear-gradient(135deg,#3a2a12,#4a3315)' },
-    { id: 'semantle', href: ROOT + 'semantle/?reset', emoji: '🔤', name: '꼬맨틀', desc: '매일 하나, 뜻이 가까운 단어로 찾는 비밀 단어 · 모임 순위', bg: 'linear-gradient(135deg,#fff0f6,#fcc2d7)', bgDark: 'linear-gradient(135deg,#3d1528,#4f1c34)' },
-    { id: 'map', href: ROOT + 'map/?reset', emoji: '📍', name: '장소 지도', desc: '모임 장소 · 맛집 지도', bg: 'linear-gradient(135deg,#e6fcf5,#c3fae8)', bgDark: 'linear-gradient(135deg,#0f2f27,#134235)' },
-    // ext: 외부 사이트 — 새 창으로 열고 ↗ 표시. 결과는 앱의 '내 기록 > 방탈출 탱쫄'에서 기록
-    // 아르마니여름 디펜스 — 별도 사이트(GitHub Pages 저장소 jammanbo-defense). 카카오 로그인은 같은 출처 저장소(localStorage)를 게임이 읽어 서버에서 전용 입장권으로 바꿔 씀. 운영 사이트(ROOT=/jammanbo/)가 아니면 ?env=beta 로 게임이 테스트 서버를 씀 (화면 안쪽 JMB_CONFIG 에는 env 가 없어 ROOT 로 구분)
-    { id: 'defense', ext: true, dev: true, beta: true, href: 'https://dlwjdskfcl.github.io/jammanbo-defense/' + (/^\/jammanbo\/$/.test(ROOT) ? '' : '?env=beta'), emoji: '🐾', name: '아르마니여름 디펜스', desc: '랜덤 타워디펜스 · 내 기록 · 랭킹', bg: 'linear-gradient(135deg,#ecfdf3,#d3f9d8)', bgDark: 'linear-gradient(135deg,#12301f,#17402a)' },
-    { id: 'tangzzol', ext: true, home: false, href: 'https://bangpot-tangzzol-test.vercel.app/test/tangzzol', emoji: '🚪', name: '방탈출 탱쫄 판별기', desc: '나는 탱일까 쫄일까? 20종 유형 테스트', bg: 'linear-gradient(135deg,#f3f0ff,#e5dbff)', bgDark: 'linear-gradient(135deg,#2a1f47,#36295e)' }
-  ];
+  // (v5) 게임 목록은 games.js 한 곳에 (오락실 arcade/ 와 같이 씀). 시작 페이지가 예전 것이어도 되게 여기서 불러 온 뒤 시작
+  if (!window.JMB_GAME_LIST) {
+    var gs = document.createElement('script');
+    gs.src = ROOT + 'games.js?v=' + encodeURIComponent((window.JMB_CONFIG && JMB_CONFIG.version) || '1');
+    gs.onload = gs.onerror = function () { run(ROOT); };
+    document.head.appendChild(gs);
+  } else run(ROOT);
+function run(ROOT) {
+  var GAMES = window.JMB_GAME_LIST ? window.JMB_GAME_LIST(ROOT) : [];
+  var TODAY_ = (function () { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); })();
   function attrs(g) { return 'href="' + g.href + '" data-g="' + g.id + '"' + (g.ext ? ' target="_blank" rel="noopener"' : ''); }
-  function nm(g) { return g.name + (g.ext ? ' <span class="jmb-ext" aria-label="새 창">↗</span>' : '') + (g.dev ? ' <span class="jmb-adm">개발자</span>' : g.admin ? ' <span class="jmb-adm">운영진</span>' : ''); }
+  function nm(g) { return g.name + (g.ext ? ' <span class="jmb-ext" aria-label="새 창">↗</span>' : '') + (g.isNew && g.isNew >= TODAY_ ? ' <span class="jmb-new">NEW</span>' : '') + (g.dev ? ' <span class="jmb-adm">개발자</span>' : g.admin ? ' <span class="jmb-adm">운영진</span>' : ''); }
+  // 최근에 한 게임 (arcade.js 가 기기에 남김) — 홈 카드 순서에 씀
+  function playLog() { try { return JSON.parse(localStorage.getItem('jmb_arcade_log') || '{}') || {}; } catch (e) { return {}; } }
   function isAdm() { return !!window.ADMIN_PW; }   // auth.js isAdmin() 과 같은 기준
   var IS_PROD = /^\/jammanbo\/$/.test(ROOT);
   function isDev() { return !!(window.JMB_AUTH && JMB_AUTH.isDev && JMB_AUTH.isDev()); }
@@ -65,6 +63,7 @@
     '.jmb-mini-cards .jmb-tichu-card{margin:0;flex-direction:column;align-items:flex-start;gap:10px;position:relative}' +
     '.jmb-mini-cards .jmb-tichu-card .go{position:absolute;right:14px;top:14px}' +
     '.jmb-ext{font-size:.8em;opacity:.55;font-weight:600}' +
+    '.jmb-new{display:inline-block;font-size:10px;font-weight:800;padding:0 5px;border-radius:999px;background:#e5484d;color:#fff;vertical-align:2px;letter-spacing:0}' +
     '.jmb-adm{display:inline-block;font-size:10.5px;font-weight:800;padding:0 6px;border-radius:999px;background:var(--surface2,#f2f4f7);color:var(--muted,#8b95a1);vertical-align:2px;letter-spacing:0}' +
     '.jmb-mini-cards .jmb-ext-card{grid-column:1/-1;flex-direction:row;align-items:center}' +
     '@media (max-width:360px){.jmb-mini-cards{grid-template-columns:1fr!important}.jmb-mini-cards .jmb-tichu-card{flex-direction:row;align-items:center}}' +
@@ -203,7 +202,16 @@
     var tiles = view.querySelector('.tiles');
     var box = document.createElement('div');
     box.id = 'jmbMiniCards'; box.className = 'jmb-mini-cards'; box.setAttribute('data-adm', adm);
-    var list = shown().filter(function (g) { return g.home !== false; }), n = list.filter(function (g) { return !g.ext; }).length;   // 한 줄에 몇 칸: 혼자 남는 카드가 적게 (1·2개 → 그대로, 4개 → 2칸, 그 밖 → 3칸)
+    var list = shown().filter(function (g) { return g.home !== false; });
+    // 오락실(hub)이 보이는 곳에서는 홈 카드를 5개 + 오락실로 줄임: 최근에 한 게임 먼저, 그다음 목록 순서 (게임이 늘어도 홈이 길어지지 않게)
+    var hub = list.filter(function (g) { return g.hub; })[0];
+    if (hub) {
+      var log = playLog(), rest = list.filter(function (g) { return !g.hub && !g.ext; });
+      rest = rest.map(function (g, i) { return { g: g, i: i, t: (log[g.id] && log[g.id].last) || 0 }; })
+        .sort(function (a, b) { return (b.t - a.t) || (a.i - b.i); }).slice(0, 5).map(function (x) { return x.g; });
+      list = rest.concat([hub]);
+    }
+    var n = list.filter(function (g) { return !g.ext; }).length;   // 한 줄에 몇 칸: 혼자 남는 카드가 적게 (1·2개 → 그대로, 4개 → 2칸, 그 밖 → 3칸)
     var cols = n <= 2 ? n : n === 4 ? 2 : 3;
     box.className += ' c' + cols; box.style.setProperty('--cols', cols);
     var dark = isDark();
@@ -252,4 +260,5 @@
   decorate();
   // 운영진 로그인·로그아웃 뒤 홈 카드 다시 (화면 코드가 다시 그리지 않는 경우 대비)
   if (window.JMB_AUTH && JMB_AUTH.onChange) JMB_AUTH.onChange(function () { setTimeout(decorate, 0); });
+}
 })(window.JMB_ROOT || '/');

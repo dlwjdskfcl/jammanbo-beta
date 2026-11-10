@@ -237,7 +237,8 @@ function start() {
     try {
       var back2 = sessionStorage.getItem('jmb_after_login');
       sessionStorage.removeItem('jmb_after_login');
-      if (back2 && (back2.indexOf(window.JMB_ROOT + 'tichu/') === 0 || back2.indexOf(window.JMB_ROOT + 'map/') === 0) && /^[\w\/.#-]+$/.test(back2)) { location.replace(back2); return; }
+      // 미니게임 폴더(tichu/ · map/ · aging/ · semantle/ · arcade/ …) 어디서든 — 이 사이트 안의 '폴더/' 주소만 허용
+      if (back2 && back2.indexOf(window.JMB_ROOT) === 0 && /^[a-z0-9_-]+\/(index\.html)?(#[\w\/.#-]*)?$/i.test(back2.slice(window.JMB_ROOT.length)) && /^[\w\/.#-]+$/.test(back2)) { location.replace(back2); return; }
     } catch (e) {}
   }
   if (!API) return fail(new Error('설정 파일(config.js)을 읽지 못했어요'));

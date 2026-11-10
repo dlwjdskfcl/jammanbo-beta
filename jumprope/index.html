@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow, noai, noimageai">
+<!-- 보안: 게임은 서버 없이 돌고, 모임 랭킹(arcade.js)만 잠만보 서버에 접속 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://cdn.jsdelivr.net data:; img-src 'self' data: blob:; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://cdn.jsdelivr.net; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>잠만보 단체 줄넘기</title>
+<meta name="description" content="탭 한 번에 다 같이 폴짝 — 혼자서도, 한 기기로 2~4명이서도 하는 단체 줄넘기">
+<meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1014" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="단체 줄넘기">
+<link rel="icon" type="image/png" href="../icon-192.png">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" integrity="sha384-GIdEBaqGN9mNkDkMkzMHW8EKUqtpPIe/sLj1X7DIrnc9uPtLROJgmuDlh+3rBw0j" crossorigin="anonymous">
+<link rel="stylesheet" href="style.css?v=1.0.0">
+<link rel="stylesheet" href="../adaptive.css?v=1">
+<script src="../adaptive.js?v=1"></script>
+</head>
+<body>
+<div id="app">
+  <!-- 첫 화면 -->
+  <section id="home" class="screen on" aria-label="단체 줄넘기">
+    <header class="bar">
+      <a class="ibtn" href="../" aria-label="잠만보로"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></a>
+      <div class="ttl"><b>단체 줄넘기</b><small>탭 한 번에 다 같이 폴짝</small></div>
+      <button type="button" class="ibtn" id="sndBtn" aria-label="소리 켜기/끄기"></button>
+    </header>
+    <main class="wrap">
+      <div class="demo"><canvas id="demo" aria-hidden="true"></canvas></div>
+
+      <div class="modes">
+        <button type="button" class="mode main" id="goSolo">
+          <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 9c2 12 16 12 18 0"/><circle cx="12" cy="7" r="2.6"/><path d="M9 20l1.5-6h3L15 20"/></svg></span>
+          <span class="tx"><b>혼자 하기</b><small id="soloSub">미플 단체를 내가 조종</small></span>
+          <span class="go" aria-hidden="true">›</span>
+        </button>
+        <button type="button" class="mode" id="goCoop">
+          <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2 9c2 12 18 12 20 0"/><circle cx="8" cy="8" r="2.2"/><circle cx="16" cy="8" r="2.2"/></svg></span>
+          <span class="tx"><b>다 같이 한 줄 <em>2~4명</em></b><small id="coopSub">한 명이라도 걸리면 끝 — 협동 기록 도전</small></span>
+          <span class="go" aria-hidden="true">›</span>
+        </button>
+        <button type="button" class="mode" id="goSurv">
+          <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4c0 3 1.5 4 3 4M17 6h3c0 3-1.5 4-3 4M12 14v4M8.5 20h7"/></svg></span>
+          <span class="tx"><b>서바이벌 <em>2~4명</em></b><small>걸리면 탈락 — 마지막까지 남는 사람이 우승</small></span>
+          <span class="go" aria-hidden="true">›</span>
+        </button>
+      </div>
+
+      <div class="card">
+        <h3>줄넘기 명단 <small>혼자 하기의 미플 · 여럿이 할 때 이름 (최대 8명)</small></h3>
+        <div class="roster" id="roster"></div>
+        <form class="addrow" id="addForm" autocomplete="off">
+          <input class="inp" id="addName" type="text" maxlength="10" placeholder="이름 넣기" enterkeyhint="done" aria-label="이름">
+          <button type="submit" class="sbtn">＋ 추가</button>
+        </form>
+        <div class="acts">
+          <button type="button" class="sbtn" id="btnShuffle">순서 섞기</button>
+          <button type="button" class="sbtn" id="btnMeet" hidden>최근 모임 참가자</button>
+          <button type="button" class="sbtn" id="btnPick" hidden>회원에서 고르기</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>기록 <span class="sp"></span><button type="button" class="link" id="btnClear" hidden>지우기</button></h3>
+        <div class="bests" id="bests"></div>
+        <div id="recent"></div>
+        <div class="btns"><button type="button" class="btn" id="homeRank" hidden>🏆 모임 랭킹</button></div>
+      </div>
+
+      <div class="card">
+        <h3>하는 법</h3>
+        <ul class="how">
+          <li>줄이 발밑을 지나갈 때 <b>떠 있으면</b> 통과. 화면을 탭하거나 <kbd>Space</kbd> 로 점프해요.</li>
+          <li>가장 높이 떴을 때 줄이 지나가면 <b>퍼펙트</b>. 퍼펙트를 이어 가면 친구가 한 명씩 줄에 들어와요.</li>
+          <li>걸리면 걸린 미플이 빠져요. 아무도 안 남으면 끝! 줄은 점점 빨라지고 높아지며, <b>천천히 · 빠르게 · 멈칫 · 두 번 · 반대로 · 속임수</b>가 섞여요.</li>
+          <li>여럿이 할 땐 기기를 가운데 두고 <b>자기 색 칸</b>만 눌러요. PC 는 <kbd>Q</kbd> <kbd>P</kbd> <kbd>Z</kbd> <kbd>M</kbd>.</li>
+        </ul>
+        <label class="tog"><span>진동</span><input type="checkbox" id="hapChk"><i></i></label>
+      </div>
+      <p class="ver" id="ver"></p>
+    </main>
+  </section>
+
+  <!-- 게임 화면 -->
+  <section id="play" class="screen" aria-label="줄넘기 중">
+    <div class="pads" id="padsA"></div>
+    <div class="stage" id="stage">
+      <canvas id="cv"></canvas>
+      <div class="banner" id="banner" role="status" aria-live="polite"></div>
+      <button type="button" class="hudbtn" id="btnPause" aria-label="일시정지"><svg viewBox="0 0 24 24"><path d="M9 5v14M15 5v14"/></svg></button>
+      <div class="cd" id="cd" hidden></div>
+      <div class="pause" id="pause" hidden>
+        <div class="pbox" role="dialog" aria-modal="true" aria-label="일시정지">
+          <b>잠깐 멈춤</b>
+          <button type="button" class="btn pri" id="btnResume">계속하기</button>
+          <button type="button" class="btn" id="btnRestart">처음부터 다시</button>
+          <button type="button" class="btn" id="btnQuit">그만하기</button>
+          <button type="button" class="btn sm" id="btnSnd2"></button>
+        </div>
+      </div>
+    </div>
+    <div class="pads" id="padsB"></div>
+  </section>
+</div>
+
+<!-- 여럿이 하기 설정 -->
+<div class="sheet-bg" id="multiBg" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="multiTitle">
+    <div class="grab"></div>
+    <h2 id="multiTitle">한 기기로 여럿이</h2>
+    <div class="seg" id="segMode" role="radiogroup" aria-label="방식">
+      <button type="button" data-v="coop">다 같이 한 줄</button>
+      <button type="button" data-v="surv">서바이벌</button>
+    </div>
+    <p class="hint" id="modeHint"></p>
+    <div class="seg" id="segN" role="radiogroup" aria-label="사람 수">
+      <button type="button" data-v="2">2명</button>
+      <button type="button" data-v="3">3명</button>
+      <button type="button" data-v="4">4명</button>
+    </div>
+    <div class="seats" id="seats"></div>
+    <div class="acts">
+      <button type="button" class="sbtn" id="seatFill">명단에서 채우기</button>
+      <button type="button" class="sbtn" id="seatShuffle">자리 섞기</button>
+    </div>
+    <p class="hint">기기를 가운데 두고 자기 색 칸만 눌러요. 세로로 두면 위쪽 칸은 맞은편 사람용으로 뒤집혀 보여요.</p>
+    <div class="btns"><button type="button" class="btn pri" id="multiGo">시작</button></div>
+  </div>
+</div>
+
+<!-- 회원 고르기 -->
+<div class="sheet-bg" id="pickBg" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="pickTitle">
+    <div class="grab"></div>
+    <h2 id="pickTitle">회원에서 고르기 <small>최대 8명</small></h2>
+    <input id="pickQ" class="inp" type="search" placeholder="닉네임 검색 (초성 가능)" autocomplete="off">
+    <div class="chips" id="pickList"></div>
+    <div class="btns row">
+      <button type="button" class="btn" id="pickNone">모두 해제</button>
+      <button type="button" class="btn pri" id="pickOk">넣기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 결과 -->
+<div class="sheet-bg" id="resBg" hidden>
+  <div class="sheet res" role="dialog" aria-modal="true" aria-label="결과">
+    <div id="resBody"></div>
+    <div class="btns">
+      <button type="button" class="btn pri" id="resAgain">다시 하기</button>
+      <button type="button" class="btn" id="resRank" hidden>🏆 모임 랭킹</button>
+      <button type="button" class="btn" id="resImg">이미지로 공유</button>
+      <button type="button" class="btn" id="resTxt">문구 공유 · 복사</button>
+      <button type="button" class="btn" id="resHome">처음으로</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<noscript><p style="padding:24px">자바스크립트를 켜야 이용할 수 있어요.</p></noscript>
+<script src="../config.js"></script>
+<script src="../fx.js?v=1"></script>
+<script src="../arcade.js?v=1"></script>
+<script src="core.js?v=1.0.0"></script>
+<script src="app.js?v=1.0.0"></script>
+</body>
+</html>
