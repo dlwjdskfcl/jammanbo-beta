@@ -5,7 +5,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.0.0';
+  var VER = '1.0.1';
   var FX = window.JMB_FX || { avatar: function () { return ''; }, haptic: function () {}, confetti: function () {} };
   var ROOT = (function () { var seg = location.pathname.split('/')[1] || ''; return /\.github\.io$/.test(location.hostname) && seg ? '/' + seg + '/' : '/'; })();
   var KEY = { roster: 'jmb_toolbox_roster', opt: 'jmb_toolbox_opt', sb: 'jmb_toolbox_sb', hist: 'jmb_toolbox_hist' };
@@ -198,7 +198,7 @@
   /* ================= 🎲 주사위 · 🪙 동전 ================= */
   var PIPS = [[4], [0, 8], [0, 4, 8], [0, 2, 6, 8], [0, 2, 4, 6, 8], [0, 2, 3, 5, 6, 8]];   // d6 눈: 3×3 칸 중 점이 찍히는 자리
   function dieHtml(v, s, rolling) {
-    var pip = s === 6, dots = '';
+    var pip = s === 6 && v >= 1 && v <= 6, dots = '';
     if (pip) for (var i = 0; i < 9; i++) dots += '<i' + (PIPS[v - 1].indexOf(i) >= 0 ? ' class="on"' : '') + '></i>';
     return '<div class="die' + (rolling ? ' rolling' : '') + '" aria-label="' + v + '">' + (pip ? '<span class="pipbox">' + dots + '</span>' : v) + '</div>';
   }
@@ -207,7 +207,7 @@
     return '<div class="card"><h3>🎲 주사위</h3>' +
       '<div class="lab">개수</div><div class="seg">' + [1, 2, 3, 4, 5, 6].map(function (n) { return '<button type="button" data-act="dn" data-v="' + n + '" class="' + (OPT.n === n ? 'on' : '') + '">' + n + '개</button>'; }).join('') + '</div>' +
       '<div class="lab">종류</div><div class="seg">' + [4, 6, 8, 10, 12, 20].map(function (s) { return '<button type="button" data-act="ds" data-v="' + s + '" class="' + (OPT.s === s ? 'on' : '') + '">d' + s + '</button>'; }).join('') + '</div>' +
-      '<div class="dice" id="diceBox">' + (d ? d.map(function (v) { return dieHtml(v, OPT.s, UI.rolling); }).join('') : '<div class="empty">아래 버튼을 눌러 굴려 보세요</div>') + '</div>' +
+      '<div class="dice" id="diceBox">' + (d ? d.map(function (v) { return dieHtml(v, UI.dsides || OPT.s, UI.rolling); }).join('') : '<div class="empty">아래 버튼을 눌러 굴려 보세요</div>') + '</div>' +
       (d && OPT.n > 1 && !UI.rolling ? '<div class="sum">합계 <b>' + sum + '</b></div>' : '') +
       '<div class="btns"><button type="button" class="btn pri xl" data-act="roll"' + (UI.rolling ? ' disabled' : '') + '>🎲 굴리기</button></div></div>' +
       '<div class="card"><h3>🪙 동전 던지기 <small>앞 ' + cn.h + ' · 뒤 ' + cn.t + '</small></h3>' +
@@ -217,7 +217,7 @@
   }
   function roll() {
     if (UI.rolling) return;
-    UI.rolling = true; var n = OPT.n, s = OPT.s, t0 = Date.now(), timer;
+    UI.rolling = true; var n = OPT.n, s = OPT.s, t0 = Date.now(), timer; UI.dsides = s;
     var randomSet = function () { var a = []; for (var i = 0; i < n; i++) a.push(1 + rnd(s)); return a; };
     UI.dice = randomSet(); render(); FX.haptic('tap');
     timer = setInterval(function () {
@@ -229,7 +229,7 @@
     if (UI.coin && UI.coin.anim) return;
     var v = rnd(2) ? '앞' : '뒤';
     UI.coin = { anim: true, v: v }; render(); FX.haptic('tap');
-    setTimeout(function () { UI.coin.anim = false; OPT.coin[v === '앞' ? 'h' : 't']++; saveOpt(); render(); FX.haptic('turn'); }, 1000);
+    setTimeout(function () { if (!UI.coin) UI.coin = { v: v }; UI.coin.anim = false; UI.coin.v = v; OPT.coin[v === '앞' ? 'h' : 't']++; saveOpt(); render(); FX.haptic('turn'); }, 1000);
   }
 
   /* ================= 👥 팀 · 순서 · 뽑기 ================= */
@@ -319,11 +319,11 @@
     if (a === 'copyRes') { var tot = totals(), rk = ranks(tot); return copyText(resultText(SB.players.map(function (nm, i) { return { n: nm, s: tot[i], r: rk[i] }; }).sort(function (x, y) { return x.r - y.r; })), '결과를 복사했어요 — 단톡방에 붙여넣어 주세요'); }
     if (a === 'saveEnd') return saveEnd();
     if (a === 'sbReset') { if (!confirm('점수를 모두 지우고 처음부터 할까요?')) return; SB = null; saveSB(); UI.draft = []; render(); return; }
-    if (a === 'dn') { OPT.n = +v; saveOpt(); UI.dice = null; render(); return; }
-    if (a === 'ds') { OPT.s = +v; saveOpt(); UI.dice = null; render(); return; }
+    if (a === 'dn') { if (UI.rolling) return; OPT.n = +v; saveOpt(); UI.dice = null; render(); return; }
+    if (a === 'ds') { if (UI.rolling) return; OPT.s = +v; saveOpt(); UI.dice = null; render(); return; }
     if (a === 'roll') return roll();
     if (a === 'flip') return flip();
-    if (a === 'coinReset') { OPT.coin = { h: 0, t: 0 }; saveOpt(); UI.coin = null; render(); return; }
+    if (a === 'coinReset') { if (UI.coin && UI.coin.anim) return; OPT.coin = { h: 0, t: 0 }; saveOpt(); UI.coin = null; render(); return; }
     if (a === 'tmode') { OPT.tmode = v; UI.res = null; saveOpt(); render(); return; }
     if (a === 'tn') { OPT.teams = +v; UI.res = null; saveOpt(); render(); return; }
     if (a === 'go') return runTeam();
