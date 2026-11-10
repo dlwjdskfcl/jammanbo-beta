@@ -1,19 +1,19 @@
-/*! 잠만보 꼬맨틀 — 화면 v1.2.0
- * 매일 하나의 비밀 단어를 '뜻이 가까운 정도'(FastText 유사도)로 찾아가는 게임.
+/*! 잠만보 꼬맨틀 — 화면 v1.3.0
+ * 매일 하나의 비밀 단어를 '뜻이 가까운 정도'(단어 의미 유사도)로 찾아가는 게임.
  * 서버 Semantle.gs (semToday · semStart · semSubmit · semRank): 오늘의 유사도 표를 한 번 받으면 추측마다 서버를 거치지 않음.
  * 로그인(카카오) 회원은 하루 한 번 기록 → 점수 · 순위 · 연속 · 배지. 로그인 안 해도 풀 수 있음(기록 없음).
  * 단어 목록 vocab.txt 는 0_PC설정\도구\꼬맨틀_데이터_만들기.py 가 만든 것과 같아야 함 (서버가 보내는 목록값 vh 로 확인).
  */
 (function () {
   'use strict';
-  var VER = '1.2.0';
+  var VER = '1.3.0';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   var ENV_SFX = ENV !== 'prod' ? '_' + ENV : '';
   var API = window.SEM_API_LOCAL || CFG.api || '';
   var ROOT = (function () { var seg = location.pathname.split('/')[1] || ''; return /\.github\.io$/.test(location.hostname) && seg ? '/' + seg + '/' : '/'; })();
   var LS = { auth: 'jmb_kakao_v2' + ENV_SFX, state: 'jmb_kakao_state' + ENV_SFX, play: 'jmb_sem_play' + ENV_SFX, pend: 'jmb_sem_pend' + ENV_SFX, help: 'jmb_sem_help', tab: 'jmb_sem_tab' };
-  var HINT_MAX = 3, HINT_COST = 15, TOPN = 1000;
+  var HINT_MAX = 3, HINT_COST = 15, TOPN = 1000, HINT_AT = [5, 15, 30];   // HINT_AT: 이만큼 추측하면 힌트가 하나씩 생김 (서버 SEM_CFG_.HINT_AT 와 같게)
   var BADGES = [   // 서버 Semantle.js badgesOf 와 같은 id
     { id: 'first', e: '🥇', n: '선두 주자', d: '그 날 가장 먼저 정답' },
     { id: 'fast', e: '⚡', n: '번개', d: '10번 안에 정답' },
@@ -58,7 +58,8 @@
     var s = session();
     if (!s) return startLogin();
     if (!myNick()) { if (confirm('잠만보에서 카카오 계정에 모임 닉네임을 먼저 연결해 주세요. 잠만보로 갈까요?')) location.href = ROOT; return; }
-    if (confirm(myNick() + ' 님으로 로그인돼 있어요.\n로그아웃할까요? (잠만보 앱도 함께 로그아웃돼요)')) { lsSet(LS.auth, null); location.reload(); }
+    openModal('<div class="me-top">' + av(myNick(), 48) + '<div class="t"><b>' + esc(myNick()) + '</b><small>카카오로 로그인돼 있어요</small></div></div>' +
+      '<div class="btns"><button type="button" class="btn pri" id="goHome">🏠 잠만보로 가기</button><button type="button" class="btn" id="logoutBtn">로그아웃 (잠만보 앱도 함께)</button><button type="button" class="btn" data-x>닫기</button></div>');
   };
 
   /* ================= 서버 ================= */
@@ -171,6 +172,11 @@
   function normalize(s) { return String(s || '').normalize('NFC').replace(/\s+/g, '').replace(/[^가-힣ㄱ-ㅎㅏ-ㅣ]/g, ''); }
   function guess(raw) {
     var w = normalize(raw), inp = $('gw');
+    if (/[A-Za-z0-9]/.test(String(raw || ''))) {   // 영어 · 숫자는 안 됨 (단어 목록이 한글뿐)
+      toast('한글로만 입력해 주세요 (영어 · 숫자는 안 돼요)', true); hap('warn');
+      if (inp) { inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake'); inp.select(); }
+      return;
+    }
     if (!w || !S.idx) return;
     if (!S.idx.has(w)) { toast('‘' + w + '’ 은(는) 사전에 없는 단어예요', true); if (inp) { inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake'); inp.select(); } hap('warn'); return; }
     if (guessWords().indexOf(w) >= 0) { toast('이미 추측한 단어예요'); S.lastW = w; render(); return; }
@@ -183,13 +189,25 @@
     var tr = tier(w);
     if (tr === 6 && !S.L.done) return win(w);
     if (S.L.done && tr === 6) { toast('🎉 정답이에요! (연습)'); S.fb = null; render(); return; }
+    if (!isHint && !S.L.done && HINT_AT.indexOf(realCount()) >= 0) setTimeout(function () { toast('💡 힌트가 생겼어요! (' + hintsLeft() + '개 사용 가능)'); }, 450);
     S.fb = { tr: tr, w: w, r: rankIn(w) };
     hap(tr >= 4 ? 'turn' : 'tap');
     render();
   }
+  /* 힌트는 처음엔 못 씀: 5번 · 15번 · 30번 추측하면 하나씩 생김 (끝난 뒤 연습에서는 제한 없음) */
+  function hintsUnlocked() { var n = realCount(); return HINT_AT.filter(function (t) { return n >= t; }).length; }
+  function hintsLeft() { return hintsUnlocked() - S.L.hints; }
+  function hintNext() { var n = realCount(), t = HINT_AT.filter(function (x) { return x > n; })[0]; return t ? t - n : 0; }
+  function hintBtn() {
+    var L = S.L, label, off = false;
+    if (L.done) label = '💡 힌트 (연습)';
+    else if (hintsLeft() > 0) label = '💡 힌트 쓰기 (' + hintsLeft() + '개 남음' + (recordable() ? ' · −' + HINT_COST + '점' : '') + ')';
+    else { off = true; label = L.hints >= HINT_MAX ? '💡 힌트를 다 썼어요' : '🔒 힌트 (' + hintNext() + '번 더 추측하면 열려요)'; }
+    return '<button type="button" class="btn" id="hintBtn"' + (off ? ' disabled' : '') + '>' + label + '</button>';
+  }
   function hint() {
-    var rec = recordable();
-    if (rec && S.L.hints >= HINT_MAX) return toast('힌트는 하루 ' + HINT_MAX + '번까지예요', true);
+    var gated = !S.L.done, rec = recordable();
+    if (gated && hintsLeft() <= 0) return toast(S.L.hints >= HINT_MAX ? '힌트를 모두 썼어요' : hintNext() + '번 더 추측하면 힌트가 생겨요', true);
     var best = 0; guessWords().forEach(function (w) { var r = rankIn(w); if (r && (!best || r < best)) best = r; });
     var target = best ? Math.max(2, Math.floor(best / 2)) : 300 + Math.floor(Math.random() * 400);
     var have = {}; guessWords().forEach(function (w) { have[S.idx.get(w)] = 1; });
@@ -201,7 +219,7 @@
     if (pick < 0) return toast('더 줄 힌트가 없어요', true);
     var cost = rec ? ' (−' + HINT_COST + '점)' : '';
     if (rec && !confirm('힌트를 볼까요?' + cost + '\n지금보다 정답에 가까운 단어 하나를 알려 줘요. (' + (S.L.hints + 1) + '/' + HINT_MAX + ')')) return;
-    if (rec) S.L.hints++;
+    if (gated) S.L.hints++;
     addGuess(S.vocab[pick], true);
     toast('💡 힌트: ‘' + S.vocab[pick] + '’ — ' + rankIn(S.vocab[pick]) + '위예요' + cost);
   }
@@ -269,10 +287,10 @@
     lsSet(LS.help, '1');
     openModal('<h2>🎯 꼬맨틀 하는 법</h2>' +
       '<p>매일 하나의 <b>비밀 단어</b>가 정해져요. 아무 단어나 입력하면 비밀 단어와 <b>뜻이 얼마나 가까운지</b>(유사도)를 알려 줘요. 철자가 아니라 <b>쓰임새·의미</b>가 비슷해야 점수가 높아요.</p>' +
-      '<ul><li>유사도는 -100 ~ 100. 높을수록 가까워요.</li><li><b>1000위 안</b>에 들면 순위가 보여요. (1위 = 비밀 단어와 가장 가까운 단어)</li><li>같은 문맥에 같이 나올 법한 단어를 떠올려 보세요. 반대말도 의외로 가까울 수 있어요.</li><li>비밀 단어는 일상 단어예요 (명사 · 동사 · 형용사). 단어는 <b>기본형</b>으로 입력해 보세요.</li></ul>' +
+      '<ul><li>유사도는 -100 ~ 100. 높을수록 가까워요.</li><li><b>1000위 안</b>에 들면 순위가 보여요. (1위 = 비밀 단어와 가장 가까운 단어)</li><li>같은 문맥에 같이 나올 법한 단어를 떠올려 보세요. 반대말도 의외로 가까울 수 있어요. ‘사랑’과 ‘증오’는 뜻은 반대지만 같은 문맥에 자주 나와서 비슷해요. ‘밤’처럼 뜻이 여럿인 단어(어두운 밤 · 먹는 밤)는 어느 쪽인지도 생각해 보세요.</li><li>정답을 맞힌 뒤에도 추측을 계속할 수 있어요. 맞힌 뒤에 보이는 <b>가까운 단어 1000개</b>를 살펴보면 유사도를 이해하는 데 도움이 돼요. 정답은 한국 시간 자정에 바뀌고, 어제 정답과 가까운 단어도 볼 수 있어요.</li><li>비밀 단어는 명사 · 동사 · 형용사 등 모든 품사의 <b>기본형</b>이고 <b>두 글자 이상</b>이에요. 예) 행복, 기쁘다, 사랑하다. 추측은 한 글자 단어도 할 수 있어요.</li></ul>' +
       '<h4>🏆 점수와 순위 (로그인해서 풀어야 기록돼요)</h4>' +
-      '<ul><li><b>정답 점수</b> = 150 − 추측 횟수 (최소 20점)</li><li><b>선착순 보너스</b> 오늘 1등 +30 · 2등 +20 · 3등 +10</li><li><b>연속 보너스</b> 연속 정답 일수마다 +5 (최대 +30)</li><li><b>힌트</b> 하나당 −15점 (하루 3번까지)</li><li>포기하면 0점 · 연속 기록이 끊겨요</li><li>하루에 한 번만 기록돼요. 정답을 맞힌 뒤에도 계속 연습할 수 있어요.</li><li>순위는 오늘(적은 추측 순) · 이번 주 · 시즌(분기) · 연속 정답 · 레이팅이 있어요.</li><li><b>레이팅</b>은 그 날 푼 사람끼리 추측 횟수를 겨루는 점수예요 (처음 1500점). 적게 맞히면 오르고 많이 맞히면 내려가요. 같으면 무승부, 포기는 꼴찌, 힌트 1개는 추측 5번으로 쳐요. 분기마다 새로 시작하고 3일 이상 참여하면 순위에 올라요.</li><li>순위에서 이름을 누르면 그 사람의 기록과 나와의 비교를 볼 수 있어요.</li></ul>' +
-      '<h4>📱 팁</h4><p>이 게임은 비밀 단어를 컴퓨터가 계산한 의미 거리(FastText)로 맞혀요. 가끔 이상한 점수가 나와도 웃고 넘겨 주세요 😄</p>' +
+      '<ul><li><b>정답 점수</b> = 150 − 추측 횟수 (최소 20점)</li><li><b>선착순 보너스</b> 오늘 1등 +30 · 2등 +20 · 3등 +10</li><li><b>연속 보너스</b> 연속 정답 일수마다 +5 (최대 +30)</li><li><b>힌트</b>는 처음엔 못 써요. <b>5번 · 15번 · 30번</b> 추측하면 하나씩 생겨요 (하루 최대 3개). 하나당 −15점</li><li>포기하면 0점 · 연속 기록이 끊겨요</li><li>하루에 한 번만 기록돼요. 정답을 맞힌 뒤에도 계속 연습할 수 있어요.</li><li>순위는 오늘(적은 추측 순) · 이번 주 · 시즌(분기) · 연속 정답 · 레이팅이 있어요.</li><li><b>레이팅</b>은 그 날 푼 사람끼리 추측 횟수를 겨루는 점수예요 (처음 1500점). 적게 맞히면 오르고 많이 맞히면 내려가요. 같으면 무승부, 포기는 꼴찌, 힌트 1개는 추측 5번으로 쳐요. 분기마다 새로 시작하고 3일 이상 참여하면 순위에 올라요.</li><li>순위에서 이름을 누르면 그 사람의 기록과 나와의 비교를 볼 수 있어요.</li></ul>' +
+      '<h4>📱 팁</h4><p>한글 단어만 입력할 수 있어요 (영어 · 숫자는 안 돼요). 점수는 컴퓨터가 웹 · 위키백과 글에서 단어가 함께 쓰인 정도를 학습해 계산한 뜻 거리라서, 학습한 글에 따라 편향이 있거나 가끔 이상한 점수가 나올 수 있어요. 웃고 넘겨 주세요 😄</p><p class="hint">단어 벡터 출처: 페이스북(메타) 패스트텍스트, CC BY-SA 3.0 · 게임 방식은 뉴스젤리 꼬맨틀을 참고했어요.</p>' +
       '<div class="btns"><button type="button" class="btn pri" data-x>알겠어요</button></div>');
   }
 
@@ -292,7 +310,7 @@
 
   function metaCard() {
     var s = S.srv, h = '<div class="card"><div class="head"><div class="no">#' + s.no + '<small> 번째 문제</small></div><div class="meta">' +
-      '오늘 <b>' + (s.solvedToday || 0) + '명</b>이 맞혔어요' + (s.yesterday ? '<br>어제 정답: <b>' + esc(s.yesterday) + '</b>' : '') + '</div></div>' +
+      '오늘 <b>' + (s.solvedToday || 0) + '명</b>이 맞혔어요' + (s.yesterday ? '<br>어제 정답: <b>' + esc(s.yesterday) + '</b> <button type="button" class="btn sm" id="ydBtn">가까운 단어</button>' : '') + '</div></div>' +
       '<div class="scale"><div><b>' + f2(S.scale.r1) + '</b><small>1위 유사도</small></div><div><b>' + f2(S.scale.r10) + '</b><small>10위</small></div><div><b>' + f2(S.scale.rN) + '</b><small>1000위</small></div></div>';
     var st = s.stats, chips = '';
     if (S.nick && st) chips += '<span class="chip on">' + ratingLabel(st) + '</span><span class="chip on">🏅 ' + st.solves + '회 정답</span>' + (st.streak ? '<span class="chip hot">🔥 ' + st.streak + '일 연속</span>' : '') + '<span class="chip">⭐ ' + st.points + '점</span>';
@@ -321,7 +339,7 @@
     else if (L.pend) h += '<div class="note warn" style="margin-top:10px">기록을 아직 못 보냈어요. <button type="button" class="btn sm" id="retry">다시 보내기</button></div>';
     else if (!L.rec) h += '<p class="hint">연습이라 기록은 없어요.</p>';
     h += '<div class="heat">' + L.g.slice(0, L.cnt).map(function (x) { return HEAT[tier(x.w)]; }).join('') + '</div>' +
-      '<div class="btns"><button type="button" class="btn pri" id="share">📤 카톡으로 공유</button><button type="button" class="btn" id="topbtn">비슷한 단어 TOP 1000</button>' +
+      '<div class="btns"><button type="button" class="btn pri" id="share">📤 카톡으로 공유</button><button type="button" class="btn" id="topbtn">가까운 단어 1000개 보기</button>' +
       (S.nick ? '<button type="button" class="btn" id="goRank">🏆 순위 보기</button>' : '') + '</div></div>';
     return h;
   }
@@ -349,7 +367,7 @@
     {
       h += '<form class="gform" id="gf" autocomplete="off"><input id="gw" type="text" inputmode="text" enterkeyhint="send" placeholder="' + (L.done ? '더 추측해 볼까요? (연습)' : '단어를 입력하세요') + '" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="20" aria-label="추측할 단어"><button type="submit" class="btn pri">추측</button></form>';
       var fb = S.fb; h += '<div class="fb t' + (fb ? fb.tr : 0) + '" id="fb">' + (fb ? TIER[fb.tr].e + ' ‘' + esc(fb.w) + '’ ' + TIER[fb.tr].t + (fb.r ? ' (' + fb.r + '위)' : '') : '') + '</div>';
-      h += '<div class="tools"><button type="button" class="btn" id="hintBtn">💡 힌트' + (recordable() ? ' (' + (HINT_MAX - L.hints) + '/' + HINT_MAX + ' · −' + HINT_COST + '점)' : '') + '</button>' + (L.done ? '' : '<button type="button" class="btn" id="giveBtn">🏳️ 포기</button>') + '</div>';
+      h += '<div class="tools">' + hintBtn() + (L.done ? '' : '<button type="button" class="btn" id="giveBtn">🏳️ 포기</button>') + '</div>';
     }
     if (L.g.length) h += '<div class="card" style="padding:8px 10px">' + rows() + '</div>';
     else if (!L.done) h += '<p class="hint">처음 입력해 볼 단어는 뭐든 괜찮아요. 예: <b>사람</b> · <b>음식</b> · <b>하늘</b> — 점수가 높은 쪽으로 따라가 보세요!</p>';
@@ -432,7 +450,7 @@
     h += '<div class="seg sm" id="rkTabs">' + tabs.map(function (t) { return '<button type="button" data-t="' + t[0] + '" class="' + (t[0] === tab ? 'on' : '') + '">' + t[1] + '</button>'; }).join('') + '</div>' +
       '<div class="card"><h3>' + title + '</h3>' + rkRows(list, tab === 'week' || tab === 'season' ? 'pts' : tab) +
       (tab === 'today' ? '<div class="hint">오늘 ' + R.solvedToday + '명 정답 · 참여 회원 ' + R.people + '명</div>' : '') +
-      (tab === 'rate' ? '<div class="hint">그 날 푼 사람끼리 추측 횟수를 겨루는 Elo 점수 (처음 1500). 오늘 결과는 잠정이라 사람이 더 풀면 조금 바뀌어요.</div>' : '') + '</div>' + pendingCard(R) +
+      (tab === 'rate' ? '<div class="hint">그 날 푼 사람끼리 추측 횟수를 겨루는 점수 (처음 1500점). 오늘 결과는 잠정이라 사람이 더 풀면 조금 바뀌어요.</div>' : '') + '</div>' + pendingCard(R) +
       '<p class="hint">순위는 1분마다 갱신돼요. 시즌은 분기(1 · 4 · 7 · 10월)마다 새로 시작해요.</p>';
     $('view').innerHTML = h;
   }
@@ -462,11 +480,29 @@
     $('view').innerHTML = h + '<p class="hint">추측한 단어는 서버에 저장돼서 기기를 바꿔도 이어서 할 수 있어요.</p>';
   }
 
+  function showTop(title, answer, top, sims, have) {
+    var h = '<h2>' + esc(title) + '</h2><p>정답: <b>' + esc(answer) + '</b></p><div class="toplist">';
+    top.forEach(function (ix, r) { var w = S.vocab[ix]; h += '<div class="' + (have && have[w] ? 'g' : '') + '"><span class="n">' + (r + 1) + '</span><span class="w">' + esc(w) + '</span><span class="s">' + f2(sims[ix]) + '</span></div>'; });
+    openModal(h + '</div><div class="btns"><button type="button" class="btn pri" data-x>닫기</button></div>');
+  }
   function topList() {
     var have = {}; guessWords().forEach(function (w) { have[w] = 1; });
-    var h = '<h2>비슷한 단어 TOP ' + TOPN + '</h2><p>비밀 단어: <b>' + esc(S.vocab[S.ans]) + '</b></p><div class="toplist">';
-    S.top.forEach(function (ix, r) { var w = S.vocab[ix]; h += '<div class="' + (have[w] ? 'g' : '') + '"><span class="n">' + (r + 1) + '</span><span class="w">' + esc(w) + '</span><span class="s">' + f2(S.sims[ix]) + '</span></div>'; });
-    openModal(h + '</div><div class="btns"><button type="button" class="btn pri" data-x>닫기</button></div>');
+    showTop('비밀 단어와 가까운 단어 ' + TOPN + '개', S.vocab[S.ans], S.top, S.sims, have);
+  }
+  /** 어제 정답과 가까운 단어 1000개 (어제 정답은 이미 공개) */
+  function yesterdayList() {
+    if (S.yd) return showTop('어제 정답과 가까운 단어 ' + TOPN + '개', S.yd.answer, S.yd.top, S.yd.sims, null);
+    toast('불러오는 중…');
+    api('semYesterday', []).then(function (r) {
+      if (!r || !r.ready) return toast('어제 문제가 없어요', true);
+      if (S.srv.vh && r.vh && S.srv.vh !== r.vh) return toast('단어 목록이 달라서 볼 수 없어요', true);
+      var sims = decodeTable(r.table, r.n), best = 0;
+      for (var i = 1; i < sims.length; i++) if (sims[i] > sims[best]) best = i;
+      var order = []; for (var j = 0; j < sims.length; j++) if (j !== best) order.push(j);
+      order.sort(function (a, b) { return sims[b] - sims[a]; });
+      S.yd = { answer: S.vocab[best] || r.answer, top: order.slice(0, TOPN), sims: sims };
+      showTop('어제 정답과 가까운 단어 ' + TOPN + '개', S.yd.answer, S.yd.top, sims, null);
+    }, function (e) { toast(e.message, true); });
   }
 
   /* ================= 이벤트 ================= */
@@ -477,6 +513,9 @@
     var t = e.target.closest('button'); if (!t) return;
     switch (t.id) {
       case 'login': return startLogin();
+      case 'goHome': location.href = ROOT; return;
+      case 'ydBtn': return yesterdayList();
+      case 'logoutBtn': if (confirm('로그아웃할까요?\n(잠만보 앱도 함께 로그아웃돼요)')) { lsSet(LS.auth, null); location.reload(); } return;
       case 'hintBtn': return hint();
       case 'giveBtn': return giveUp();
       case 'share': return share();
