@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow, noai, noimageai">
+<!-- 보안: 이 페이지가 불러오거나 접속할 수 있는 곳 (서버 없음 — 글꼴만 밖에서 받음, 랭킹용 공용 arcade.js 가 쓰는 서버 주소 포함) -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://cdn.jsdelivr.net data:; img-src 'self' data: blob:; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://cdn.jsdelivr.net; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>잠만보 모임 도구함</title>
+<meta name="description" content="보드게임 점수판 · 주사위 · 동전 · 팀 나누기 · 순서 정하기 — 모임에서 바로 쓰는 도구">
+<meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1014" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="모임 도구함">
+<link rel="icon" type="image/png" href="../icon-192.png">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" integrity="sha384-GIdEBaqGN9mNkDkMkzMHW8EKUqtpPIe/sLj1X7DIrnc9uPtLROJgmuDlh+3rBw0j" crossorigin="anonymous">
+<link rel="stylesheet" href="style.css?v=1.0.0">
+<link rel="stylesheet" href="../adaptive.css?v=1">
+<script src="../adaptive.js?v=1"></script>
+</head>
+<body>
+<div id="app">
+  <header class="bar">
+    <button type="button" class="ibtn" id="back" aria-label="잠만보 홈으로"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <div class="ttl"><b>모임 도구함</b><small id="sub">점수판 · 주사위 · 팀 나누기</small></div>
+    <span class="ibtn ph" aria-hidden="true"></span>
+  </header>
+  <nav class="tabs" id="tabs" role="tablist" aria-label="도구">
+    <button type="button" role="tab" data-tab="sb">📝 점수판</button>
+    <button type="button" role="tab" data-tab="dice">🎲 주사위</button>
+    <button type="button" role="tab" data-tab="team">👥 팀 · 순서</button>
+  </nav>
+  <main class="wrap" id="view"></main>
+</div>
+<div id="modal"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<noscript><p style="padding:24px">자바스크립트를 켜야 이용할 수 있어요.</p></noscript>
+<script src="../config.js"></script>
+<script src="../fx.js?v=1"></script>
+<script src="../arcade.js?v=2"></script>
+<script src="app.js?v=1.0.0"></script>
+</body>
+</html>
