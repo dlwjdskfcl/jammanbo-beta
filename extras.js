@@ -15,6 +15,7 @@
     // admin: 운영진 모드일 때만 보임 (아직 회원에게 공개 안 함 — 주소로는 열림)
     { id: 'sound', admin: true, href: ROOT + 'sound/?reset', emoji: '🔊', name: '사운드보드', desc: '대회 · 머더미스터리 · 할로윈 BGM · 효과음', bg:'linear-gradient(135deg,#fff9db,#ffec99)', bgDark: 'linear-gradient(135deg,#3b3010,#4a3c12)' },
     { id: 'aging', admin: true, href: ROOT + 'aging/?reset', emoji: '🕹️', name: '에이징 커브 검사', desc: '미니게임으로 재는 게임 피지컬 나이 · 주 1회 기록', bg: 'linear-gradient(135deg,#fff4e6,#ffd8a8)', bgDark: 'linear-gradient(135deg,#3a2a12,#4a3315)' },
+    { id: 'semantle', admin: true, href: ROOT + 'semantle/?reset', emoji: '🔤', name: '꼬맨틀', desc: '매일 하나, 뜻이 가까운 단어로 찾는 비밀 단어 · 모임 순위', bg: 'linear-gradient(135deg,#fff0f6,#fcc2d7)', bgDark: 'linear-gradient(135deg,#3d1528,#4f1c34)' },
     { id: 'map', href: ROOT + 'map/?reset', emoji: '📍', name: '장소 지도', desc: '모임 장소 · 맛집 지도', bg: 'linear-gradient(135deg,#e6fcf5,#c3fae8)', bgDark: 'linear-gradient(135deg,#0f2f27,#134235)' },
     // ext: 외부 사이트 — 새 창으로 열고 ↗ 표시. 결과는 앱의 '내 기록 > 방탈출 탱쫄'에서 기록
     // 아르마니여름 디펜스 — 별도 사이트(GitHub Pages 저장소 jammanbo-defense). 카카오 로그인은 같은 출처 저장소(localStorage)를 게임이 읽어 서버에서 전용 입장권으로 바꿔 씀. 운영 사이트(ROOT=/jammanbo/)가 아니면 ?env=beta 로 게임이 테스트 서버를 씀 (화면 안쪽 JMB_CONFIG 에는 env 가 없어 ROOT 로 구분)
@@ -201,10 +202,33 @@
     else view.insertBefore(box, view.firstChild);
   }
 
+  /* 꼬맨틀 카드 문구: 오늘 몇 명이 맞혔는지 · 아직 안 푼 사람 (메인 서버 semBrief, 5분 캐시, 실패해도 카드는 그대로) */
+  function semCardText(b) {
+    var n = b.solvedToday || 0, names = (b.pending || []).slice(0, 3).map(function (p) { return p.nick; }).join(' · ');
+    if (!b.ready) return '오늘 문제 준비 중';
+    if (b.done) return '✅ 오늘 완료 · ' + n + '명 정답' + (names ? ' · 👀 아직 ' + names : '');
+    return n + '명이 맞혔어요 · 아직 안 풀었다면?' + (b.streak ? ' 🔥' + b.streak + '일 연속 지키기' : '');
+  }
+  function semBrief() {
+    try {
+      var els = document.querySelectorAll('a[data-g="semantle"] small');
+      if (!els.length || !window.JMB_CONFIG || !JMB_CONFIG.api) return;
+      var put = function (b) { for (var i = 0; i < els.length; i++) els[i].textContent = semCardText(b); };
+      var c = null; try { c = JSON.parse(sessionStorage.getItem('jmb_sem_brief') || 'null'); } catch (e) {}
+      if (c && Date.now() - c.t < 300000) return put(c.b);
+      var tok = window.JMB_AUTH && JMB_AUTH.token ? JMB_AUTH.token() : '';
+      var beta = !/^\/jammanbo\/$/.test(ROOT);   // 화면 안쪽 JMB_CONFIG 에는 env 가 없어 ROOT 로 구분
+      fetch(JMB_CONFIG.api, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: 'semBrief', args: [tok || ''], env: beta ? 'beta' : undefined }) })
+        .then(function (r) { return r.json(); })
+        .then(function (j) { if (j && j.ok && j.r) { try { sessionStorage.setItem('jmb_sem_brief', JSON.stringify({ t: Date.now(), b: j.r })); } catch (e) {} put(j.r); } })
+        .catch(function () {});
+    } catch (e) {}
+  }
+
   function decorate() {
     try {
       if (menu && !document.body.contains(document.getElementById('jmbTichuBtn'))) closeMenu();   // 화면이 다시 그려져 버튼이 바뀌었으면 메뉴 닫기
-      header(); icons(); home();
+      header(); icons(); home(); semBrief();
     } catch (e) {}
   }
 
