@@ -9,7 +9,7 @@
   var C = window.BingoCore;
   if (!C) return;
   var FX = window.JMB_FX || { avatar: function () { return ''; }, haptic: function () {}, confetti: function () {}, capture: function () { return Promise.reject(new Error('이미지 도구를 불러오지 못했어요')); } };
-  var VER = '1.0.0';
+  var VER = '1.0.1';
   var $ = function (id) { return document.getElementById(id); };
   var ROOT = (function () { var seg = location.pathname.split('/')[1] || ''; return /\.github\.io$/.test(location.hostname) && seg ? '/' + seg + '/' : '/'; })();
   var COARSE = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
@@ -234,7 +234,7 @@
     var prev = ''; for (var i = H.n - 2; i >= 0 && i >= H.n - 7; i--) prev += ball(order[i], p.range, 'sm');
     var chips = rs.map(function (r) {
       var rank = r.won ? winners.indexOf(r) + 1 : 0;
-      return '<button type="button" class="pchip' + (r.won ? ' won' : '') + '" data-act="verify" data-n="' + esc(r.name) + '">' + FX.avatar(r.name, 26) + '<b>' + esc(r.name) + '</b><em>' + (r.won ? '🎉 ' + rank + '등 · ' + r.reach + '번째' : r.count + '줄') + '</em></button>';
+      return '<button type="button" class="pchip' + (r.won ? ' won' : '') + '" data-act="verify" data-n="' + esc(r.name) + '">' + FX.avatar(C.normName(r.name), 26) + '<b>' + esc(r.name) + '</b><em>' + (r.won ? '🎉 ' + rank + '등 · ' + r.reach + '번째' : r.count + '줄') + '</em></button>';
     }).join('');
     return '<div class="host"><div class="hl">' +
       '<section class="card codec"><small>방 코드</small><div class="code" aria-label="방 코드 ' + H.code + '">' + H.code.split('').map(function (d) { return '<i>' + d + '</i>'; }).join('') + '</div>' +
@@ -260,18 +260,19 @@
       (chips ? '<div class="pchips">' + chips + '</div>' : '<p class="hint">누가 “빙고!”를 외치면 이름을 넣어 보세요. 그 사람의 판과 지금까지 뽑은 번호로 진짜인지 바로 알려 줘요. 명단을 미리 넣어 두면 빙고가 된 순간 알려 주고, 폰 없이 이 화면만으로도 진행할 수 있어요.</p>') +
       '</section></div>' +
       (S.tv && rs.length ? '<section class="card tv"><h3>모두의 판</h3><div class="minis">' + rs.map(function (r) {
-        return '<div class="mb' + (r.won ? ' won' : '') + '"><div class="mh">' + FX.avatar(r.name, 22) + '<b>' + esc(r.name) + '</b><em>' + (r.won ? '빙고!' : r.count + '줄') + '</em></div>' + miniBoard(r) + '</div>';
+        return '<div class="mb' + (r.won ? ' won' : '') + '"><div class="mh">' + FX.avatar(C.normName(r.name), 22) + '<b>' + esc(r.name) + '</b><em>' + (r.won ? '빙고!' : r.count + '줄') + '</em></div>' + miniBoard(r) + '</div>';
       }).join('') + '</div></section>' : '') +
       '<div class="btns foot"><button type="button" class="btn sm" data-act="newRoom">새 방 만들기</button><button type="button" class="btn sm" data-act="closeRoom">방 닫기</button></div></div>';
   }
   function verifySheet(name) {
     var H = S.host, p = C.parseCode(H.code), r = rosterState({ code: H.code, n: H.n, roster: [name] })[0];
-    sheet('<h2>' + FX.avatar(name, 30) + ' ' + esc(name) + '</h2>' +
+    sheet('<h2>' + FX.avatar(C.normName(name), 30) + ' ' + esc(name) + '</h2>' +
       '<div class="note ' + (r.won ? 'ok' : 'warn') + '">' + (r.won
         ? '✅ 빙고 맞아요 — ' + r.reach + '번째 번호에서 ' + C.goalName(p.goal) + ' 완성 (지금 ' + r.count + '줄)'
         : '아직이에요 — 지금 ' + r.count + '줄 / 목표 ' + C.goalName(p.goal) + ' (뽑은 번호 ' + H.n + '개)') + '</div>' +
       (p.range === 75 ? headHtml() : '') + boardHtml(r.b.map(function (v, i) { return { t: v ? v : '★', on: r.marks[i], ln: r.cells[i], free: !v }; }), { cls: 'mid' }) +
-      '<p class="hint">이름이 같으면 판도 같아요. 참가자 화면의 판과 다르면 이름(띄어쓰기는 무시)을 확인하세요.</p>' +
+      '<p class="hint"><b style="color:var(--gold,#f59f00)">주황</b> = 완성된 줄 · <b style="color:var(--accent,#3b5bdb)">파랑</b> = 불렸지만 줄은 아님 · ★ = 무료 칸</p>' +
+      '<p class="hint">이름이 같으면 판도 같아요. 참가자 화면의 판과 다르면 이름(띄어쓰기 · 대소문자는 무시)을 확인하세요. 같은 이름이 둘이면 뒤에 숫자를 붙이세요 (예: 민수2).</p>' +
       '<div class="btns"><button type="button" class="btn pri" data-act="closeSheet">닫기</button><button type="button" class="btn" data-act="delWho" data-n="' + esc(name) + '">명단에서 빼기</button></div>');
   }
   function addRoster(names) {
@@ -289,7 +290,7 @@
   function playClaim() { var P = S.play, p = C.parseCode(P.code); return C.claim(C.board(P.code, P.name), P.marks, orderOf(P.code), p.goal); }
   function viewPlay() {
     var P = S.play, p = C.parseCode(P.code), b = C.board(P.code, P.name), cl = playClaim(), won = cl.count >= p.goal;
-    return '<div class="pinfo">' + FX.avatar(P.name, 34) + '<div><b>' + esc(P.name) + '</b><small>방 ' + P.code + ' · 1~' + p.range + ' · 목표 ' + C.goalName(p.goal) + '</small></div>' +
+    return '<div class="pinfo">' + FX.avatar(C.normName(P.name), 34) + '<div><b>' + esc(P.name) + '</b><small>방 ' + P.code + ' · 1~' + p.range + ' · 목표 ' + C.goalName(p.goal) + '</small></div>' +
       '<div class="lines"><b>' + cl.count + '</b>줄' + (p.goal < 12 ? dots(cl.count, p.goal) : '') + '</div></div>' +
       (won ? '<div class="bingo pop"><b>빙고!</b><span>검증 번호 <em>' + cl.need + '</em></span><small>진행자에게 이름과 이 화면을 보여 주세요. 진행자가 뽑은 번호가 ' + cl.need + '개 이상이면 진짜 빙고예요.</small></div>' : '') +
       '<div id="cap" class="capbox">' + (p.range === 75 ? headHtml() : '') +
@@ -309,6 +310,7 @@
       (ai ? '<div class="lab">AI 상대 수</div>' + seg('ais', [[1, '1명'], [2, '2명'], [3, '3명']], OPT.ais) + '<div class="lab">난이도</div>' + seg('level', LEVELS, OPT.level)
         : '<div class="lab">인원</div>' + seg('humans', [[2, '2명'], [3, '3명'], [4, '4명']], OPT.humans) + '<div class="names">' + names + '</div>') +
       '<div class="lab">빙고 목표</div>' + seg('dgoal', [[3, '3줄'], [5, '5줄']], OPT.dgoal) +
+      (ai ? '<p class="hint">🏆 모임 랭킹에는 <b>어려움 AI</b> 와 한 판만 올라가요 (연승 · 3줄 목표는 빠른 빙고 기록도).</p>' : '') +
       '<div class="btns"><button type="button" class="btn pri" data-act="duelStart">판 만들러 가기</button></div>' +
       (S.duel && S.duel.phase !== 'end' ? '<button type="button" class="link" data-act="go" data-v="duel">하던 게임 이어서</button>' : '') +
       '</section>' + statsHtml();
@@ -419,9 +421,9 @@
   var W_PEOPLE = '오늘 처음 옴,게임 10개 넘게 소장,룰북 읽기 즐김,밤샘 게임 해 봄,게임 설명 잘함,방탈출 좋아함,마피아 잘함,협력 게임파,3시간 게임 해 봄,티츄 원투 해 봄,왼손잡이,반려동물 키움,민초 좋아함,대중교통으로 옴,나와 같은 달 생일,나와 같은 MBTI,아침형 인간,올해 여행 다녀옴,악기 연주 가능,운동 주 3회,커피 안 마심,주사위 운 없음,슬리브 꼭 씌움,펀딩으로 게임 삼,대회 나가 봄,게임하다 삐쳐 봄,모임 5번 넘게 옴,오늘 게임 들고 옴,파티 게임파,1인플 해 봄,점수 계산 담당,셔플 잘함,보드게임 카페 단골,나와 같은 성씨,안경 씀'.split(',');
   var W_EXP = '꼴찌에서 역전승,룰 틀린 채 한 판,컴포 잃어버림,밤샘 게임,설명만 30분,주사위 1만 연속,배신당함,배신함,같은 게임 3연속,새 게임 개봉,룰북 정독,영상으로 룰 공부,사고 안 뜯은 게임,슬리브 씌우기,지고 “한 판 더!”,0점 기록,만점 승리,협력 게임 클리어,마피아로 승리,티츄 성공,라지 티츄 실패,폭탄으로 역전,게임 추천 성공,모임 지각,모임 개설,게임 선물하기,중고 거래,펀딩 참여,확장 구매,트릭테이킹 입문,3시간 넘는 게임,장고로 눈총,킹메이킹 당함,음료 쏟을 뻔,남의 턴에 딴짓'.split(',');
   var THEMES = [
-    { id: 'games', ic: '🎲', name: '보드게임 제목', title: '해 본 보드게임 빙고', sub: '해 본 게임에 체크 — 누가 먼저 줄을 만들까' },
+    { id: 'games', ic: '🎲', name: '보드게임 제목', title: '해 본 보드게임 빙고', sub: '해 본 게임에 체크 — 각자 폰에서 같은 주제로 만들고, 누가 먼저 줄을 만드는지 겨뤄요 (판은 섞여서 사람마다 달라요)' },
     { id: 'people', ic: '🙋', name: '사람 찾기', title: '사람 찾기 빙고', sub: '돌아다니며 해당하는 사람을 찾아 이름을 적어요', who: true },
-    { id: 'exp', ic: '🏅', name: '보드게이머 경험', title: '보드게이머 경험 빙고', sub: '겪어 본 일에 체크' },
+    { id: 'exp', ic: '🏅', name: '보드게이머 경험', title: '보드게이머 경험 빙고', sub: '겪어 본 일에 체크 — 각자 폰에서 만들고 먼저 줄을 만드는 사람이 "빙고!"' },
     { id: 'custom', ic: '✏️', name: '직접 입력', title: '', sub: '낱말을 직접 넣어 판을 만들어요' }
   ];
   function themeOf(id) { return THEMES.filter(function (t) { return t.id === id; })[0] || THEMES[0]; }

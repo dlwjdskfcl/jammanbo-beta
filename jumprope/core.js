@@ -109,7 +109,7 @@
           var stop = TAU - 0.95;
           push(P * stop / TAU, g.dir * stop, 'lin', false, 'fake1');
           push(0.32, g.dir * (TAU - 2.3), 'out', false, 'fake2');
-          push(0.42, g.dir * TAU, 'in', true, 'fake');
+          push(0.5, g.dir * TAU, 'in', true, 'fake');
           return;
         }
         rot(P, 'lin', 'normal', kind);   // 예고하는 한 바퀴

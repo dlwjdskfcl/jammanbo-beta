@@ -5,7 +5,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.0.0';
+  var VER = '1.0.1';
   var C = window.JR_CORE, FX = window.JMB_FX || {}, ARC = window.JMB_ARCADE || null;   // ARC: 모임 랭킹(../arcade.js)
   var TAU = Math.PI * 2, AIR = C.AIR;
   var $ = function (id) { return document.getElementById(id); };
@@ -515,7 +515,11 @@
   }
   function leave() { if (history.state && history.state.jr) history.back(); else quitGame(); }
   // 뒤로가기 = 그만하기. 랭킹 창(arcade.js 가 쌓은 한 칸)을 닫는 뒤로가기는 아직 게임 칸({jr:1})이라 그대로 둠
-  window.addEventListener('popstate', function () { if (RUN && !(history.state && history.state.jr)) quitGame(); });
+  window.addEventListener('popstate', function () {
+    if (!RUN || (history.state && history.state.jr)) return;
+    if (!RUN.ended && !RUN.paused && !boardOpen()) { try { history.pushState({ jr: 1 }, ''); } catch (e) {} pauseGame(); return; }   // 첫 뒤로가기 = 일시정지 (실수로 긴 판을 잃지 않게)
+    quitGame();
+  });
   // 랭킹 창이 떠 있으면 Space · Enter 가 뒤에 있는 버튼(다시 하기 등)을 누르거나 점프하지 않게
   document.addEventListener('keydown', function (e) {
     if (!boardOpen() || (e.target.closest && e.target.closest('.jarc-bg'))) return;

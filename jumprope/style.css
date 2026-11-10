@@ -209,3 +209,7 @@ html[data-pointer=coarse] .pad .key{display:none}
   .banner{font-size:17px;padding:5px 14px}
 }
 @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+
+.firsttip{margin:10px 2px 0;padding:9px 12px;border-radius:12px;background:var(--surface2,#f2f4f7);color:var(--ink2,#4e5968);font-size:13px;line-height:1.5;word-break:keep-all}
+.firsttip b{color:var(--ink,#191f28)}
+.mode small{word-break:keep-all}

@@ -17,7 +17,7 @@
   function shuffle(a, r) { r = r || Math.random; for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(r() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
   function seq(n) { var a = []; for (var i = 1; i <= n; i++) a.push(i); return a; }
 
-  function normName(s) { s = String(s == null ? '' : s); if (s.normalize) s = s.normalize('NFC'); return s.replace(/\s+/g, '').toLowerCase(); }
+  function normName(s) { s = String(s == null ? '' : s); if (s.normalize) s = s.normalize('NFKC'); return s.replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').replace(/\s+/g, '').toLowerCase(); }
   function normCode(s) { return String(s == null ? '' : s).replace(/\D/g, '').slice(0, 5); }
   function makeCode(range, goal, r) {
     var ri = Math.max(0, RANGES.indexOf(range)), gi = GOALS.indexOf(goal); if (gi < 0) gi = 2;
