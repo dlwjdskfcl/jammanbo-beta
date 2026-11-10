@@ -118,8 +118,8 @@
     if (cssDone) return; cssDone = true;
     var st = D.createElement('style');
     st.textContent =
-      '.jarc-pill{position:fixed;left:50%;top:calc(66px + env(safe-area-inset-top));transform:translate(-50%,-260%);z-index:9998;max-width:calc(100vw - 24px);background:var(--ink,#191f28);color:var(--bg,#fff);font:700 14px/1.35 var(--sans,"Pretendard Variable",Pretendard,system-ui,sans-serif);padding:10px 16px;border-radius:999px;box-shadow:0 8px 24px rgba(0,0,0,.25);cursor:pointer;transition:transform .35s cubic-bezier(.2,1.2,.3,1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:0}' +
-      '.jarc-pill.on{transform:translate(-50%,0)}' +
+      '.jarc-pill{position:fixed;left:50%;top:calc(66px + env(safe-area-inset-top));transform:translate(-50%,-260%);z-index:9998;max-width:calc(100vw - 24px);background:var(--ink,#191f28);color:var(--bg,#fff);font:700 14px/1.35 var(--sans,"Pretendard Variable",Pretendard,system-ui,sans-serif);padding:10px 16px;border-radius:999px;box-shadow:0 8px 24px rgba(0,0,0,.25);cursor:pointer;transition:transform .35s cubic-bezier(.2,1.2,.3,1),opacity .2s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:0;opacity:0;pointer-events:none}' +
+      '.jarc-pill.on{transform:translate(-50%,0);opacity:1;pointer-events:auto}' +
       '.jarc-bg{position:fixed;inset:0;z-index:9997;background:rgba(10,14,22,.5);display:flex;align-items:flex-end;justify-content:center;animation:jarcFade .18s both;font-family:var(--sans,"Pretendard Variable",Pretendard,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif);letter-spacing:-.01em}' +
       '@keyframes jarcFade{from{opacity:0}}@keyframes jarcUp{from{transform:translateY(24px);opacity:0}}' +
       '.jarc-sheet{--a:var(--accent,#3b5bdb);width:100%;max-width:520px;max-height:min(86vh,720px);display:flex;flex-direction:column;background:var(--surface,#fff);color:var(--ink,#191f28);border-radius:22px 22px 0 0;box-shadow:0 -8px 40px rgba(0,0,0,.25);animation:jarcUp .22s cubic-bezier(.2,1,.3,1) both;padding-bottom:env(safe-area-inset-bottom)}' +
