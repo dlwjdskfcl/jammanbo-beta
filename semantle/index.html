@@ -6,6 +6,7 @@
 <!-- 보안: 이 페이지가 불러오거나 접속할 수 있는 곳 (서버 주소를 바꾸면 여기도) -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://cdn.jsdelivr.net data:; img-src 'self' data: blob:; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://cdn.jsdelivr.net; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="format-detection" content="telephone=no">
 <title>잠만보 꼬맨틀</title>
 <meta name="description" content="매일 하나, 비밀 단어를 뜻이 가까운 단어로 찾아가는 단어 추리 게임 — 모임 순위 대결">
 <meta property="og:title" content="잠만보 꼬맨틀">
@@ -20,10 +21,11 @@
 <link rel="apple-touch-icon" href="../apple-touch-icon.png">
 <link rel="preconnect" href="https://script.google.com" crossorigin>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" integrity="sha384-GIdEBaqGN9mNkDkMkzMHW8EKUqtpPIe/sLj1X7DIrnc9uPtLROJgmuDlh+3rBw0j" crossorigin="anonymous">
-<link rel="stylesheet" href="style.css?v=1.4.0">
+<link rel="stylesheet" href="style.css?v=1.5.0">
 </head>
 <body>
 <div id="app">
+  <div class="top" id="top">
   <header class="bar">
     <button type="button" class="ibtn" id="back" aria-label="뒤로"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
     <div class="ttl"><b id="ttl">꼬맨틀</b><small id="sub">오늘의 비밀 단어를 찾아라</small></div>
@@ -35,6 +37,7 @@
     <button type="button" role="tab" data-v="rank">🏆 순위</button>
     <button type="button" role="tab" data-v="hist">📜 내 기록</button>
   </nav>
+  </div>
   <main class="wrap" id="view"></main>
 </div>
 <div id="modal"></div>
@@ -42,6 +45,6 @@
 <noscript><p style="padding:24px">자바스크립트를 켜야 이용할 수 있어요.</p></noscript>
 <script src="../config.js"></script>
 <script src="../fx.js?v=1"></script>
-<script src="app.js?v=1.4.0"></script>
+<script src="app.js?v=1.5.0"></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-/*! 잠만보 꼬맨틀 — 화면 v1.4.0
+/*! 잠만보 꼬맨틀 — 화면 v1.5.0
  * 매일 하나의 비밀 단어를 '뜻이 가까운 정도'(단어 의미 유사도)로 찾아가는 게임.
  * 서버 Semantle.gs (semToday · semStart · semSubmit · semRank): 오늘의 유사도 표를 한 번 받으면 추측마다 서버를 거치지 않음.
  * 로그인(카카오) 회원은 하루 한 번 기록 → 점수 · 순위 · 연속 · 배지. 로그인 안 해도 풀 수 있음(기록 없음).
@@ -6,13 +6,13 @@
  */
 (function () {
   'use strict';
-  var VER = '1.4.0';
+  var VER = '1.5.0';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   var ENV_SFX = ENV !== 'prod' ? '_' + ENV : '';
   var API = window.SEM_API_LOCAL || CFG.api || '';
   var ROOT = (function () { var seg = location.pathname.split('/')[1] || ''; return /\.github\.io$/.test(location.hostname) && seg ? '/' + seg + '/' : '/'; })();
-  var LS = { auth: 'jmb_kakao_v2' + ENV_SFX, state: 'jmb_kakao_state' + ENV_SFX, play: 'jmb_sem_play' + ENV_SFX, pend: 'jmb_sem_pend' + ENV_SFX, help: 'jmb_sem_help', tab: 'jmb_sem_tab' };
+  var LS = { auth: 'jmb_kakao_v2' + ENV_SFX, state: 'jmb_kakao_state' + ENV_SFX, play: 'jmb_sem_play' + ENV_SFX, pend: 'jmb_sem_pend' + ENV_SFX, help: 'jmb_sem_help', tab: 'jmb_sem_tab', sort: 'jmb_sem_sort' };
   var HINT_MAX = 3, HINT_COST = 15, TOPN = 1000, HINT_AT = [5, 15, 30];   // HINT_AT: 이만큼 추측하면 힌트가 하나씩 생김 (서버 SEM_CFG_.HINT_AT 와 같게)
   var BADGES = [   // 서버 Semantle.js badgesOf 와 같은 id
     { id: 'first', e: '🥇', n: '선두 주자', d: '그 날 가장 먼저 정답' },
@@ -26,7 +26,8 @@
     { id: 'sharp', e: '🧠', n: '감 좋은 사람', d: '평균 25번 안 (10번 이상)' }
   ];
   var S = { view: 'play', vocab: null, idx: null, sims: null, ans: -1, rankOf: null, top: null, srv: null, L: null, rank: null, rkTab: lsGet(LS.tab) || 'today',
-            nick: '', hist: null, histAt: 0, startP: null, busy: false, fb: null, lastW: '', t0: 0, scale: null };
+            nick: '', hist: null, histAt: 0, startP: null, busy: false, fb: null, lastW: '', t0: 0, scale: null,
+            sort: lsGet(LS.sort) === 'sim' ? 'sim' : 'order', scrollNew: false, scrollRes: false, sharing: false, focused: false };
 
   /* ================= 공통 ================= */
   function $(id) { return document.getElementById(id); }
@@ -57,7 +58,7 @@
   $('acct').onclick = function () {
     var s = session();
     if (!s) return startLogin();
-    if (!myNick()) { if (confirm('잠만보에서 카카오 계정에 모임 닉네임을 먼저 연결해 주세요. 잠만보로 갈까요?')) location.href = ROOT; return; }
+    if (!myNick()) { ask('닉네임 연결이 필요해요', '잠만보에서 카카오 계정에 모임 닉네임을 먼저 연결해 주세요.<br>잠만보로 갈까요?', '잠만보로 가기').then(function (ok) { if (ok) location.href = ROOT; }); return; }
     openModal('<div class="me-top">' + av(myNick(), 48) + '<div class="t"><b>' + esc(myNick()) + '</b><small>카카오로 로그인돼 있어요</small></div></div>' +
       '<div class="btns"><button type="button" class="btn pri" id="goHome">🏠 잠만보로 가기</button><button type="button" class="btn" id="logoutBtn">로그아웃 (잠만보 앱도 함께)</button><button type="button" class="btn" data-x>닫기</button></div>');
   };
@@ -187,7 +188,7 @@
   function addGuess(w, isHint) {
     if (recordable() && !S.L.nonce) ensureStart();
     S.L.g.push({ w: w, h: isHint ? 1 : 0, t: Date.now() });
-    S.lastW = w; saveLocal(); scheduleSave();
+    S.lastW = w; S.scrollNew = true; saveLocal(); scheduleSave();
     var tr = tier(w);
     if (tr === 6 && !S.L.done) return win(w);
     if (S.L.done && tr === 6) { toast('🎉 정답이에요! (연습)'); S.fb = null; render(); return; }
@@ -203,8 +204,8 @@
   function hintBtn() {
     var L = S.L, label, off = false;
     if (L.done) label = '💡 힌트 (연습)';
-    else if (hintsLeft() > 0) label = '💡 힌트 쓰기 (' + hintsLeft() + '개 남음' + (recordable() ? ' · −' + HINT_COST + '점' : '') + ')';
-    else { off = true; label = L.hints >= HINT_MAX ? '💡 힌트를 다 썼어요' : '🔒 힌트 (' + hintNext() + '번 더 추측하면 열려요)'; }
+    else if (hintsLeft() > 0) label = '💡 힌트 (' + hintsLeft() + '개 남음)';   // 점수 비용은 확인창에서 알려 줌 (버튼 글자가 두 줄로 꺾이지 않게 짧게)
+    else { off = true; label = L.hints >= HINT_MAX ? '💡 힌트를 다 썼어요' : '🔒 힌트 (' + hintNext() + '번 더 추측)'; }
     return '<button type="button" class="btn" id="hintBtn"' + (off ? ' disabled' : '') + '>' + label + '</button>';
   }
   function hint() {
@@ -220,27 +221,34 @@
     }
     if (pick < 0) return toast('더 줄 힌트가 없어요', true);
     var cost = rec ? ' (−' + HINT_COST + '점)' : '';
-    if (rec && !confirm('힌트를 볼까요?' + cost + '\n지금보다 정답에 가까운 단어 하나를 알려 줘요. (' + (S.L.hints + 1) + '/' + HINT_MAX + ')')) return;
-    if (gated) S.L.hints++;
-    addGuess(S.vocab[pick], true);
-    toast('💡 힌트: ‘' + S.vocab[pick] + '’ — ' + rankIn(S.vocab[pick]) + '위예요' + cost);
+    var use = function () {
+      if (S.L.done && gated) return;
+      if (gated) S.L.hints++;
+      addGuess(S.vocab[pick], true);
+      toast('💡 힌트: ‘' + S.vocab[pick] + '’ — ' + rankIn(S.vocab[pick]) + '위예요' + cost);
+    };
+    if (!rec) return use();
+    ask('💡 힌트를 볼까요?', '지금보다 정답에 가까운 단어 하나를 알려 줘요.<br>힌트 ' + (S.L.hints + 1) + '/' + HINT_MAX + ' · <b>−' + HINT_COST + '점</b>', '힌트 보기').then(function (ok) { if (ok) use(); });
   }
   function giveUp() {
     if (S.L.done) return;
-    if (!confirm('정말 포기할까요?' + (S.L.rec ? '\n정답 기록은 0점이고 연속 기록이 끊겨요.' : ''))) return;
-    finish(false);
-    if (S.L.rec) submit(false, ''); else render();
+    ask('🏳️ 정말 포기할까요?', S.L.rec ? '정답 기록은 <b>0점</b>이고 연속 기록이 끊겨요.' : '오늘 문제를 포기해요.', '포기하기', true).then(function (ok) {
+      if (!ok || S.L.done) return;
+      finish(false); S.scrollRes = true;
+      if (S.L.rec) submit(false, ''); else render();
+    });
   }
 
   /* ================= 끝 · 기록 ================= */
   function finish(isWin) { S.L.done = true; S.L.win = isWin; S.L.n = realCount(); S.L.cnt = S.L.g.length; saveLocal(); }
   function win(w) {
-    finish(true);
+    finish(true); S.scrollRes = true;
     try { JMB_FX.confetti({ x: .5, y: .35, count: 120, duration: 2400 }); } catch (e) {}
     hap('win');
     if (S.L.rec) submit(true, w); else render();
   }
   function submit(isWin, word) {
+    if (S.busy) return Promise.resolve();   // 두 번 누르거나 겹쳐도 한 번만 보냄
     S.busy = true; render();
     return ensureStart().then(function () {
       if (!S.L.rec || !S.L.nonce) { S.busy = false; render(); return; }
@@ -273,18 +281,43 @@
     return head + '\n' + line + '\n' + tiers.join('') + '\n👉 같이 해요 ' + location.origin + ROOT + 'semantle/';   // 정답 단어는 넣지 않음 (이모지 열기만)
   }
   function share() {
-    var text = shareText();
-    if (navigator.share) { navigator.share({ text: text }).catch(function () {}); return; }
-    (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(function () { toast('복사했어요. 단톡방에 붙여넣어 주세요'); }, function () { prompt('복사해서 붙여넣기 하세요', text); });
+    if (S.sharing) return;   // 공유창이 떠 있는 동안 또 누르면 오류가 나서 막음
+    S.sharing = true;
+    var text = shareText(), done = function () { S.sharing = false; };
+    if (navigator.share) { navigator.share({ text: text }).then(done, done); return; }
+    (navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(text) : Promise.reject()).then(function () { done(); toast('복사했어요. 단톡방에 붙여넣어 주세요'); }, function () { done(); copyBox(text); });
+  }
+  function copyBox(text) {   // 복사가 막힌 브라우저(인앱 브라우저 등): 글을 보여 주고 직접 복사하게
+    var sh = openModal('<h2>결과 복사</h2><p>아래 글을 길게 눌러 복사한 뒤 단톡방에 붙여넣어 주세요.</p><textarea class="cbox" readonly rows="5"></textarea><div class="btns"><button type="button" class="btn pri" data-x>닫기</button></div>');
+    var ta = sh.querySelector('.cbox'); ta.value = text; try { ta.focus(); ta.select(); } catch (e) {}
   }
 
-  /* ================= 창 ================= */
+  /* ================= 창 (뒤로가기 · ✕ · 바깥 탭 · ESC 로 닫힘) ================= */
+  var modalOpen = false, askRes = null, modalAt = 0;   // modalAt: 창이 열리거나 닫힌 시각 — 더블탭의 두 번째 탭이 바깥 영역이나 창 아래 버튼에 닿지 않게 0.35초는 탭을 무시
   function openModal(html) {
-    $('modal').innerHTML = '<div class="mbg" id="mbg"><div class="sheet" role="dialog" aria-modal="true">' + html + '</div></div>';
-    $('mbg').addEventListener('click', function (e) { if (e.target.id === 'mbg' || e.target.closest('[data-x]')) closeModal(); });
-    return $('mbg').firstChild;
+    var first = !modalOpen;
+    $('modal').innerHTML = '<div class="mbg" id="mbg"><div class="sheet" role="dialog" aria-modal="true" tabindex="-1"><button type="button" class="x" data-x aria-label="닫기">✕</button>' + html + '</div></div>';
+    modalOpen = true; modalAt = Date.now(); document.documentElement.classList.add('lock');
+    if (first) { try { history.pushState({ v: S.view, p: (history.state && history.state.p) || 0, m: 1 }, ''); } catch (e) {} }   // 안드로이드 뒤로가기 · 아이폰 스와이프로 창만 닫힘
+    var m = $('mbg');
+    m.addEventListener('click', function (e) { if (Date.now() - modalAt < 350) return; if (e.target === m || e.target.closest('[data-x]')) closeModal(); });
+    var sh = m.firstChild; try { sh.focus({ preventScroll: true }); } catch (e) {}
+    return sh;
   }
-  function closeModal() { $('modal').innerHTML = ''; }
+  function closeModal(fromPop) {
+    if (!modalOpen) return;
+    modalOpen = false; modalAt = Date.now(); $('modal').innerHTML = ''; document.documentElement.classList.remove('lock');
+    if (askRes) { var r = askRes; askRes = null; r(false); }   // 확인창을 그냥 닫으면 '취소'
+    if (!fromPop && history.state && history.state.m) { try { history.back(); } catch (e) {} }
+  }
+  /** 화면 안 확인창 (기본 confirm 은 카카오톡 등 인앱 브라우저에서 막히는 경우가 있음). Promise<true|false> */
+  function ask(title, text, okLabel, danger) {
+    return new Promise(function (res) {
+      if (askRes) askRes(false);
+      askRes = res;
+      openModal('<h2>' + esc(title) + '</h2><p>' + text + '</p><div class="btns two"><button type="button" class="btn" data-x>취소</button><button type="button" class="btn ' + (danger ? 'dng' : 'pri') + '" id="askOk">' + esc(okLabel || '확인') + '</button></div>');
+    });
+  }
   function help() {
     lsSet(LS.help, '1');
     openModal('<h2>🎯 꼬맨틀 하는 법</h2>' +
@@ -305,7 +338,7 @@
   function tabsOn() { [].forEach.call($('tabs').children, function (b) { b.classList.toggle('on', b.getAttribute('data-v') === S.view); }); }
   /* ---------- 로그인 안 하면 시작 못 함 (서버도 로그인 없이는 문제를 안 줌) ---------- */
   function renderGate(hasSession) {
-    $('tabs').hidden = true;
+    $('tabs').hidden = true; updateTop();
     $('ttl').textContent = '꼬맨틀'; $('sub').textContent = '로그인하고 시작하세요';
     $('view').innerHTML = '<div class="card gate"><div class="em">🔒</div><h2>로그인하고 시작하세요</h2>' +
       '<p>꼬맨틀은 <b>잠만보 회원</b>만 할 수 있어요.<br>카카오로 로그인하면 기록 · 순위 · 레이팅이 남아요.</p>' +
@@ -356,36 +389,51 @@
     return h;
   }
   function rows() {
-    var L = S.L, list = L.g.map(function (x, i) { return { w: x.w, n: i + 1, s: simOf(x.w), r: rankIn(x.w), h: x.h, win: S.idx.get(x.w) === S.ans }; });
+    var L = S.L, list = L.g.map(function (x, i) { return { w: x.w, n: i + 1, s: simOf(x.w), r: rankIn(x.w), h: x.h, t: tier(x.w), win: S.idx.get(x.w) === S.ans }; });
     var last = S.lastW ? list.filter(function (o) { return o.w === S.lastW; })[0] : null;
-    var sorted = list.slice().sort(function (a, b) { return b.s - a.s; });
     function tr(o, cls) {
       var pct = Math.max(0, Math.min(100, o.s / (S.scale.r1 || 1) * 100));
       var rk = o.win ? '정답!' : o.r ? '<div class="rbar"><em>' + o.r + '</em><i><b style="width:' + Math.max(4, (TOPN - o.r + 1) / TOPN * 100) + '%"></b></i></div>' : '<span class="sub">1000위 밖</span>';
-      return '<tr class="' + cls + (o.h ? ' hintw' : '') + '"><td class="n">' + o.n + '</td><td class="w">' + esc(o.w) + '</td><td class="s">' + f2(o.s) + '<div class="bar2" style="width:' + (o.win ? 100 : pct) + '%"></div></td><td class="r">' + rk + '</td></tr>';
+      return '<tr' + (cls.indexOf('last') >= 0 ? ' id="lastRow"' : '') + ' class="' + cls + (o.h ? ' hintw' : '') + '"><td class="n">' + o.n + '</td><td class="w"><span class="te">' + TIER[o.t].e + '</span>' + esc(o.w) + '</td><td class="s">' + f2(o.s) + '<div class="bar2" style="width:' + (o.win ? 100 : pct) + '%"></div></td><td class="r">' + rk + '</td></tr>';
     }
-    var h = '<table class="gt"><thead><tr><th class="n">#</th><th>추측한 단어</th><th class="s">유사도</th><th class="r">순위</th></tr></thead><tbody>';
-    if (last && !last.win) h += tr(last, 'last') + '<tr><td colspan="4" style="padding:2px"></td></tr>';
-    sorted.forEach(function (o) { if (!(last && !last.win && o.w === last.w)) h += tr(o, o.win ? 'win' : ''); });
+    var h = '<div class="seg sm srt" id="sortSeg"><button type="button" data-sort="order" class="' + (S.sort === 'order' ? 'on' : '') + '">입력 순서</button><button type="button" data-sort="sim" class="' + (S.sort === 'sim' ? 'on' : '') + '">유사도 순</button></div>' +
+      '<table class="gt"><thead><tr><th class="n">#</th><th>추측한 단어</th><th class="s">유사도</th><th class="r">순위</th></tr></thead><tbody>';
+    if (S.sort === 'order') {   // 입력한 순서대로 1, 2, 3 … (새로 입력한 줄은 강조되고 화면이 따라감)
+      list.forEach(function (o) { h += tr(o, (o.win ? 'win ' : '') + (last && o.w === last.w ? 'last' : '')); });
+    } else {   // 유사도 높은 순 (마지막 추측은 맨 위에 따로)
+      if (last && !last.win) h += tr(last, 'last') + '<tr class="gap"><td colspan="4"></td></tr>';
+      list.slice().sort(function (a, b) { return b.s - a.s; }).forEach(function (o) { if (!(last && !last.win && o.w === last.w)) h += tr(o, o.win ? 'win' : ''); });
+    }
     return h + '</tbody></table>';
   }
+  /** 입력창은 한 번만 만들고 그대로 둠 (다시 만들면 아이폰에서 키보드가 깜빡이거나 내려감). 나머지 영역만 갱신 */
+  function ensurePlayFrame() {
+    if ($('gf')) return;
+    $('view').innerHTML = '<div id="pTop"></div><div class="stk" id="stk"><form class="gform" id="gf" autocomplete="off"><input id="gw" type="text" inputmode="text" enterkeyhint="send" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="20" lang="ko" aria-label="추측할 단어"><button type="submit" class="btn pri">추측</button></form><div class="fb" id="fb" aria-live="polite"></div></div><div class="tools" id="pTools"></div><div id="pList"></div>';
+  }
   function renderPlay() {
-    var L = S.L, h = '';
+    var L = S.L;
     if (!S.srv || !S.srv.ready) {
       $('view').innerHTML = '<div class="card empty">📭<br><b>오늘 문제가 아직 준비되지 않았어요</b><br><small>운영진에게 알려 주세요 (시트 ‘꼬맨틀사전’ 에 오늘 날짜가 없어요)</small></div>'; return;
     }
-    h += metaCard() + statusNote();
-    if (L.done) h += resultCard();
-    {
-      h += '<form class="gform" id="gf" autocomplete="off"><input id="gw" type="text" inputmode="text" enterkeyhint="send" placeholder="' + (L.done ? '더 추측해 볼까요? (연습)' : '단어를 입력하세요') + '" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="20" aria-label="추측할 단어"><button type="submit" class="btn pri">추측</button></form>';
-      var fb = S.fb; h += '<div class="fb t' + (fb ? fb.tr : 0) + '" id="fb">' + (fb ? TIER[fb.tr].e + ' ‘' + esc(fb.w) + '’ ' + TIER[fb.tr].t + (fb.r ? ' (' + fb.r + '위)' : '') : '') + '</div>';
-      h += '<div class="tools">' + hintBtn() + (L.done ? '' : '<button type="button" class="btn" id="giveBtn">🏳️ 포기</button>') + '</div>';
+    ensurePlayFrame();
+    $('pTop').innerHTML = metaCard() + statusNote() + (L.done ? resultCard() : '');
+    var inp = $('gw'); inp.placeholder = L.done ? '더 추측해 볼까요? (연습)' : '단어를 입력하세요';
+    var fb = S.fb; $('fb').className = 'fb t' + (fb ? fb.tr : 0);
+    $('fb').innerHTML = fb ? TIER[fb.tr].e + ' ‘' + esc(fb.w) + '’ ' + TIER[fb.tr].t + (fb.r ? ' (' + fb.r + '위)' : '') : '';
+    $('pTools').innerHTML = hintBtn() + (L.done ? '' : '<button type="button" class="btn" id="giveBtn">🏳️ 포기</button>');
+    $('pList').innerHTML = L.g.length ? '<div class="card" style="padding:8px 10px">' + rows() + '</div>'
+      : (!L.done ? '<p class="hint">처음 입력해 볼 단어는 뭐든 괜찮아요. 예: <b>사람</b> · <b>음식</b> · <b>하늘</b> — 점수가 높은 쪽으로 따라가 보세요!</p>' : '');
+    if (!S.focused && !L.done && !(navigator.maxTouchPoints > 0)) { S.focused = true; try { inp.focus({ preventScroll: true }); } catch (e) {} }   // 컴퓨터만 자동 포커스 (휴대폰은 키보드가 화면을 가리지 않게)
+    var beh = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+    if (S.scrollRes && L.done && !S.busy) {   // 정답 · 포기 직후에는 결과 카드로
+      var rc = document.querySelector('.res');
+      if (rc) { S.scrollRes = false; setTimeout(function () { rc.scrollIntoView({ block: 'start', behavior: beh }); }, 60); }
+    } else if (S.scrollNew) {   // 새로 입력한 줄이 보이게
+      S.scrollNew = false;
+      var lr = $('lastRow');
+      if (lr) setTimeout(function () { lr.scrollIntoView({ block: 'center', behavior: beh }); }, 60);
     }
-    if (L.g.length) h += '<div class="card" style="padding:8px 10px">' + rows() + '</div>';
-    else if (!L.done) h += '<p class="hint">처음 입력해 볼 단어는 뭐든 괜찮아요. 예: <b>사람</b> · <b>음식</b> · <b>하늘</b> — 점수가 높은 쪽으로 따라가 보세요!</p>';
-    var keep = document.activeElement && document.activeElement.id === 'gw' ? $('gw').value : '';
-    $('view').innerHTML = h;
-    var inp = $('gw'); if (inp) { if (keep) inp.value = keep; if (!L.done || S.fb) { try { inp.focus({ preventScroll: true }); } catch (e) {} } }
   }
 
   /* ---------- 순위 ---------- */
@@ -518,16 +566,22 @@
   }
 
   /* ================= 이벤트 ================= */
-  document.addEventListener('submit', function (e) { if (e.target.id === 'gf') { e.preventDefault(); var v = $('gw').value; $('gw').value = ''; guess(v); } });
+  var lastAct = {};
+  function guard(k, ms) { var n = Date.now(); if (lastAct[k] && n - lastAct[k] < (ms || 500)) return false; lastAct[k] = n; return true; }   // 더블 탭 · 연타로 두 번 처리되지 않게
+  document.addEventListener('submit', function (e) { if (e.target.id === 'gf') { e.preventDefault(); var inp = $('gw'), v = inp.value; inp.value = ''; guess(v); } });
   document.addEventListener('click', function (e) {
-    var rk = e.target.closest('.rk[data-nick]'); if (rk) return profile(rk.getAttribute('data-nick'));
-    var pc = e.target.closest('[data-pnick]'); if (pc) return profile(pc.getAttribute('data-pnick'));
+    if (Date.now() - modalAt < 350) return;   // 창이 막 열리거나 닫힌 직후의 겹친 탭(더블탭의 두 번째)은 무시
+    var rk = e.target.closest('.rk[data-nick]'); if (rk) { if (guard('rk', 450)) profile(rk.getAttribute('data-nick')); return; }
+    var pc = e.target.closest('[data-pnick]'); if (pc) { if (guard('pc', 450)) profile(pc.getAttribute('data-pnick')); return; }
     var t = e.target.closest('button'); if (!t) return;
+    var so = t.getAttribute('data-sort'); if (so) { S.sort = so === 'sim' ? 'sim' : 'order'; lsSet(LS.sort, S.sort); S.scrollNew = false; return renderPlay(); }
+    if (t.id && !guard('b:' + t.id, 450)) return;
     switch (t.id) {
       case 'login': return startLogin();
       case 'goHome': location.href = ROOT; return;
       case 'ydBtn': return yesterdayList();
-      case 'logoutBtn': if (confirm('로그아웃할까요?\n(잠만보 앱도 함께 로그아웃돼요)')) { lsSet(LS.auth, null); location.reload(); } return;
+      case 'askOk': { var r = askRes; askRes = null; closeModal(); if (r) setTimeout(function () { r(true); }, 80); return; }   // 창이 닫힌 뒤에 다음 동작
+      case 'logoutBtn': ask('로그아웃할까요?', '잠만보 앱도 함께 로그아웃돼요.', '로그아웃', true).then(function (ok) { if (ok) { lsSet(LS.auth, null); location.reload(); } }); return;
       case 'hintBtn': return hint();
       case 'giveBtn': return giveUp();
       case 'share': return share();
@@ -540,21 +594,48 @@
     if (t.parentNode && t.parentNode.id === 'rkTabs') { S.rkTab = t.getAttribute('data-t'); lsSet(LS.tab, S.rkTab); renderRank(); }
   });
   $('tabs').addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) go(b.getAttribute('data-v')); });
-  function go(v) { S.view = v; if (v === 'rank' && S.rank && Date.now() - S.rank.at > 30000) S.rank = null; if (v === 'hist' && Date.now() - S.histAt > 30000) S.hist = null; render(); window.scrollTo(0, 0); }
-  $('back').onclick = function () { if (S.view !== 'play') return go('play'); location.href = ROOT; };
-  $('helpBtn').onclick = help;
+  /* 화면 이동과 뒤로가기: 오늘 문제 → 순위 · 내 기록은 한 칸 쌓아서(뒤로가기 = 오늘 문제), 순위 ↔ 내 기록은 갈아끼움. 창(모달)은 한 칸 쌓여서 뒤로가기로 닫힘 */
+  function go(v) {
+    if (v === S.view) { window.scrollTo(0, 0); return; }
+    var st = history.state || {};
+    if (v === 'play' && st.p) { try { history.back(); return; } catch (e) {} }   // popstate 가 화면을 바꿈
+    var push = S.view === 'play' && v !== 'play';
+    S.view = v;
+    if (v === 'rank' && S.rank && Date.now() - S.rank.at > 30000) S.rank = null;
+    if (v === 'hist' && Date.now() - S.histAt > 30000) S.hist = null;
+    try { history[push ? 'pushState' : 'replaceState']({ v: v, p: push || st.p ? 1 : 0 }, ''); } catch (e) {}
+    render(); window.scrollTo(0, 0); updateTop();
+  }
+  window.addEventListener('popstate', function (e) {
+    if (modalOpen) { closeModal(true); return; }
+    var v = e.state && e.state.v;
+    if (v && v !== S.view && S.nick) { S.view = v; render(); window.scrollTo(0, 0); updateTop(); }
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && modalOpen) closeModal(); });
+  $('back').onclick = function () { if (modalOpen) return closeModal(); if (S.view !== 'play') return go('play'); location.href = ROOT; };
+  $('helpBtn').onclick = function () { if (guard('help', 300)) help(); };
+  $('toast').addEventListener('click', function () { this.className = 'toast'; });   // 알림을 누르면 바로 닫힘
   window.addEventListener('online', retryPending);
   document.addEventListener('visibilitychange', function () { if (document.hidden) flushSave(); });
   window.addEventListener('pagehide', flushSave);
   document.addEventListener('visibilitychange', function () { if (!document.hidden && S.srv && S.srv.ready && S.L && S.L.day && S.srv.day !== todayKST()) location.reload(); });
   function todayKST() { return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); }
+  /* 위쪽 고정 영역 높이 → 입력창이 그 바로 아래에 붙어 따라오게. 키보드가 올라와 화면이 낮으면 탭을 숨겨 공간 확보 */
+  function updateTop() {
+    var vv = window.visualViewport, h = vv ? vv.height : window.innerHeight, root = document.documentElement;
+    root.classList.toggle('compact', h < 540);
+    requestAnimationFrame(function () { var t = $('top'); if (t) root.style.setProperty('--top-h', t.offsetHeight + 'px'); });
+  }
+  window.addEventListener('resize', updateTop); window.addEventListener('orientationchange', updateTop);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', updateTop);
 
   /* ================= 시작 ================= */
   function boot() {
     if (/[?&]reset\b/.test(location.search)) history.replaceState(null, '', location.pathname);   // 잠만보 메뉴가 붙이는 ?reset (예전 서비스 워커 우회용)
-    renderAcct();
+    try { history.replaceState({ v: 'play', p: 0 }, ''); } catch (e) {}   // 뒤로가기 기준점
+    renderAcct(); updateTop();
     if (!token()) { S.nick = ''; return renderGate(false); }   // 로그인한 회원만 시작할 수 있음
-    $('tabs').hidden = false;
+    $('tabs').hidden = false; updateTop();
     $('view').innerHTML = '<div class="empty">⏳ 오늘 문제를 불러오는 중…<br><small>처음엔 단어 목록(약 450KB)을 받느라 조금 걸려요</small></div>';
     Promise.all([loadVocab(), api('semToday', [token()])]).then(function (res) {
       var vocab = res[0], srv = res[1];
