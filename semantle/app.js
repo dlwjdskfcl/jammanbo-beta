@@ -1,4 +1,4 @@
-/*! 잠만보 꼬맨틀 — 화면 v1.3.0
+/*! 잠만보 꼬맨틀 — 화면 v1.4.0
  * 매일 하나의 비밀 단어를 '뜻이 가까운 정도'(단어 의미 유사도)로 찾아가는 게임.
  * 서버 Semantle.gs (semToday · semStart · semSubmit · semRank): 오늘의 유사도 표를 한 번 받으면 추측마다 서버를 거치지 않음.
  * 로그인(카카오) 회원은 하루 한 번 기록 → 점수 · 순위 · 연속 · 배지. 로그인 안 해도 풀 수 있음(기록 없음).
@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.3.0';
+  var VER = '1.4.0';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   var ENV_SFX = ENV !== 'prod' ? '_' + ENV : '';
@@ -132,11 +132,13 @@
   /* ---------- 진행 중 추측을 서버에도 저장 (다른 기기 · 캐시를 지운 뒤에도 이어 하기) ---------- */
   var saveT = 0;
   function gString() { return S.L.g.map(function (x) { return (x.h ? '*' : '') + x.w; }).join('|'); }
-  function scheduleSave() { if (!recordable()) return; clearTimeout(saveT); saveT = setTimeout(flushSave, 2500); }
+  function scheduleSave() { if (!recordable()) return; clearTimeout(saveT); saveT = setTimeout(flushSave, 800); }
   function flushSave() {
     clearTimeout(saveT);
-    if (!S.L || !recordable() || !S.L.nonce || !S.L.g.length) return Promise.resolve();
-    return api('semSave', [token(), S.L.nonce, gString()]).catch(function () {});   // 실패해도 이 기기에는 저장돼 있음
+    if (!S.L || !recordable() || !S.L.nonce || !S.L.g.length || !API) return Promise.resolve();
+    // keepalive: 창을 닫는 순간에도 요청이 끝까지 가게 함. 실패해도 이 기기에는 저장돼 있음
+    return fetch(API, { method: 'POST', keepalive: true, headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ fn: 'semSave', args: [token(), S.L.nonce, gString()], env: ENV !== 'prod' ? 'beta' : undefined }) }).catch(function () {});
   }
   function parseG(g) {
     return String(g || '').split('|').filter(Boolean).map(function (t) { var h = t.charAt(0) === '*'; return { w: h ? t.slice(1) : t, h: h ? 1 : 0, t: 0 }; }).filter(function (x) { return S.idx.has(x.w); });
@@ -288,7 +290,7 @@
     openModal('<h2>🎯 꼬맨틀 하는 법</h2>' +
       '<p>매일 하나의 <b>비밀 단어</b>가 정해져요. 아무 단어나 입력하면 비밀 단어와 <b>뜻이 얼마나 가까운지</b>(유사도)를 알려 줘요. 철자가 아니라 <b>쓰임새·의미</b>가 비슷해야 점수가 높아요.</p>' +
       '<ul><li>유사도는 -100 ~ 100. 높을수록 가까워요.</li><li><b>1000위 안</b>에 들면 순위가 보여요. (1위 = 비밀 단어와 가장 가까운 단어)</li><li>같은 문맥에 같이 나올 법한 단어를 떠올려 보세요. 반대말도 의외로 가까울 수 있어요. ‘사랑’과 ‘증오’는 뜻은 반대지만 같은 문맥에 자주 나와서 비슷해요. ‘밤’처럼 뜻이 여럿인 단어(어두운 밤 · 먹는 밤)는 어느 쪽인지도 생각해 보세요.</li><li>정답을 맞힌 뒤에도 추측을 계속할 수 있어요. 맞힌 뒤에 보이는 <b>가까운 단어 1000개</b>를 살펴보면 유사도를 이해하는 데 도움이 돼요. 정답은 한국 시간 자정에 바뀌고, 어제 정답과 가까운 단어도 볼 수 있어요.</li><li>비밀 단어는 명사 · 동사 · 형용사 등 모든 품사의 <b>기본형</b>이고 <b>두 글자 이상</b>이에요. 예) 행복, 기쁘다, 사랑하다. 추측은 한 글자 단어도 할 수 있어요.</li></ul>' +
-      '<h4>🏆 점수와 순위 (로그인해서 풀어야 기록돼요)</h4>' +
+      '<h4>🏆 점수와 순위</h4>' +
       '<ul><li><b>정답 점수</b> = 150 − 추측 횟수 (최소 20점)</li><li><b>선착순 보너스</b> 오늘 1등 +30 · 2등 +20 · 3등 +10</li><li><b>연속 보너스</b> 연속 정답 일수마다 +5 (최대 +30)</li><li><b>힌트</b>는 처음엔 못 써요. <b>5번 · 15번 · 30번</b> 추측하면 하나씩 생겨요 (하루 최대 3개). 하나당 −15점</li><li>포기하면 0점 · 연속 기록이 끊겨요</li><li>하루에 한 번만 기록돼요. 정답을 맞힌 뒤에도 계속 연습할 수 있어요.</li><li>순위는 오늘(적은 추측 순) · 이번 주 · 시즌(분기) · 연속 정답 · 레이팅이 있어요.</li><li><b>레이팅</b>은 그 날 푼 사람끼리 추측 횟수를 겨루는 점수예요 (처음 1500점). 적게 맞히면 오르고 많이 맞히면 내려가요. 같으면 무승부, 포기는 꼴찌, 힌트 1개는 추측 5번으로 쳐요. 분기마다 새로 시작하고 3일 이상 참여하면 순위에 올라요.</li><li>순위에서 이름을 누르면 그 사람의 기록과 나와의 비교를 볼 수 있어요.</li></ul>' +
       '<h4>📱 팁</h4><p>한글 단어만 입력할 수 있어요 (영어 · 숫자는 안 돼요). 점수는 컴퓨터가 웹 · 위키백과 글에서 단어가 함께 쓰인 정도를 학습해 계산한 뜻 거리라서, 학습한 글에 따라 편향이 있거나 가끔 이상한 점수가 나올 수 있어요. 웃고 넘겨 주세요 😄</p><p class="hint">단어 벡터 출처: 페이스북(메타) 패스트텍스트, CC BY-SA 3.0 · 게임 방식은 뉴스젤리 꼬맨틀을 참고했어요.</p>' +
       '<div class="btns"><button type="button" class="btn pri" data-x>알겠어요</button></div>');
@@ -301,7 +303,17 @@
     $('sub').textContent = st && st.streak ? '🔥 ' + st.streak + '일 연속 정답 중' : '오늘의 비밀 단어를 찾아라';
   }
   function tabsOn() { [].forEach.call($('tabs').children, function (b) { b.classList.toggle('on', b.getAttribute('data-v') === S.view); }); }
+  /* ---------- 로그인 안 하면 시작 못 함 (서버도 로그인 없이는 문제를 안 줌) ---------- */
+  function renderGate(hasSession) {
+    $('tabs').hidden = true;
+    $('ttl').textContent = '꼬맨틀'; $('sub').textContent = '로그인하고 시작하세요';
+    $('view').innerHTML = '<div class="card gate"><div class="em">🔒</div><h2>로그인하고 시작하세요</h2>' +
+      '<p>꼬맨틀은 <b>잠만보 회원</b>만 할 수 있어요.<br>카카오로 로그인하면 기록 · 순위 · 레이팅이 남아요.</p>' +
+      (hasSession ? '<div class="note warn" style="margin:12px 0 0">카카오 로그인은 됐는데 <b>모임 닉네임이 아직 연결되지 않았어요.</b><br>잠만보 앱 오른쪽 위 계정 버튼에서 닉네임을 먼저 연결해 주세요.</div><div class="btns"><button type="button" class="btn pri" id="goHome">🏠 잠만보로 가서 연결하기</button></div>'
+                  : '<div class="btns"><button type="button" class="btn pri" id="login">카카오로 로그인</button></div>') + '</div>';
+  }
   function render() {
+    if (!S.nick) return renderGate(!!session());
     setHead(); tabsOn();
     if (S.view === 'rank') return renderRank();
     if (S.view === 'hist') return renderHist();
@@ -493,7 +505,7 @@
   function yesterdayList() {
     if (S.yd) return showTop('어제 정답과 가까운 단어 ' + TOPN + '개', S.yd.answer, S.yd.top, S.yd.sims, null);
     toast('불러오는 중…');
-    api('semYesterday', []).then(function (r) {
+    api('semYesterday', [token()]).then(function (r) {
       if (!r || !r.ready) return toast('어제 문제가 없어요', true);
       if (S.srv.vh && r.vh && S.srv.vh !== r.vh) return toast('단어 목록이 달라서 볼 수 없어요', true);
       var sims = decodeTable(r.table, r.n), best = 0;
@@ -541,10 +553,13 @@
   function boot() {
     if (/[?&]reset\b/.test(location.search)) history.replaceState(null, '', location.pathname);   // 잠만보 메뉴가 붙이는 ?reset (예전 서비스 워커 우회용)
     renderAcct();
+    if (!token()) { S.nick = ''; return renderGate(false); }   // 로그인한 회원만 시작할 수 있음
+    $('tabs').hidden = false;
     $('view').innerHTML = '<div class="empty">⏳ 오늘 문제를 불러오는 중…<br><small>처음엔 단어 목록(약 450KB)을 받느라 조금 걸려요</small></div>';
     Promise.all([loadVocab(), api('semToday', [token()])]).then(function (res) {
       var vocab = res[0], srv = res[1];
       S.srv = srv; S.nick = srv.me || '';
+      if (srv.loginRequired || !S.nick) { renderGate(!!session()); return; }   // 토큰이 만료됐거나 닉네임이 연결되지 않음
       if (!srv.ready) { render(); return; }
       if (vocab.hash && srv.vh && vocab.hash !== srv.vh) throw new Error('단어 목록이 새로 바뀌었어요. 주소 끝에 ?x=' + Date.now() % 1000 + ' 를 붙여 새로고침 해 주세요');
       prepare(vocab, srv);
@@ -561,6 +576,7 @@
       render();
       if (L.pend) retryPending();
     }).catch(function (e) {
+      if (!token()) return renderGate(false);   // 로그인이 만료돼 지워졌으면 로그인 안내
       $('view').innerHTML = '<div class="card empty">😢<br><b>' + esc(e.message || '불러오지 못했어요') + '</b><br><button type="button" class="btn sm" id="again" style="margin-top:10px">다시 시도</button></div>';
       var b = $('again'); if (b) b.onclick = boot;
     });
