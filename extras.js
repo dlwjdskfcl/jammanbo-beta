@@ -47,7 +47,8 @@
     '.jmb-tichu-card .tx small{display:block;opacity:.7;font-weight:500}' +
     /* 미니게임 메뉴 */
     '.jmb-mini-menu{position:fixed;z-index:60;min-width:250px;max-width:calc(100vw - 24px);background:var(--surface,#fff);color:var(--ink,#191f28);border:1px solid var(--line,#e5e8ee);border-radius:16px;' +
-      'box-shadow:0 12px 32px rgba(16,24,40,.18);padding:6px;transform-origin:top right;animation:jmbMenuIn .16s cubic-bezier(.2,1,.3,1) both}' +
+      'box-shadow:0 12px 32px rgba(16,24,40,.18);padding:6px;transform-origin:top right;animation:jmbMenuIn .16s cubic-bezier(.2,1,.3,1) both;' +
+      'overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}' +
     '@keyframes jmbMenuIn{from{opacity:0;transform:scale(.92) translateY(-6px)}}' +
     '.jmb-mini-menu .hd{font-size:12px;font-weight:700;color:var(--muted,#8b95a1);padding:6px 10px 4px}' +
     '.jmb-mini-menu a{display:flex;align-items:center;gap:12px;padding:10px;border-radius:12px;text-decoration:none;color:inherit}' +
@@ -96,9 +97,18 @@
     var b = document.getElementById('jmbTichuBtn'); if (b) b.setAttribute('aria-expanded', 'false');
     document.removeEventListener('pointerdown', outside, true);
     document.removeEventListener('keydown', onKey, true);
-    window.removeEventListener('resize', closeMenu);
-    window.removeEventListener('scroll', closeMenu, true);
+    window.removeEventListener('resize', onResize);
+    window.removeEventListener('scroll', onScroll, true);
   }
+  /* 화면보다 긴 목록은 메뉴 안에서 스크롤 — 예전에는 스크롤하면 메뉴가 닫혀서 아래 항목을 못 봤음 */
+  var menuW = 0;
+  function fitMenu() {
+    if (!menu) return;
+    var vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight, top = parseInt(menu.style.top, 10) || 0;
+    menu.style.maxHeight = Math.max(160, vh - top - 12) + 'px';
+  }
+  function onScroll(e) { if (menu && menu.contains(e.target)) return; closeMenu(); }   // 메뉴 안 스크롤은 무시, 페이지(메뉴 밖)가 스크롤되면 닫기
+  function onResize() { if (!menu) return; if (window.innerWidth !== menuW) closeMenu(); else fitMenu(); }   // 폰 주소창이 접히고 펴지는 높이 변화는 유지, 가로·세로 전환이면 닫기
   function outside(e) { if (menu && !menu.contains(e.target) && !e.target.closest('#jmbTichuBtn')) closeMenu(); }
   function onKey(e) {
     if (!menu) return;
@@ -121,11 +131,12 @@
     var r = btn.getBoundingClientRect(), mw = menu.offsetWidth;
     menu.style.top = Math.round(r.bottom + 6) + 'px';
     menu.style.left = Math.round(Math.max(12, Math.min(window.innerWidth - mw - 12, r.right - mw))) + 'px';
+    menuW = window.innerWidth; fitMenu();
     btn.setAttribute('aria-expanded', 'true');
     document.addEventListener('pointerdown', outside, true);
     document.addEventListener('keydown', onKey, true);
-    window.addEventListener('resize', closeMenu);
-    window.addEventListener('scroll', closeMenu, true);
+    window.addEventListener('resize', onResize);
+    window.addEventListener('scroll', onScroll, true);
     var first = menu.querySelector('a'); if (first && btn.matches(':focus-visible')) first.focus();
   }
 

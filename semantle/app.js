@@ -1,4 +1,4 @@
-/*! 잠만보 꼬맨틀 — 화면 v1.5.1
+/*! 잠만보 꼬맨틀 — 화면 v1.5.2
  * 매일 하나의 비밀 단어를 '뜻이 가까운 정도'(단어 의미 유사도)로 찾아가는 게임.
  * 서버 Semantle.gs (semToday · semStart · semSubmit · semRank): 오늘의 유사도 표를 한 번 받으면 추측마다 서버를 거치지 않음.
  * 로그인(카카오) 회원은 하루 한 번 기록 → 점수 · 순위 · 연속 · 배지. 로그인 안 해도 풀 수 있음(기록 없음).
@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.5.1';
+  var VER = '1.5.2';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   var ENV_SFX = ENV !== 'prod' ? '_' + ENV : '';
@@ -27,7 +27,8 @@
   ];
   var S = { view: 'play', vocab: null, idx: null, sims: null, ans: -1, rankOf: null, top: null, srv: null, L: null, rank: null, rkTab: lsGet(LS.tab) || 'today',
             nick: '', hist: null, histAt: 0, startP: null, busy: false, fb: null, lastW: '', t0: 0, scale: null,
-            sort: lsGet(LS.sort) === 'sim' ? 'sim' : 'order', scrollNew: false, scrollRes: false, sharing: false, focused: false };
+            // sort: 기본은 유사도 순 (입력 순서를 직접 고른 사람만 입력 순서)
+            sort: lsGet(LS.sort) === 'order' ? 'order' : 'sim', scrollNew: false, scrollRes: false, sharing: false, focused: false };
 
   /* ================= 공통 ================= */
   function $(id) { return document.getElementById(id); }
