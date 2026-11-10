@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.5.2';
+  var VER = '1.5.3';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   var ENV_SFX = ENV !== 'prod' ? '_' + ENV : '';
@@ -274,12 +274,12 @@
 
   /* ================= 나눔 ================= */
   function shareText() {
-    var L = S.L, n = L.n, tiers = L.g.slice(0, L.cnt).map(function (x) { return HEAT[tier(x.w)]; });
-    if (tiers.length > 28) tiers = tiers.slice(0, 14).concat(['…'], tiers.slice(-13));
-    var head = '🔤 꼬맨틀 #' + S.srv.no + (L.win ? ' 🎉' : ' 😵');
-    var line = L.win ? '나는 ' + n + '번 만에!' + (L.hints ? ' (힌트 ' + L.hints + ')' : '') : '오늘은 포기… 너는 맞힐 수 있어?';
-    if (L.res && L.res.points) line += ' ⭐' + L.res.points + '점';
-    return head + '\n' + line + '\n' + tiers.join('') + '\n👉 같이 해요 ' + location.origin + ROOT + 'semantle/';   // 정답 단어는 넣지 않음 (이모지 열기만)
+    // (1.5.3) 링크 · 추측 횟수 · 이모지 열(개수로 횟수가 보임)은 넣지 않음 — 단톡방 도배 · 횟수 공개 부담을 줄이려고. 힌트 수와 점수만. 정답 단어도 넣지 않음
+    var L = S.L, head = '🔤 꼬맨틀 #' + S.srv.no + (L.win ? ' 🎉' : ' 😵');
+    if (!L.win) return head + '\n오늘은 포기…';
+    var line = '힌트 ' + (L.hints ? L.hints + '개' : '없이');
+    if (L.res && L.res.points) line += ' · ⭐' + L.res.points + '점';
+    return head + '\n' + line;
   }
   function share() {
     if (S.sharing) return;   // 공유창이 떠 있는 동안 또 누르면 오류가 나서 막음
