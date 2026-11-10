@@ -6,14 +6,14 @@
  */
 (function () {
   'use strict';
-  var VER = '1.5.3';
+  var VER = '1.6.0';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   var ENV_SFX = ENV !== 'prod' ? '_' + ENV : '';
   var API = window.SEM_API_LOCAL || CFG.api || '';
   var ROOT = (function () { var seg = location.pathname.split('/')[1] || ''; return /\.github\.io$/.test(location.hostname) && seg ? '/' + seg + '/' : '/'; })();
   var LS = { auth: 'jmb_kakao_v2' + ENV_SFX, state: 'jmb_kakao_state' + ENV_SFX, play: 'jmb_sem_play' + ENV_SFX, pend: 'jmb_sem_pend' + ENV_SFX, help: 'jmb_sem_help', tab: 'jmb_sem_tab', sort: 'jmb_sem_sort' };
-  var HINT_MAX = 3, HINT_COST = 15, TOPN = 1000, HINT_AT = [5, 15, 30];   // HINT_AT: 이만큼 추측하면 힌트가 하나씩 생김 (서버 SEM_CFG_.HINT_AT 와 같게)
+  var HINT_COST = 15, TOPN = 1000, HINT_EVERY = 5;   // HINT_EVERY: 추측 5번마다 힌트가 하나씩 생김, 개수 제한 없음 (서버 SEM_CFG_.HINT_EVERY 와 같게)
   var BADGES = [   // 서버 Semantle.js badgesOf 와 같은 id
     { id: 'first', e: '🥇', n: '선두 주자', d: '그 날 가장 먼저 정답' },
     { id: 'fast', e: '⚡', n: '번개', d: '10번 안에 정답' },
@@ -182,9 +182,44 @@
       return;
     }
     if (!w || !S.idx) return;
-    if (!S.idx.has(w)) { toast('‘' + w + '’ 은(는) 사전에 없는 단어예요', true); if (inp) { inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake'); inp.select(); } hap('warn'); return; }
-    if (guessWords().indexOf(w) >= 0) { toast('이미 추측한 단어예요'); S.lastW = w; render(); return; }
+    var typed = w;
+    if (!S.idx.has(w)) {   // (1.6.0) 사전에 없으면 기본형 · 조사를 뺀 말로 한 번 더 찾음 ('먹었다' → '먹다', '학교에서' → '학교')
+      var alt = lemmas(w).filter(function (x) { return S.idx.has(x); })[0];
+      if (!alt) { toast('‘' + w + '’ 은(는) 사전에 없는 단어예요', true); if (inp) { inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake'); inp.select(); } hap('warn'); return; }
+      w = alt;
+    }
+    if (guessWords().indexOf(w) >= 0) { toast(w === typed ? '이미 추측한 단어예요' : '‘' + typed + '’ → ‘' + w + '’ 은(는) 이미 추측했어요'); S.lastW = w; render(); return; }
     addGuess(w, false);
+    if (w !== typed) toast('‘' + typed + '’ 은(는) 사전에 없어서 가까운 꼴 ‘' + w + '’ (으)로 찾았어요');
+  }
+  /* 사전에 없는 말의 '찾아볼 후보': 어미를 떼고 '다' 를 붙인 기본형, 조사를 뗀 말. 긴 어미부터, 앞에 있는 후보가 먼저 */
+  var V_END = ['었습니다', '았습니다', '였습니다', '으세요', '습니다', '었어요', '았어요', '였어요', '으면', '어서', '아서', '으니', '지만', '으며', '세요', '어요', '아요', '었다', '았다', '였다', '는다', '는', '은', '을', '고', '게', '지', '면', '니', '기', '음', '어', '아', '네', '죠', '며', '자'];
+  var H_END = ['했습니다', '합니다', '했어요', '하세요', '해요', '했다', '한다', '하는', '하고', '하게', '하면', '해서', '하여', '하지', '하기', '함', '할', '한', '해'];
+  var N_END = ['으로부터', '에서는', '으로는', '에게서', '이라는', '에서', '에게', '으로', '까지', '부터', '처럼', '보다', '만큼', '이나', '이란', '이라', '한테', '들은', '들이', '들을', '들의', '들', '은', '는', '이', '가', '을', '를', '의', '에', '도', '와', '과', '로', '만', '나', '랑', '요'];
+  function jong(ch) { var c = ch.charCodeAt(0) - 0xAC00; return c < 0 || c > 11171 ? -1 : c % 28; }
+  function noJong(ch) { var c = ch.charCodeAt(0) - 0xAC00; return String.fromCharCode(0xAC00 + c - c % 28); }
+  function lemmas(w) {
+    var out = [], add = function (x) { if (x && x !== w && out.indexOf(x) < 0) out.push(x); }, i, e, st;
+    // 기본형('웃다' · '사랑하다')이 사전에 없을 때: 사전에는 쓰이는 꼴('웃는' · '사랑한다')로 들어 있는 경우가 많아 그쪽으로 찾음
+    if (w.length > 2 && w.slice(-2) === '하다') { st = w.slice(0, -2); ['한다', '하는', '했다', '하고', '하게', '하기', '한', '할', '함', '해'].forEach(function (x) { add(st + x); }); add(st); }
+    else if (w.length > 1 && w.slice(-1) === '다') {
+      st = w.slice(0, -1);
+      var lc = st.charAt(st.length - 1), lj = jong(lc);
+      if (lj === 0) { var base = lc.charCodeAt(0); add(st.slice(0, -1) + String.fromCharCode(base + 4) + '다'); add(st.slice(0, -1) + String.fromCharCode(base + 4)); }   // 가다 → 간다 · 예쁘다 → 예쁜
+      ['는다', '는', '은', '고', '었다', '았다', '어', '아', '기', '음', '게', '지', '을'].forEach(function (x) { add(st + x); });
+    }
+    for (i = 0; i < H_END.length; i++) { e = H_END[i]; if (w.length > e.length && w.slice(-e.length) === e) { st = w.slice(0, -e.length); add(st + '하다'); add(st); } }
+    var ends = V_END.map(function (x) { return [x, 1]; }).concat(N_END.map(function (x) { return [x, 0]; })).sort(function (a, b) { return b[0].length - a[0].length || b[1] - a[1]; });
+    for (i = 0; i < ends.length; i++) { e = ends[i][0]; if (w.length > e.length && w.slice(-e.length) === e) { st = w.slice(0, -e.length); add(ends[i][1] ? st + '다' : st); } }
+    // 받침으로 붙는 어미: 갑니다 → 가다, 예쁜 → 예쁘다, 갈 → 가다, 갔다 → 가다
+    var body = w, tail = '';
+    if (w.length > 2 && w.slice(-2) === '니다') { body = w.slice(0, -2); tail = 'ㅂ'; } else if (w.length > 1 && w.slice(-1) === '다') { body = w.slice(0, -1); tail = 'ㅆ'; }
+    var last = body.charAt(body.length - 1), j = last ? jong(last) : -1;
+    if (tail === 'ㅂ' && j === 17) add(body.slice(0, -1) + noJong(last) + '다');
+    if (tail === 'ㅆ' && j === 20) add(body.slice(0, -1) + noJong(last) + '다');
+    if (!tail && (j === 4 || j === 8 || j === 16)) add(w.slice(0, -1) + noJong(last) + '다');
+    add(w + '다'); add(w + '하다');
+    return out;
   }
   function addGuess(w, isHint) {
     if (recordable() && !S.L.nonce) ensureStart();
@@ -193,25 +228,25 @@
     var tr = tier(w);
     if (tr === 6 && !S.L.done) return win(w);
     if (S.L.done && tr === 6) { toast('🎉 정답이에요! (연습)'); S.fb = null; render(); return; }
-    if (!isHint && !S.L.done && HINT_AT.indexOf(realCount()) >= 0) setTimeout(function () { toast('💡 힌트가 생겼어요! (' + hintsLeft() + '개 사용 가능)'); }, 450);
+    if (!isHint && !S.L.done && realCount() % HINT_EVERY === 0) setTimeout(function () { toast('💡 힌트가 생겼어요! (' + hintsLeft() + '개 사용 가능)'); }, 450);
     S.fb = { tr: tr, w: w, r: rankIn(w) };
     hap(tr >= 4 ? 'turn' : 'tap');
     render();
   }
-  /* 힌트는 처음엔 못 씀: 5번 · 15번 · 30번 추측하면 하나씩 생김 (끝난 뒤 연습에서는 제한 없음) */
-  function hintsUnlocked() { var n = realCount(); return HINT_AT.filter(function (t) { return n >= t; }).length; }
+  /* 힌트는 처음엔 못 씀: 추측 5번마다 하나씩 생김, 개수 제한 없음 (끝난 뒤 연습에서는 바로 씀) */
+  function hintsUnlocked() { return Math.floor(realCount() / HINT_EVERY); }
   function hintsLeft() { return hintsUnlocked() - S.L.hints; }
-  function hintNext() { var n = realCount(), t = HINT_AT.filter(function (x) { return x > n; })[0]; return t ? t - n : 0; }
+  function hintNext() { return HINT_EVERY - realCount() % HINT_EVERY; }
   function hintBtn() {
     var L = S.L, label, off = false;
     if (L.done) label = '💡 힌트 (연습)';
     else if (hintsLeft() > 0) label = '💡 힌트 (' + hintsLeft() + '개 남음)';   // 점수 비용은 확인창에서 알려 줌 (버튼 글자가 두 줄로 꺾이지 않게 짧게)
-    else { off = true; label = L.hints >= HINT_MAX ? '💡 힌트를 다 썼어요' : '🔒 힌트 (' + hintNext() + '번 더 추측)'; }
+    else { off = true; label = '🔒 힌트 (' + hintNext() + '번 더 추측)'; }
     return '<button type="button" class="btn" id="hintBtn"' + (off ? ' disabled' : '') + '>' + label + '</button>';
   }
   function hint() {
     var gated = !S.L.done, rec = recordable();
-    if (gated && hintsLeft() <= 0) return toast(S.L.hints >= HINT_MAX ? '힌트를 모두 썼어요' : hintNext() + '번 더 추측하면 힌트가 생겨요', true);
+    if (gated && hintsLeft() <= 0) return toast(hintNext() + '번 더 추측하면 힌트가 생겨요', true);
     var best = 0; guessWords().forEach(function (w) { var r = rankIn(w); if (r && (!best || r < best)) best = r; });
     var target = best ? Math.max(2, Math.floor(best / 2)) : 300 + Math.floor(Math.random() * 400);
     var have = {}; guessWords().forEach(function (w) { have[S.idx.get(w)] = 1; });
@@ -229,7 +264,7 @@
       toast('💡 힌트: ‘' + S.vocab[pick] + '’ — ' + rankIn(S.vocab[pick]) + '위예요' + cost);
     };
     if (!rec) return use();
-    ask('💡 힌트를 볼까요?', '지금보다 정답에 가까운 단어 하나를 알려 줘요.<br>힌트 ' + (S.L.hints + 1) + '/' + HINT_MAX + ' · <b>−' + HINT_COST + '점</b>', '힌트 보기').then(function (ok) { if (ok) use(); });
+    ask('💡 힌트를 볼까요?', '지금까지 찾은 가장 가까운 단어보다 <b>더 가까운 단어</b> 하나를 알려 줘요.<br>' + (S.L.hints + 1) + '번째 힌트 · <b>−' + HINT_COST + '점</b>', '힌트 보기').then(function (ok) { if (ok) use(); });
   }
   function giveUp() {
     if (S.L.done) return;
@@ -325,8 +360,8 @@
       '<p>매일 하나의 <b>비밀 단어</b>가 정해져요. 아무 단어나 입력하면 비밀 단어와 <b>뜻이 얼마나 가까운지</b>(유사도)를 알려 줘요. 철자가 아니라 <b>쓰임새·의미</b>가 비슷해야 점수가 높아요.</p>' +
       '<ul><li>유사도는 -100 ~ 100. 높을수록 가까워요.</li><li><b>1000위 안</b>에 들면 순위가 보여요. (1위 = 비밀 단어와 가장 가까운 단어)</li><li>같은 문맥에 같이 나올 법한 단어를 떠올려 보세요. 반대말도 의외로 가까울 수 있어요. ‘사랑’과 ‘증오’는 뜻은 반대지만 같은 문맥에 자주 나와서 비슷해요. ‘밤’처럼 뜻이 여럿인 단어(어두운 밤 · 먹는 밤)는 어느 쪽인지도 생각해 보세요.</li><li>정답을 맞힌 뒤에도 추측을 계속할 수 있어요. 맞힌 뒤에 보이는 <b>가까운 단어 1000개</b>를 살펴보면 유사도를 이해하는 데 도움이 돼요. 정답은 한국 시간 자정에 바뀌고, 어제 정답과 가까운 단어도 볼 수 있어요.</li><li>비밀 단어는 명사 · 동사 · 형용사 등 모든 품사의 <b>기본형</b>이고 <b>두 글자 이상</b>이에요. 예) 행복, 기쁘다, 사랑하다. 추측은 한 글자 단어도 할 수 있어요.</li></ul>' +
       '<h4>🏆 점수와 순위</h4>' +
-      '<ul><li><b>정답 점수</b> = 150 − 추측 횟수 (최소 20점)</li><li><b>선착순 보너스</b> 오늘 1등 +30 · 2등 +20 · 3등 +10</li><li><b>연속 보너스</b> 연속 정답 일수마다 +5 (최대 +30)</li><li><b>힌트</b>는 처음엔 못 써요. <b>5번 · 15번 · 30번</b> 추측하면 하나씩 생겨요 (하루 최대 3개). 하나당 −15점</li><li>포기하면 0점 · 연속 기록이 끊겨요</li><li>하루에 한 번만 기록돼요. 정답을 맞힌 뒤에도 계속 연습할 수 있어요.</li><li>순위는 오늘(적은 추측 순) · 이번 주 · 시즌(분기) · 연속 정답 · 레이팅이 있어요.</li><li><b>레이팅</b>은 그 날 푼 사람끼리 추측 횟수를 겨루는 점수예요 (처음 1500점). 적게 맞히면 오르고 많이 맞히면 내려가요. 같으면 무승부, 포기는 꼴찌, 힌트 1개는 추측 5번으로 쳐요. 분기마다 새로 시작하고 3일 이상 참여하면 순위에 올라요.</li><li>순위에서 이름을 누르면 그 사람의 기록과 나와의 비교를 볼 수 있어요.</li></ul>' +
-      '<h4>📱 팁</h4><p>한글 단어만 입력할 수 있어요 (영어 · 숫자는 안 돼요). 점수는 컴퓨터가 웹 · 위키백과 글에서 단어가 함께 쓰인 정도를 학습해 계산한 뜻 거리라서, 학습한 글에 따라 편향이 있거나 가끔 이상한 점수가 나올 수 있어요. 웃고 넘겨 주세요 😄</p><p class="hint">단어 벡터 출처: 페이스북(메타) 패스트텍스트, CC BY-SA 3.0 · 게임 방식은 뉴스젤리 꼬맨틀을 참고했어요.</p>' +
+      '<ul><li><b>정답 점수</b> = 150 − 추측 횟수 − 힌트 × 15 (최소 0점) — 적게 추측하고 힌트를 덜 쓸수록 높아요. 일찍 푼다고 더 받지는 않아요</li><li><b>연속 보너스</b> 이틀째부터 연속 정답 하루마다 +5 (최대 +30)</li><li><b>힌트</b>는 처음엔 못 써요. 추측 <b>5번마다 하나씩</b> 생기고 개수 제한은 없어요. 하나당 −15점. 지금까지 찾은 가장 가까운 단어보다 더 가까운 단어를 알려 줘요</li><li>포기하면 0점 · 연속 기록이 끊겨요</li><li>하루에 한 번만 기록돼요. 정답을 맞힌 뒤에도 계속 연습할 수 있어요.</li><li>순위는 오늘(점수 순) · 이번 주 · 시즌(분기) · 연속 정답 · 레이팅이 있어요. <b>다른 사람에게는 힌트 수와 점수만 보여요</b> (추측 횟수 · 걸린 시간은 나만 봐요).</li><li><b>레이팅</b>은 그 날 푼 사람끼리 추측 횟수를 겨루는 점수예요 (처음 1500점). 적게 맞히면 오르고 많이 맞히면 내려가요. 같으면 무승부, 포기는 꼴찌, 힌트 1개는 추측 5번으로 쳐요. 분기마다 새로 시작하고 3일 이상 참여하면 순위에 올라요.</li><li>순위에서 이름을 누르면 그 사람의 기록과 나와의 비교를 볼 수 있어요.</li></ul>' +
+      '<h4>📱 팁</h4><p>한글 단어만 입력할 수 있어요 (영어 · 숫자는 안 돼요). ‘먹었다’ · ‘학교에서’ · ‘웃다’ 처럼 사전에 없는 꼴은 사전에 있는 가까운 꼴(‘먹다’ · ‘학교’ · ‘웃는’)로 바꿔 찾아요. 점수는 컴퓨터가 웹 · 위키백과 글에서 단어가 함께 쓰인 정도를 학습해 계산한 뜻 거리라서, 학습한 글에 따라 편향이 있거나 가끔 이상한 점수가 나올 수 있어요. 웃고 넘겨 주세요 😄</p><p class="hint">단어 벡터 출처: 페이스북(메타) 패스트텍스트, CC BY-SA 3.0 · 게임 방식은 뉴스젤리 꼬맨틀을 참고했어요.</p>' +
       '<div class="btns"><button type="button" class="btn pri" data-x>알겠어요</button></div>');
   }
 
@@ -378,7 +413,7 @@
     if (r && !r.error) {
       if (r.win) {
         h += '<div class="pts">+' + r.points + '점</div><div class="parts">' +
-          '<span class="chip">기본 <b>' + r.parts.base + '</b></span>' + (r.parts.first ? '<span class="chip hot">선착순 ' + r.order + '등 <b>+' + r.parts.first + '</b></span>' : '<span class="chip">오늘 ' + r.order + '번째 정답</span>') +
+          '<span class="chip">기본 <b>' + r.parts.base + '</b></span>' + '<span class="chip">오늘 ' + r.order + '번째 정답</span>' +
           (r.parts.streak ? '<span class="chip hot">🔥 ' + r.streak + '일 연속 <b>+' + r.parts.streak + '</b></span>' : '') + (r.parts.hint ? '<span class="chip">힌트 <b>' + r.parts.hint + '</b></span>' : '') + '<span class="chip">⏱ ' + mmss(r.sec) + '</span></div>';
       } else h += '<p class="hint">0점 · 연속 기록이 끊겼어요. 내일 다시 도전!</p>';
     } else if (r && r.error) h += '<div class="note bad" style="margin-top:10px">기록하지 못했어요: ' + esc(r.error) + '</div>';
@@ -397,7 +432,7 @@
       var rk = o.win ? '정답!' : o.r ? '<div class="rbar"><em>' + o.r + '</em><i><b style="width:' + Math.max(4, (TOPN - o.r + 1) / TOPN * 100) + '%"></b></i></div>' : '<span class="sub">1000위 밖</span>';
       return '<tr' + (cls.indexOf('last') >= 0 ? ' id="lastRow"' : '') + ' class="' + cls + (o.h ? ' hintw' : '') + '"><td class="n">' + o.n + '</td><td class="w"><span class="te">' + TIER[o.t].e + '</span>' + esc(o.w) + '</td><td class="s">' + f2(o.s) + '<div class="bar2" style="width:' + (o.win ? 100 : pct) + '%"></div></td><td class="r">' + rk + '</td></tr>';
     }
-    var h = '<div class="seg sm srt" id="sortSeg"><button type="button" data-sort="order" class="' + (S.sort === 'order' ? 'on' : '') + '">입력 순서</button><button type="button" data-sort="sim" class="' + (S.sort === 'sim' ? 'on' : '') + '">유사도 순</button></div>' +
+    var h = '<div class="seg sm srt" id="sortSeg"><button type="button" data-sort="sim" class="' + (S.sort === 'sim' ? 'on' : '') + '">유사도 순</button><button type="button" data-sort="order" class="' + (S.sort === 'order' ? 'on' : '') + '">입력 순서</button></div>' +
       '<table class="gt"><thead><tr><th class="n">#</th><th>추측한 단어</th><th class="s">유사도</th><th class="r">순위</th></tr></thead><tbody>';
     if (S.sort === 'order') {   // 입력한 순서대로 1, 2, 3 … (새로 입력한 줄은 강조되고 화면이 따라감)
       list.forEach(function (o) { h += tr(o, (o.win ? 'win ' : '') + (last && o.w === last.w ? 'last' : '')); });
@@ -462,14 +497,14 @@
     var R = S.rank, pr = R && R.people && R.people[nick];
     if (!pr) return;
     var st = pr.st || { rating: 1500, rGames: 0, solves: 0, avg: 0, best: 0, streak: 0, bestStreak: 0, points: 0, badges: [] }, t = pr.today, isMe = nick === S.nick, mine = R.mine, T = tierOf(st.rating || 1500);
-    var today = t ? (t.result === '정답' ? '오늘 <b>' + t.g + '번</b> 만에 맞혔어요 · ⏱ ' + mmss(t.sec) + (t.h ? ' · 힌트 ' + t.h : '') + ' · +' + t.pts + '점 (오늘 ' + t.order + '번째)' : '오늘은 포기했어요 🏳️') : '오늘은 아직 안 풀었어요 ⏳';
+    var today = t ? (t.result === '정답' ? '오늘 맞혔어요 🎉 · ' + (t.h ? '힌트 ' + t.h + '개' : '힌트 없이') + ' · <b>+' + t.pts + '점</b>' : '오늘은 포기했어요 🏳️') : '오늘은 아직 안 풀었어요 ⏳';
     var h = '<div class="me-top">' + av(nick, 56) + '<div class="t"><b>' + esc(nick) + (isMe ? ' (나)' : '') + '</b><small>' + T.e + ' ' + T.n + ' · ' + (st.rating || 1500) + ((st.rGames || 0) < 3 ? ' (배치 중)' : '') + '</small></div></div>' +
       '<p style="margin:10px 0 4px">' + today + '</p>' +
-      '<div class="stats"><div><b>' + (st.streak ? '🔥' + st.streak : 0) + '</b><small>연속</small></div><div><b>' + (st.bestStreak || 0) + '</b><small>최고 연속</small></div><div><b>' + (st.solves || 0) + '</b><small>정답</small></div><div><b>' + (st.avg || '-') + '</b><small>평균 추측</small></div></div>';
+      '<div class="stats"><div><b>' + (st.streak ? '🔥' + st.streak : 0) + '</b><small>연속</small></div><div><b>' + (st.bestStreak || 0) + '</b><small>최고 연속</small></div><div><b>' + (st.solves || 0) + '</b><small>정답</small></div><div><b>' + (st.points || 0) + '</b><small>누적 점수</small></div></div>';
     if (!isMe && mine) {
       h += '<h4 style="margin:12px 0 2px">⚔️ 나와 비교</h4><div class="cmps"><div class="cmp hd"><span class="a">나</span><span class="l"></span><span class="b">' + esc(nick) + '</span></div>' +
         cmpRow('레이팅', mine.rating || 1500, st.rating || 1500) + cmpRow('연속', mine.streak || 0, st.streak || 0) + cmpRow('최고 연속', mine.bestStreak || 0, st.bestStreak || 0) +
-        cmpRow('정답 횟수', mine.solves || 0, st.solves || 0) + cmpRow('평균 추측', mine.avg || '', st.avg || '', true) + cmpRow('최소 추측', mine.best || '', st.best || '', true) + '</div>';
+        cmpRow('정답 횟수', mine.solves || 0, st.solves || 0) + cmpRow('이번 주 점수', mine.week || 0, st.week || 0) + cmpRow('누적 점수', mine.points || 0, st.points || 0) + '</div>';
     }
     var bd = (st.badges || []).map(function (b) { return '<span class="chip">' + b.emoji + ' ' + esc(b.name) + '</span>'; }).join('');
     h += '<h4 style="margin:12px 0 4px">배지</h4>' + (bd ? '<div class="chips" style="margin-top:0">' + bd + '</div>' : '<p class="hint">아직 없어요</p>') +
@@ -486,7 +521,7 @@
     if (!list || !list.length) return kind === 'rate' ? '<div class="empty">아직 레이팅 순위에 오른 사람이 없어요.<br>하루에 두 명 이상 풀고, 3일 이상 참여하면 올라와요! 📈</div>' : '<div class="empty">아직 기록이 없어요.<br>첫 번째 주인공이 되어 보세요! 🏁</div>';
     return list.map(function (o) {
       var me = S.nick && o.nick === S.nick, sub, v;
-      if (kind === 'today') { sub = mmss(o.sec) + (o.h ? ' · 힌트 ' + o.h : '') + ' · 오늘 ' + o.order + '번째'; v = o.g + '번<small>+' + o.pts + '점</small>'; }
+      if (kind === 'today') { sub = o.h ? '힌트 ' + o.h + '개' : '힌트 없이'; v = '+' + o.pts + '점'; }
       else if (kind === 'streak') { sub = '최고 ' + o.best + '일'; v = '🔥 ' + o.v + '일'; }
       else if (kind === 'rate') { var T = tierOf(o.v); sub = o.games + '일 참여 · 최근 ' + (o.delta > 0 ? '+' : '') + o.delta; v = T.e + ' ' + o.v + '<small>' + T.n + '</small>'; }
       else { sub = '정답 ' + o.solves + '회'; v = o.v + '점'; }
@@ -507,7 +542,7 @@
     } else h += '<div class="note warn">🔒 로그인하면 내 순위와 배지를 볼 수 있어요.<br><button type="button" class="btn sm" id="login">카카오 로그인</button></div>';
     var tabs = [['today', '오늘'], ['week', '이번 주'], ['season', '시즌'], ['streak', '연속'], ['rate', '레이팅']];
     var tab = S.rkTab, list = tab === 'today' ? R.today : tab === 'week' ? R.weekly : tab === 'season' ? R.seasonal : tab === 'rate' ? R.rated : R.streaks;
-    var title = tab === 'today' ? '오늘의 정답자 <small>' + R.day + ' · 적은 추측 순</small>' : tab === 'week' ? '이번 주 포인트 <small>' + R.week + '(월)~</small>' : tab === 'season' ? '시즌 포인트 <small>' + R.season + '</small>' : tab === 'rate' ? '레이팅 <small>' + R.season + ' · 3일 이상 참여</small>' : '연속 정답 <small>지금 이어가는 중</small>';
+    var title = tab === 'today' ? '오늘의 정답자 <small>' + R.day + ' · 점수 순</small>' : tab === 'week' ? '이번 주 포인트 <small>' + R.week + '(월)~</small>' : tab === 'season' ? '시즌 포인트 <small>' + R.season + '</small>' : tab === 'rate' ? '레이팅 <small>' + R.season + ' · 3일 이상 참여</small>' : '연속 정답 <small>지금 이어가는 중</small>';
     h += '<div class="seg sm" id="rkTabs">' + tabs.map(function (t) { return '<button type="button" data-t="' + t[0] + '" class="' + (t[0] === tab ? 'on' : '') + '">' + t[1] + '</button>'; }).join('') + '</div>' +
       '<div class="card"><h3>' + title + '</h3>' + rkRows(list, tab === 'week' || tab === 'season' ? 'pts' : tab) +
       (tab === 'today' ? '<div class="hint">오늘 ' + R.solvedToday + '명 정답 · 참여 회원 ' + R.people + '명</div>' : '') +
