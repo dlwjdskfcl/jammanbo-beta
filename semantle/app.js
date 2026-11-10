@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.6.0';
+  var VER = '1.6.1';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   var ENV_SFX = ENV !== 'prod' ? '_' + ENV : '';
@@ -320,8 +320,13 @@
     if (S.sharing) return;   // 공유창이 떠 있는 동안 또 누르면 오류가 나서 막음
     S.sharing = true;
     var text = shareText(), done = function () { S.sharing = false; };
-    if (navigator.share) { navigator.share({ text: text }).then(done, done); return; }
-    (navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(text) : Promise.reject()).then(function () { done(); toast('복사했어요. 단톡방에 붙여넣어 주세요'); }, function () { done(); copyBox(text); });
+    var copy = function () {
+      (navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(text) : Promise.reject()).then(function () { done(); toast('복사했어요. 단톡방에 붙여넣어 주세요'); }, function () { done(); copyBox(text); });
+    };
+    // (1.6.1) PC 는 공유창에 카카오톡이 안 나와서('일부 방법만 표시') 바로 복사. 휴대폰만 공유창을 쓰고, 공유가 실패하면(취소는 빼고) 복사
+    var phone = /Android|iPhone|iPad|iPod|Mobi/i.test(navigator.userAgent || '') || (/Macintosh/.test(navigator.userAgent || '') && navigator.maxTouchPoints > 1);
+    if (phone && navigator.share) { navigator.share({ text: text }).then(done, function (e) { if (e && e.name === 'AbortError') done(); else copy(); }); return; }
+    copy();
   }
   function copyBox(text) {   // 복사가 막힌 브라우저(인앱 브라우저 등): 글을 보여 주고 직접 복사하게
     var sh = openModal('<h2>결과 복사</h2><p>아래 글을 길게 눌러 복사한 뒤 단톡방에 붙여넣어 주세요.</p><textarea class="cbox" readonly rows="5"></textarea><div class="btns"><button type="button" class="btn pri" data-x>닫기</button></div>');
