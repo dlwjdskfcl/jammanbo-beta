@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.6.3';
+  var VER = '1.6.4';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   var ENV_SFX = ENV !== 'prod' ? '_' + ENV : '';
@@ -493,12 +493,10 @@
     return list.slice(0, max).map(function (p) { return '<span class="pc" data-pnick="' + esc(p.nick) + '">' + esc(p.nick) + (p.streak > 1 ? ' 🔥' + p.streak : '') + '</span>'; }).join('') + (list.length > max ? '<span class="pc more">외 ' + (list.length - max) + '명</span>' : '');
   }
   function nudge() {   // 오늘 문제 머리 카드: 최근 7일 안에 한 사람 중 오늘 아직 안 한 사람
-    var p = pendingList(S.srv.pending);
-    if (!p.length) return '';
-    return '<div class="nudge">⏳ <b>아직 안 푼 사람</b><div class="pcs">' + pendingChips(p, 6) + '</div></div>';
+    return '';   // (1.6.4) '아직 안 푼 사람' 이름은 보여 주지 않음
   }
   function pendingCard(R) {
-    var p = pendingList(R.pending);
+    return ''; var p = pendingList(R.pending);   // (1.6.4) 이름은 보여 주지 않음
     return p.length ? '<div class="card"><h3>⏳ 오늘 아직 안 푼 사람 <small>최근 7일 참여자</small></h3><div class="pcs">' + pendingChips(p, 15) + '</div><div class="hint">이름을 누르면 기록을 볼 수 있어요. 연속 기록이 끊기기 전에 콕 찔러 주세요 😄</div></div>' : '';
   }
   function cmpRow(label, a, b, lowerBetter) {

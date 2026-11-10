@@ -225,9 +225,9 @@ function run(ROOT) {
 
   /* 꼬맨틀 카드 문구: 오늘 몇 명이 맞혔는지 · 아직 안 푼 사람 (메인 서버 semBrief, 5분 캐시, 실패해도 카드는 그대로) */
   function semCardText(b) {
-    var n = b.solvedToday || 0, names = (b.pending || []).slice(0, 3).map(function (p) { return p.nick; }).join(' · ');
+    var n = b.solvedToday || 0;
     if (!b.ready) return '오늘 문제 준비 중';
-    if (b.done) return '✅ 오늘 완료 · ' + n + '명 정답' + (names ? ' · 👀 아직 ' + names : '');
+    if (b.done) return '✅ 오늘 완료 · ' + n + '명 정답';
     return n + '명이 맞혔어요 · 아직 안 풀었다면?' + (b.streak ? ' 🔥' + b.streak + '일 연속 지키기' : '');
   }
   function semBrief() {
