@@ -394,3 +394,6 @@ html.xl .seg:not(.tabs),html.xl .seg:not(.tabs) button{border-radius:2px}
 html.xl .rk,html.xl .rk.me{border-radius:0}
 @media (max-width:700px){html.xl .xview,html.xl .xzoom{display:none}}   /* 위의 일반 규칙이 뒤에 와서 덮으므로 한 번 더 */
 html.xl .heat{display:none}   /* 결과 이모지 줄은 엑셀 모드에서 숨김 */
+
+.kdot{color:#f76707;font-size:9px;vertical-align:middle;margin-left:2px}
+.card.next{border-color:var(--accent);background:var(--accent-soft)}.card.next h3{color:var(--accent)}.card.next p{margin:4px 0 0;color:var(--ink2);font-size:14px}

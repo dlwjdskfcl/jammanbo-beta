@@ -6,10 +6,12 @@
  */
 (function () {
   'use strict';
-  var VER = '1.16.1';
+  var VER = '1.17.0';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
-  var KODLE_ON = /jammanbo-beta/.test(location.pathname) || ENV !== 'prod';   // 꼬들 탭은 테스트 사이트에서만 (운영에는 공개할 때 true 로)
+  function kstDay() { return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); }
+  var KODLE_FROM = '2026-11-12';   // 꼬들 공개일(KST) — 운영은 이 날부터 탭이 켜짐 (미리 올려 두면 자정에 자동으로 열림). 테스트 사이트는 늘 켜짐
+  var KODLE_ON = /jammanbo-beta/.test(location.pathname) || ENV !== 'prod' || kstDay() >= KODLE_FROM;
   var ENV_SFX = ENV !== 'prod' ? '_' + ENV : '';
   var API = window.SEM_API_LOCAL || CFG.api || '';
   var EDGE = window.SEM_EDGE_LOCAL || CFG.semEdge || '';   // (1.13.0) 엣지(Cloudflare Worker): 표를 Apps Script 없이 0.1초대로 줌. 비어 있거나 실패하면 Apps Script 경로
@@ -568,7 +570,7 @@
   }
   function render() {
     if (!S.nick) return renderGate(!!session());
-    setHead(); tabsOn();
+    setHead(); tabsOn(); kodleTab();
     if (S.view === 'prac') renderPrac();
     else if (S.view === 'rank') renderRank();
     else if (S.view === 'hist') renderHist();
@@ -581,7 +583,7 @@
   var kodleP = null;
   function loadKodle() {
     if (window.JMB_KODLE) return Promise.resolve();
-    if (!kodleP) kodleP = new Promise(function (res, rej) { var s = document.createElement('script'); s.src = '../kodle/app.js?v=1.7.0'; s.onload = res; s.onerror = function () { kodleP = null; rej(new Error('꼬들 파일을 못 받았어요')); }; document.head.appendChild(s); });
+    if (!kodleP) kodleP = new Promise(function (res, rej) { var s = document.createElement('script'); s.src = '../kodle/app.js?v=1.9.0'; s.onload = res; s.onerror = function () { kodleP = null; rej(new Error('꼬들 파일을 못 받았어요')); }; document.head.appendChild(s); });
     return kodleP;
   }
   /** 꼬들이 보이는 화면인가: 🟩 꼬들 탭, 또는 연습 · 내 기록 탭에서 '꼬들' 을 고른 경우 */
@@ -617,7 +619,17 @@
     return '';
   }
   /** 끝나면 다음 게임으로: 꼬들 (두 글자 단어를 자모 색깔로 맞히기) */
-  function kodleLink() { if (!KODLE_ON) return ''; return '<p style="text-align:center;margin:8px 0"><button type="button" class="btn pri" data-go="kodle">' + xe('🟩 이어서 꼬들 하러 가기') + '</button></p>'; }
+  /** 오늘 꼬들을 이 기기에서 끝냈는지 (꼬들 모듈이 저장해 둔 값) */
+  function kodleDoneToday() { try { var v = JSON.parse(localStorage.getItem('jmb_kodle_v1' + ENV_SFX) || 'null'); return !!(v && v.day === kstDay() && v.done); } catch (e) { return false; } }
+  /** 꼬맨틀 결과 카드 아래: 다음 코스(꼬들)로 이어가기 — 오늘 마친 사람 수만 보여 줌(결과 · 횟수는 비공개) */
+  function kodleLink() {
+    if (!KODLE_ON || (S.L && S.L.prac)) return '';
+    var n = S.srv && S.srv.kd;
+    if (kodleDoneToday()) return '<div class="card next"><h3>🎉 오늘 코스 완주!</h3><p>꼬맨틀 + 꼬들을 모두 끝냈어요. 점수는 순위에서 확인해 보세요.</p><div class="btns"><button type="button" class="btn pri" data-go="rank">' + xe('🏆 순위 보기') + '</button></div></div>';
+    return '<div class="card next"><h3>🟩 다음 코스 — 오늘의 꼬들</h3><p>두 글자 단어를 <b>자모 6칸</b>으로 맞히는 짧은 퍼즐이에요. 꼬들 점수도 꼬맨틀 순위에 더해져요.' + (n ? '<br>오늘 <b>' + n + '명</b>이 마쳤어요 — 몇 번 만에 풀었는지는 아무도 몰라요 🙂' : '') + '</p><div class="btns"><button type="button" class="btn pri" data-go="kodle">' + xe('🟩 이어서 꼬들 하러 가기 →') + '</button></div></div>';
+  }
+  /** 꼬들 탭 표시: 오늘 아직이면 주황 점 */
+  function kodleTab() { if (!KODLE_ON) return; var b = $('tabKodle'); if (b) b.innerHTML = '🟩 꼬들' + (kodleDoneToday() ? '' : ' <span class="kdot" aria-label="오늘 아직">●</span>'); }
   function resultCard() {
     var L = S.L, r = L.res, n = L.n;
     if (L.prac) return '<div class="card res pop"><div class="em">' + (L.win ? '🎉' : '👀') + '</div><h2>' + (L.win ? '정답이에요!' : '정답은 이거였어요') + '</h2>' +
@@ -1014,7 +1026,7 @@
     if (!r || r.loginRequired || !r.me) { dayCacheClear(); S.nick = ''; return renderGate(!!session()); }   // 토큰이 만료됐거나 닉네임이 연결되지 않음
     if (!r.ready) { render(); return; }
     if (r.day !== S.srv.day) { dayCacheClear(); return bootFull(); }   // 날짜가 바뀜 → 새 표 (진행 중 추측은 판마다 따로 저장돼 있음)
-    var s = S.srv; s.my = r.my; s.stats = r.stats; s.solvedToday = r.solvedToday; s.yesterday = r.yesterday; s.me = r.me; s.people = r.people; S.nick = r.me;
+    var s = S.srv; s.my = r.my; s.kd = r.kd; s.stats = r.stats; s.solvedToday = r.solvedToday; s.yesterday = r.yesterday; s.me = r.me; s.people = r.people; S.nick = r.me;
     var L = S.L, my = r.my;
     mergeServer(L, my);
     if (!L.done && L.g.length === 0) L.rec = !!(S.nick && my && my.state !== '완료');

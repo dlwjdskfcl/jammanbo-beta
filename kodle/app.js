@@ -1,18 +1,17 @@
-/* 잠만보 꼬들 1.6.0 — 원작 꼬들 규칙: 정답은 기본 자모 24개(자음 14 · 모음 10)로 풀어 쓴 6칸짜리 단어, 6번 안에 자모 키보드로 입력.
- * ㄲ→ㄱㄱ · ㅐ→ㅏㅣ · ㅘ→ㅗㅏ · 겹받침→둘 처럼 기본 자모로 풀어서 셈. 화면은 꼬맨틀과 같은 머리줄 · 탭 · 카드.
+/* 잠만보 꼬들 1.9.0 — 원작 꼬들 규칙: 정답은 자모 6칸짜리 단어, 6번 안에 자모 키보드로 입력.
+ * 한 칸 = 자모 하나: ㄲ ㄸ ㅃ ㅆ ㅉ · ㅐ ㅒ ㅔ ㅖ 는 한 칸(키도 하나), ㅘ ㅝ ㅢ 같은 겹모음과 겹받침(ㄳ …)은 기본 자모 둘(ㅗ+ㅏ). 화면은 꼬맨틀과 같은 머리줄 · 탭 · 카드.
  * 이 파일은 모듈: window.JMB_KODLE.mount(요소, 옵션) — 꼬들 자체 페이지(kodle/)와 꼬맨틀 페이지의 '🟩 꼬들' 탭에서 같이 씀.
  * 오늘 문제는 카카오 로그인한 회원이면 서버(Kodle.js)에 기록돼 점수가 꼬맨틀 주간 · 시즌 · 누적 점수에 더해짐 (정답은 서버가 확인). 연습 판 · 로그인 안 한 판은 이 기기에만 저장. */
 (function () {
   'use strict';
-  var VER = '1.7.0', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 11), LOGMAX = 400;
+  var VER = '1.9.0', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 12), LOGMAX = 400;
   var CFG = window.JMB_CONFIG || {}, ENV = CFG.env || 'prod', SFX = ENV !== 'prod' ? '_' + ENV : '';
   var KEY = 'jmb_kodle_v1' + SFX, KLOG = 'jmb_kodle_log' + SFX, KST = 'jmb_kodle_st' + SFX, KHELP = 'jmb_kodle_help', KAUTH = 'jmb_kakao_v2' + SFX;
-  var CH = ['ㄱ', 'ㄱㄱ', 'ㄴ', 'ㄷ', 'ㄷㄷ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅂㅂ', 'ㅅ', 'ㅅㅅ', 'ㅇ', 'ㅈ', 'ㅈㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
-  var JU = ['ㅏ', 'ㅏㅣ', 'ㅑ', 'ㅑㅣ', 'ㅓ', 'ㅓㅣ', 'ㅕ', 'ㅕㅣ', 'ㅗ', 'ㅗㅏ', 'ㅗㅏㅣ', 'ㅗㅣ', 'ㅛ', 'ㅜ', 'ㅜㅓ', 'ㅜㅓㅣ', 'ㅜㅣ', 'ㅠ', 'ㅡ', 'ㅡㅣ', 'ㅣ'];
-  var JO = ['', 'ㄱ', 'ㄱㄱ', 'ㄱㅅ', 'ㄴ', 'ㄴㅈ', 'ㄴㅎ', 'ㄷ', 'ㄹ', 'ㄹㄱ', 'ㄹㅁ', 'ㄹㅂ', 'ㄹㅅ', 'ㄹㅌ', 'ㄹㅍ', 'ㄹㅎ', 'ㅁ', 'ㅂ', 'ㅂㅅ', 'ㅅ', 'ㅅㅅ', 'ㅇ', 'ㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
+  var CH = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
+  var JU = ['ㅏ', 'ㅐ', 'ㅑ', 'ㅒ', 'ㅓ', 'ㅔ', 'ㅕ', 'ㅖ', 'ㅗ', 'ㅗㅏ', 'ㅗㅐ', 'ㅗㅣ', 'ㅛ', 'ㅜ', 'ㅜㅓ', 'ㅜㅔ', 'ㅜㅣ', 'ㅠ', 'ㅡ', 'ㅡㅣ', 'ㅣ'];
+  var JO = ['', 'ㄱ', 'ㄲ', 'ㄱㅅ', 'ㄴ', 'ㄴㅈ', 'ㄴㅎ', 'ㄷ', 'ㄹ', 'ㄹㄱ', 'ㄹㅁ', 'ㄹㅂ', 'ㄹㅅ', 'ㄹㅌ', 'ㄹㅍ', 'ㄹㅎ', 'ㅁ', 'ㅂ', 'ㅂㅅ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
   var ROWS = ['ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅ', 'ㅆㅇㅈㅉㅊㅋㅌㅍㅎ', 'ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅛ', 'ㅜㅠㅡㅣ'];   // 자음(쌍자음 포함) 2줄 · 모음 2줄 — 키가 전부 보임. 쌍자음 · ㅐ ㅒ ㅔ ㅖ 키는 기본 자모 둘로 풀려서 들어감
   var SHIFTED = { 'ㅂ': 'ㅃ', 'ㅈ': 'ㅉ', 'ㄷ': 'ㄸ', 'ㄱ': 'ㄲ', 'ㅅ': 'ㅆ', 'ㅐ': 'ㅒ', 'ㅔ': 'ㅖ' }, shift = false;
-  var EXP = { 'ㄲ': 'ㄱㄱ', 'ㄸ': 'ㄷㄷ', 'ㅃ': 'ㅂㅂ', 'ㅆ': 'ㅅㅅ', 'ㅉ': 'ㅈㅈ', 'ㅐ': 'ㅏㅣ', 'ㅒ': 'ㅑㅣ', 'ㅔ': 'ㅓㅣ', 'ㅖ': 'ㅕㅣ' };
   var PHYS = { KeyQ: 'ㅂ', KeyW: 'ㅈ', KeyE: 'ㄷ', KeyR: 'ㄱ', KeyT: 'ㅅ', KeyY: 'ㅛ', KeyU: 'ㅕ', KeyI: 'ㅑ', KeyA: 'ㅁ', KeyS: 'ㄴ', KeyD: 'ㅇ', KeyF: 'ㄹ', KeyG: 'ㅎ', KeyH: 'ㅗ', KeyJ: 'ㅓ', KeyK: 'ㅏ', KeyL: 'ㅣ', KeyZ: 'ㅋ', KeyX: 'ㅌ', KeyC: 'ㅊ', KeyV: 'ㅍ', KeyB: 'ㅠ', KeyN: 'ㅜ', KeyM: 'ㅡ', KeyO: 'ㅐ', KeyP: 'ㅔ' };
   var BASE = (document.currentScript && document.currentScript.src ? document.currentScript.src : location.href).replace(/[?#].*$/, '').replace(/[^\/]*$/, '');
   var host = null, opt = {}, loading = false, kbound = false;
@@ -70,7 +69,8 @@
     return r;
   }
   function grid(m) { return m.guesses.map(function (w) { return score(w, m.ans).map(function (x) { return x === 'g' ? '🟩' : x === 'y' ? '🟨' : '⬛'; }).join(''); }).join('\n'); }
-  function shareText(m) { return '잠만보 꼬들 ' + (m.prac ? '연습' : '#' + (m.no + 1)) + ' ' + (m.win ? m.guesses.length : 'X') + '/' + TRIES + '\n' + grid(m); }
+  /** 공유 글: 추측 횟수 · 칸 색 · 점수는 넣지 않음 (단톡방에서 횟수가 드러나 부끄럽지 않게) — 끝냈다는 것만. 실패해도 똑같이 '도전 완료' */
+  function shareText(m) { return '🟩 꼬들 ' + (m.prac ? '연습' : '#' + (m.no + 1)) + (m.win && !m.prac ? ' 🎉 정답!' : ' 도전 완료'); }
 
   /* ── 판 만들기 · 기록 ── */
   function newGame(prac) {
@@ -140,7 +140,7 @@
     return st;
   }
   /** 겹글자 키(ㄲ · ㅐ …)는 풀린 자모가 모두 같은 상태일 때만 색을 보여 줌 */
-  function keySt(c, st) { var e = EXP[c]; if (!e) return st[c]; var a = st[e.charAt(0)], b = st[e.charAt(1)]; return a && a === b ? a : ''; }
+  function keySt(c, st) { return st[c]; }
   function boardHTML(m, cur, pop) {
     var h = '<div id="board" aria-live="polite">';
     for (var r = 0; r < TRIES; r++) {
@@ -178,6 +178,14 @@
     if (SV.today && SV.today.semDone === false && !GM.play.done) return '<div class="note">🔤 코스: <b>오늘 꼬맨틀 → 꼬들</b>. 꼬들 점수도 꼬맨틀 점수에 더해져요. <a class="btn sm" href="../semantle/">꼬맨틀 하러 가기</a></div>';
     return '';
   }
+  /** 오늘 코스(꼬맨틀 → 꼬들) 안내 + 오늘 마친 사람 수 (누가 · 몇 번 만에는 비공개) */
+  function courseHTML(m) {
+    var t = SV.today, out = [];
+    if (t && t.semDone === false) out.push('🔤 오늘 꼬맨틀은 아직이에요 ' + (opt.embedded ? '<button type="button" class="btn sm pri" data-go="play">꼬맨틀 하러 가기</button>' : '<a class="btn sm pri" href="../semantle/">꼬맨틀 하러 가기</a>'));
+    else if (t && t.semDone) out.push('🎉 오늘 코스(꼬맨틀 + 꼬들) 완주!');
+    if (t && t.kd) out.push('오늘 ' + t.kd + '명이 꼬들을 마쳤어요 · 점수는 🏆 순위에서 (횟수 · 결과는 나만 봐요)');
+    return out.length ? '<p class="hint course">' + out.join('<br>') + '</p>' : '';
+  }
   function resultHTML(m) {
     if (!m.done) return '';
     var emb = !!opt.embedded;
@@ -186,7 +194,7 @@
       : '<button type="button" class="btn" id="goPrac">🌱 연습</button><a class="btn" href="../semantle/">🔤 꼬맨틀</a>';
     return '<div class="kres"><div class="khead"><span class="em">' + (m.win ? '🎉' : '😵') + '</span><b>' + (m.win ? '정답이에요!' : '아쉬워요') + '</b></div>' +
       '<p class="ans">' + (m.win ? '<b>' + esc(m.aw) + '</b> — ' + m.guesses.length + '번 만에 맞혔어요' : '정답은 <b>' + esc(m.aw) + '</b> 였어요') + ' <small>(' + m.ans.split('').join(' ') + ')</small>' + (m.prac ? ' <small>· 연습(기록 없음)</small>' : '') + '</p>' +
-      (m.prac ? '' : scoreHTML(m)) + '<div class="btns"><button type="button" class="btn pri" id="share">결과 복사</button>' + more + '</div>' +
+      (m.prac ? '' : scoreHTML(m) + courseHTML(m)) + '<div class="btns"><button type="button" class="btn pri" id="share">결과 복사</button>' + more + '</div>' +
       (m.prac ? '' : '<p class="hint" style="text-align:center;margin:4px 0 0">다음 문제는 내일 00:00에 열려요</p>') + '</div>';
   }
   function gameHTML(which) {
@@ -268,7 +276,7 @@
       if (cur === m.ans) finish(m, true); else if (m.guesses.length >= TRIES) finish(m, false); else srvSave(m);
       persist(m); return render(true);
     }
-    var add = EXP[k] || k; shift = false;
+    var add = k; shift = false;
     if (cur.length + add.length <= LEN) { if (!m.t0 && !m.guesses.length) m.t0 = Date.now(); CUR[view] = cur + add; render(); } else render();
   }
 
@@ -284,7 +292,7 @@
   function help() {
     openModal('<h2>🟩 꼬들 하는 법</h2><p>정답은 <b>자모 6개</b>로 이루어진 단어예요. <b>6번 안에</b> 맞혀 보세요. 자모 키보드로 6칸을 채우고 <b>입력</b>을 누르면 색깔로 알려 줘요.</p>' +
       '<p>🟩 자모와 자리가 모두 맞음<br>🟨 자모는 있지만 다른 자리<br>⬛ 정답에 없음</p>' +
-      '<p>쌍자음 · ㅐ · ㅔ · ㅘ 같은 글자와 겹받침은 <b>기본 자모(자음 14 · 모음 10)로 풀어서</b> 세요. 예: ㄲ=ㄱㄱ · ㅐ=ㅏㅣ · ㅘ=ㅗㅏ · ㄳ=ㄱㅅ (ㄲ · ㅐ 키를 누르면 알아서 두 칸이 채워져요). 그래서 ‘공룡’ = ㄱㅗㅇㄹㅠㅇ 이에요.</p>' +
+      '<p>한 칸은 <b>자모 하나</b>예요. ㄲ · ㅐ 같은 글자는 한 칸이고, ㅘ · ㅝ · ㅢ 같은 겹모음과 겹받침(ㄳ …)은 <b>기본 자모 둘</b>로 나눠 넣어요. 예: ‘공룡’ = ㄱㅗㅇㄹㅠㅇ · ‘왕’ = ㅇㅗㅏㅇ.</p>' +
       '<p>매일 하나(자정에 바뀜). 컴퓨터에서는 자판(두벌식)으로도 입력돼요. 연습 탭에서는 기록 없이 마음껏 풀 수 있어요.</p><div class="btns"><button type="button" class="btn pri" data-x>시작</button></div>');
     save(KHELP, 1);
   }
