@@ -4,13 +4,13 @@
  * 오늘 문제는 카카오 로그인한 회원이면 서버(Kodle.js)에 기록돼 점수가 꼬맨틀 주간 · 시즌 · 누적 점수에 더해짐 (정답은 서버가 확인). 연습 판 · 로그인 안 한 판은 이 기기에만 저장. */
 (function () {
   'use strict';
-  var VER = '1.6.1', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 11), LOGMAX = 400;
+  var VER = '1.7.0', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 11), LOGMAX = 400;
   var CFG = window.JMB_CONFIG || {}, ENV = CFG.env || 'prod', SFX = ENV !== 'prod' ? '_' + ENV : '';
   var KEY = 'jmb_kodle_v1' + SFX, KLOG = 'jmb_kodle_log' + SFX, KST = 'jmb_kodle_st' + SFX, KHELP = 'jmb_kodle_help', KAUTH = 'jmb_kakao_v2' + SFX;
   var CH = ['ㄱ', 'ㄱㄱ', 'ㄴ', 'ㄷ', 'ㄷㄷ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅂㅂ', 'ㅅ', 'ㅅㅅ', 'ㅇ', 'ㅈ', 'ㅈㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
   var JU = ['ㅏ', 'ㅏㅣ', 'ㅑ', 'ㅑㅣ', 'ㅓ', 'ㅓㅣ', 'ㅕ', 'ㅕㅣ', 'ㅗ', 'ㅗㅏ', 'ㅗㅏㅣ', 'ㅗㅣ', 'ㅛ', 'ㅜ', 'ㅜㅓ', 'ㅜㅓㅣ', 'ㅜㅣ', 'ㅠ', 'ㅡ', 'ㅡㅣ', 'ㅣ'];
   var JO = ['', 'ㄱ', 'ㄱㄱ', 'ㄱㅅ', 'ㄴ', 'ㄴㅈ', 'ㄴㅎ', 'ㄷ', 'ㄹ', 'ㄹㄱ', 'ㄹㅁ', 'ㄹㅂ', 'ㄹㅅ', 'ㄹㅌ', 'ㄹㅍ', 'ㄹㅎ', 'ㅁ', 'ㅂ', 'ㅂㅅ', 'ㅅ', 'ㅅㅅ', 'ㅇ', 'ㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
-  var ROWS = ['ㅂㅈㄷㄱㅅㅛㅕㅑㅐㅔ', 'ㅁㄴㅇㄹㅎㅗㅓㅏㅣ', 'ㅋㅌㅊㅍㅠㅜㅡ'];   // 두벌식 배열 모양 (3줄). ⇧ 를 누르면 ㅂㅈㄷㄱㅅ → ㅃㅉㄸㄲㅆ · ㅐㅔ → ㅒㅖ. 쌍자음 · ㅐ ㅒ ㅔ ㅖ 는 기본 자모 둘로 풀려서 들어감
+  var ROWS = ['ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅ', 'ㅆㅇㅈㅉㅊㅋㅌㅍㅎ', 'ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅛ', 'ㅜㅠㅡㅣ'];   // 자음(쌍자음 포함) 2줄 · 모음 2줄 — 키가 전부 보임. 쌍자음 · ㅐ ㅒ ㅔ ㅖ 키는 기본 자모 둘로 풀려서 들어감
   var SHIFTED = { 'ㅂ': 'ㅃ', 'ㅈ': 'ㅉ', 'ㄷ': 'ㄸ', 'ㄱ': 'ㄲ', 'ㅅ': 'ㅆ', 'ㅐ': 'ㅒ', 'ㅔ': 'ㅖ' }, shift = false;
   var EXP = { 'ㄲ': 'ㄱㄱ', 'ㄸ': 'ㄷㄷ', 'ㅃ': 'ㅂㅂ', 'ㅆ': 'ㅅㅅ', 'ㅉ': 'ㅈㅈ', 'ㅐ': 'ㅏㅣ', 'ㅒ': 'ㅑㅣ', 'ㅔ': 'ㅓㅣ', 'ㅖ': 'ㅕㅣ' };
   var PHYS = { KeyQ: 'ㅂ', KeyW: 'ㅈ', KeyE: 'ㄷ', KeyR: 'ㄱ', KeyT: 'ㅅ', KeyY: 'ㅛ', KeyU: 'ㅕ', KeyI: 'ㅑ', KeyA: 'ㅁ', KeyS: 'ㄴ', KeyD: 'ㅇ', KeyF: 'ㄹ', KeyG: 'ㅎ', KeyH: 'ㅗ', KeyJ: 'ㅓ', KeyK: 'ㅏ', KeyL: 'ㅣ', KeyZ: 'ㅋ', KeyX: 'ㅌ', KeyC: 'ㅊ', KeyV: 'ㅍ', KeyB: 'ㅠ', KeyN: 'ㅜ', KeyM: 'ㅡ', KeyO: 'ㅐ', KeyP: 'ㅔ' };
@@ -152,11 +152,10 @@
     return h + '</div>';
   }
   function keysHTML(m) {
-    var st = keyStates(m);
-    function btn(c) { var d = shift && SHIFTED[c] ? SHIFTED[c] : c; return '<button type="button" class="' + (keySt(d, st) || '') + '" data-k="' + d + '">' + d + '</button>'; }
+    var st = keyStates(m), CONS = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
+    function btn(c) { return '<button type="button" class="' + (CONS.indexOf(c) >= 0 ? 'cn ' : 'vw ') + (keySt(c, st) || '') + '" data-k="' + c + '">' + c + '</button>'; }
     return '<div class="keys">' + ROWS.map(function (row, i) {
-      return '<div class="kr">' + (i === 2 ? '<button type="button" class="w' + (shift ? ' pri' : '') + '" data-k="Shift" aria-label="쌍자음 · ㅒ ㅖ">⇧</button>' : '') + row.split('').map(btn).join('') +
-        (i === 1 ? '<button type="button" class="w pri" data-k="Enter">입력</button>' : '') + (i === 2 ? '<button type="button" class="w" data-k="Back" aria-label="지우기">⌫</button>' : '') + '</div>';
+      return '<div class="kr">' + (i === 3 ? '<button type="button" class="w pri" data-k="Enter">입력</button>' : '') + row.split('').map(btn).join('') + (i === 3 ? '<button type="button" class="w" data-k="Back" aria-label="지우기">⌫</button>' : '') + '</div>';
     }).join('') + '</div>';
   }
   /** 오늘 판 점수 칸: 서버가 확정한 값 · 확정 전에는 잠정(기본 점수만) · 로그인 안 했으면 안내 */
@@ -206,9 +205,9 @@
     var xl = document.documentElement.classList.contains('xl'), reserve = xl ? 74 : 20;   // 엑셀 모드는 아래 시트 탭 · 상태줄 자리
     var avail = (window.innerHeight || 700) - top - reserve - 10;
     var width = Math.min(c.clientWidth || 360, 520) - 28;
-    var unit = keys && !wide ? 6 + 3 * 0.9 : 6;                       // 좁은 화면에서 키보드가 아래에 있으면 칸 6줄 + 키 3줄(칸의 0.9배)
-    var t = Math.floor(Math.min((avail - other - (keys && !wide ? 12 : 0) - 25) / unit, wide ? 64 : (width - 25) / 6, 64)); t = Math.max(t, 22);
-    var kk = wide ? Math.max(40, Math.min(54, Math.round(t * 0.95))) : Math.max(30, Math.min(46, Math.round(t * 0.95)));
+    var unit = keys && !wide ? 6 + 4 * 0.85 : 6;                       // 좁은 화면에서 키보드가 아래에 있으면 칸 6줄 + 키 4줄(칸의 0.9배)
+    var t = Math.floor(Math.min((avail - other - (keys && !wide ? 24 : 0) - 25) / unit, wide ? 64 : (width - 25) / 6, 64)); t = Math.max(t, 20);
+    var kk = wide ? Math.max(40, Math.min(54, Math.round(t * 0.95))) : Math.max(26, Math.min(46, Math.round(t * 0.85)));
     c.style.setProperty('--kt', t + 'px'); c.style.setProperty('--kk', kk + 'px');
   }
   /** 지난 판 목록: 서버(오늘 문제 기록) + 이 기기 로그(연습 포함)를 합쳐 최근순 */

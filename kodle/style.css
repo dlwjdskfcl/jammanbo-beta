@@ -45,3 +45,9 @@ details.hc pre{margin:6px 0 0;font:inherit;line-height:1.25}
 .kd.kwide .kh{grid-area:kh}.kd.kwide #board{grid-area:bd;margin:4px 0}.kd.kwide .kmsg{grid-area:ms;text-align:left}
 .kd.kwide .keys,.kd.kwide .kres{grid-area:side;align-self:center;max-width:560px;width:100%;justify-self:center}
 .kd.kwide .kr{gap:6px}
+
+/* 1.7.0: 키 4줄 — 자음(쌍자음 포함) · 모음이 전부 보임. 자음 · 모음 색을 살짝 달리 */
+.kd .kr button.vw{background:var(--accent-soft);color:var(--accent)}
+.kd .kr button.cn{background:var(--surface2)}
+.kd .kr button.g{background:var(--ok);color:#fff}.kd .kr button.y{background:var(--gold);color:#fff}.kd .kr button.n{background:var(--tile-n);color:#fff;opacity:.6}
+.kd .kr button.w{background:var(--surface2);color:var(--ink)}.kd .kr button.w.pri{background:var(--accent);color:var(--accent-ink)}
