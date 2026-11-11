@@ -165,7 +165,7 @@ function shim(API, STORE, ENV) {
   function call(fn, args) {
     var stop = prepare(fn, args);
     if (stop) return Promise.reject(new Error(stop));
-    return fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: fn, args: args, env: ENV || undefined, slim: (window.JMB_SLIM_OK && (fn === 'addPost' || fn === 'addPlays')) ? 1 : undefined }) })
+    return fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: fn, args: args, env: ENV || undefined, slim: (window.JMB_SLIM_OK && /^(addPost|addPlays|toggleWish|toggleOwner|rateGame)$/.test(fn)) ? 1 : undefined }) })
       .then(function (r) { if (!r.ok) throw new Error('서버 응답 오류 (' + r.status + ')'); return r.json(); })
       .then(function (j) { if (!j || !j.ok) throw new Error((j && j.e) || '알 수 없는 오류'); return j.r; },
             function (e) { throw (e instanceof TypeError) ? new Error('인터넷 연결을 확인해 주세요') : e; });
