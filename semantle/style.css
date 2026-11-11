@@ -397,3 +397,9 @@ html.xl .heat{display:none}   /* 결과 이모지 줄은 엑셀 모드에서 숨
 
 .kdot{color:#f76707;font-size:9px;vertical-align:middle;margin-left:2px}
 .card.next{border-color:var(--accent);background:var(--accent-soft)}.card.next h3{color:var(--accent)}.card.next p{margin:4px 0 0;color:var(--ink2);font-size:14px}
+
+/* 순위 '현황' 표 (1.18.0) */
+.stt{width:100%;border-collapse:collapse;font-size:13.5px}.stt th,.stt td{padding:7px 6px;text-align:center;border-bottom:1px solid var(--line)}
+.stt th{font-size:12px;color:var(--muted);font-weight:700;line-height:1.25}.stt td.l,.stt th.l{text-align:left}.stt td.num{font-variant-numeric:tabular-nums;font-weight:700}
+.stt tr.me td{background:var(--accent-soft)}.stt .bk{font-size:15px}.stt .bk:not(.ok):not(.no){color:var(--muted)}
+html.xl .stt th,html.xl .stt td{border:1px solid var(--cell,#dadada)}html.xl .stt th{background:var(--hdr,#efefef);color:var(--ink2)}

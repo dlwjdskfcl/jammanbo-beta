@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.17.1';
+  var VER = '1.18.0';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   function kstDay() { return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); }
@@ -583,7 +583,7 @@
   var kodleP = null;
   function loadKodle() {
     if (window.JMB_KODLE) return Promise.resolve();
-    if (!kodleP) kodleP = new Promise(function (res, rej) { var s = document.createElement('script'); s.src = '../kodle/app.js?v=1.10.0'; s.onload = res; s.onerror = function () { kodleP = null; rej(new Error('꼬들 파일을 못 받았어요')); }; document.head.appendChild(s); });
+    if (!kodleP) kodleP = new Promise(function (res, rej) { var s = document.createElement('script'); s.src = '../kodle/app.js?v=1.11.0'; s.onload = res; s.onerror = function () { kodleP = null; rej(new Error('꼬들 파일을 못 받았어요')); }; document.head.appendChild(s); });
     return kodleP;
   }
   /** 꼬들이 보이는 화면인가: 🟩 꼬들 탭, 또는 연습 · 내 기록 탭에서 '꼬들' 을 고른 경우 */
@@ -600,7 +600,7 @@
     var host = document.createElement('div'); host.id = 'kdHost'; host.setAttribute('data-m', v); host.style.display = 'contents';   // 엑셀 모드의 '.wrap > .card' 규칙이 그대로 먹도록
     $('view').innerHTML = v === 'play' ? '' : segHTML(v); $('view').appendChild(host);
     host.innerHTML = '<div class="card"><div class="empty">⏳ 꼬들을 불러오는 중…</div></div>';
-    loadKodle().then(function () { if (kodleSub() && $('view').lastChild === host) JMB_KODLE.mount(host, { embedded: true, mode: v, toast: toast }); }, function (e) { host.innerHTML = '<div class="card empty">' + esc(e.message) + '</div>'; });
+    loadKodle().then(function () { if (kodleSub() && $('view').lastChild === host) JMB_KODLE.mount(host, { embedded: true, mode: v, toast: toast, onCell: function (addr, txt) { if (!S.xl) return; var nb = $('nameBox'); if (nb) nb.textContent = addr; var gw = $('gw'); if (gw) gw.value = txt || ''; } }); }, function (e) { host.innerHTML = '<div class="card empty">' + esc(e.message) + '</div>'; });
   }
   function metaCard() {
     var s = S.srv, h = '<div class="card"><div class="head"><div class="no">#' + s.no + '<small> 번째 문제</small></div><div class="meta">' +
@@ -828,6 +828,13 @@
         '<span class="t"><b>' + esc(o.nick) + '</b><small>' + esc(sub) + '</small></span><span class="v">' + v + '</span></div>';
     }).join('');
   }
+  /** 현황 표: 오늘 꼬맨틀 · 꼬들 결과 + 오늘을 뺀 성공 횟수 */
+  function rkBoard(R) {
+    var L = R.board || [], mark = function (r) { return r === '정답' ? '<span class="bk ok">✅</span>' : r ? '<span class="bk no">❌</span>' : '<span class="bk">–</span>'; };
+    if (!L.length) return '<div class="empty">아직 기록이 없어요</div>';
+    return '<div class="tablewrap"><table class="stt"><thead><tr><th class="l">닉네임</th><th>오늘<br>꼬맨틀</th>' + (KODLE_ON ? '<th>오늘<br>꼬들</th>' : '') + '<th>꼬맨틀<br>성공</th>' + (KODLE_ON ? '<th>꼬들<br>성공</th>' : '') + '</tr></thead><tbody>' +
+      L.map(function (o) { return '<tr' + (o.nick === R.me ? ' class="me"' : '') + '><td class="l">' + esc(o.nick) + (o.nick === R.me ? ' <small>(나)</small>' : '') + '</td><td>' + mark(o.ts) + '</td>' + (KODLE_ON ? '<td>' + mark(o.tk) + '</td>' : '') + '<td class="num">' + o.sx + '</td>' + (KODLE_ON ? '<td class="num">' + o.kx + '</td>' : '') + '</tr>'; }).join('') + '</tbody></table></div>';
+  }
   function renderRank() {
     var R = S.rank;
     if (!R) { var rc = lsJSON(LS.rkc); if (rc && rc.r && rc.nick === S.nick) { S.rank = R = rc.r; R.at = 0; refreshRank(); } }   // 저장해 둔 순위를 먼저 보여 줌
@@ -840,8 +847,14 @@
         '<div class="hint" style="margin-top:6px">평균 추측 ' + (me.avg || '-') + '번 · 누적 ' + me.points + '점 · 최고 연속 ' + me.bestStreak + '일 · 최소 ' + (me.best || '-') + '번' + (me.firsts ? ' · 선두 ' + me.firsts + '번' : '') + '</div>' +
         '<div class="badges">' + BADGES.map(function (b) { return '<div class="badge' + (have[b.id] ? '' : ' off') + '" title="' + esc(b.d) + '"><div class="e">' + b.e + '</div><b>' + esc(b.n) + '</b><small>' + esc(b.d) + '</small></div>'; }).join('') + '</div></div>';
     } else h += '<div class="note warn">🔒 로그인하면 내 순위와 배지를 볼 수 있어요.<br><button type="button" class="btn sm" id="login">카카오 로그인</button></div>';
-    var tabs = [['today', '오늘'], ['week', '이번 주'], ['season', '시즌'], ['streak', '연속'], ['rate', '레이팅']];
+    var tabs = [['today', '오늘'], ['board', '현황'], ['week', '이번 주'], ['season', '시즌'], ['streak', '연속'], ['rate', '레이팅']];
     var tab = S.rkTab, list = tab === 'today' ? R.today : tab === 'week' ? R.weekly : tab === 'season' ? R.seasonal : tab === 'rate' ? R.rated : R.streaks;
+    if (tab === 'board') {   // (1.18.0) 현황: 사람마다 오늘 꼬맨틀 · 꼬들 성공 여부 + 오늘을 뺀 누적 성공 횟수 (추측 횟수 · 시간은 공개 안 함)
+      h += '<div class="seg sm" id="rkTabs">' + tabs.map(function (t) { return '<button type="button" data-t="' + t[0] + '" class="' + (t[0] === tab ? 'on' : '') + '">' + t[1] + '</button>'; }).join('') + '</div>' +
+        '<div class="card"><h3>📋 오늘 현황 <small>' + R.day + ' · 성공 횟수는 오늘 제외</small></h3>' + rkBoard(R) + '</div>' +
+        '<p class="hint">✅ 성공 · ❌ 아쉽게 실패 · – 아직. 몇 번 만에 풀었는지 · 걸린 시간은 나만 볼 수 있어요. 순위는 1분마다 갱신돼요.</p>';
+      $('view').innerHTML = h; return;
+    }
     var title = tab === 'today' ? '오늘의 정답자 <small>' + R.day + ' · 점수 순</small>' : tab === 'week' ? '이번 주 포인트 <small>' + R.week + '(월)~</small>' : tab === 'season' ? '시즌 포인트 <small>' + R.season + '</small>' : tab === 'rate' ? '레이팅 <small>' + R.season + ' · 3일 이상 참여</small>' : '연속 정답 <small>지금 이어가는 중</small>';
     h += '<div class="seg sm" id="rkTabs">' + tabs.map(function (t) { return '<button type="button" data-t="' + t[0] + '" class="' + (t[0] === tab ? 'on' : '') + '">' + t[1] + '</button>'; }).join('') + '</div>' +
       '<div class="card"><h3>' + title + '</h3>' + rkRows(list, tab === 'week' || tab === 'season' ? 'pts' : tab) +

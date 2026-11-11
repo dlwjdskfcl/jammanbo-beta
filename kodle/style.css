@@ -41,7 +41,7 @@ details.hc pre{margin:6px 0 0;font:inherit;line-height:1.25}
 .kemb .kres pre{display:none}
 
 /* 넓은 화면(PC): 칸은 왼쪽, 키보드 · 결과는 오른쪽에 나란히 */
-.kd.kwide{display:grid;grid-template-columns:auto auto;justify-content:center;grid-template-areas:'kh kh' 'bd side' 'ms side';column-gap:28px;align-content:start}
+.kd.kwide{display:grid;grid-template-columns:auto minmax(380px,540px);justify-content:center;grid-template-areas:'kh kh' 'bd side' 'ms side';column-gap:28px;align-content:start}
 .kd.kwide .kh{grid-area:kh}.kd.kwide #board{grid-area:bd;margin:4px 0}.kd.kwide .kmsg{grid-area:ms;text-align:left}
 .kd.kwide .keys,.kd.kwide .kres{grid-area:side;align-self:center;max-width:560px;width:100%;justify-self:center}
 .kd.kwide .kr{gap:6px}
@@ -51,3 +51,37 @@ details.hc pre{margin:6px 0 0;font:inherit;line-height:1.25}
 .kd .kr button.cn{background:var(--surface2)}
 .kd .kr button.g{background:var(--ok);color:#fff}.kd .kr button.y{background:var(--gold);color:#fff}.kd .kr button.n{background:var(--tile-n);color:#fff;opacity:.6}
 .kd .kr button.w{background:var(--surface2);color:var(--ink)}.kd .kr button.w.pri{background:var(--accent);color:var(--accent-ink)}
+
+/* 엑셀 모드(1.11.0): 꼬맨틀 화면의 html.xl 안에서 시트처럼 — 열 머리글 A~F · 행 번호 · 격자선 · 활성 셀(초록 테두리) · 조건부 서식 느낌의 채우기. 게임 방식은 그대로 */
+html.xl .kd.kx{border-radius:0;box-shadow:none;border:1px solid var(--cell,#d4d4d4);padding:6px 10px 10px;background:var(--surface)}
+html.xl .kd.kx .kh{border-bottom:1px solid var(--cell,#d4d4d4);padding-bottom:4px;margin-bottom:6px}
+html.xl .kd.kx .kh b{font-size:13.5px;font-family:var(--sans)}html.xl .kd.kx .kh .tag{border-radius:2px}
+html.xl .kgrid{border-collapse:collapse;table-layout:fixed;margin:2px auto 4px;font-family:var(--sans)}
+html.xl .kgrid th{background:var(--hdr,#efefef);color:var(--ink2);border:1px solid var(--hdrline,#c6c6c6);font-size:11.5px;font-weight:600;padding:0;height:20px;text-align:center;user-select:none}
+html.xl .kgrid th.corner{width:28px}html.xl .kgrid th.rh{width:28px;height:var(--kt)}
+html.xl .kgrid th.hl{background:var(--hl,#d3ebdc);color:var(--hlink,#107c41);border-bottom-color:var(--accent)}html.xl .kgrid th.rh.hl{border-right-color:var(--accent);border-bottom-color:var(--hdrline,#c6c6c6)}
+html.xl .kgrid td.c{width:var(--kt);height:var(--kt);min-width:var(--kt);border:1px solid var(--cell,#dadada);border-radius:0;background:var(--surface);color:var(--ink);text-align:center;vertical-align:middle;font-size:calc(var(--kt)*.5);font-weight:700;line-height:1;aspect-ratio:auto;display:table-cell;padding:0;position:relative}
+html.xl .kgrid td.c.f{border-color:var(--cell,#dadada);background:var(--surface)}
+html.xl .kgrid td.c.g{background:#c6efce;color:#006100;border-color:#a9d9b3}
+html.xl .kgrid td.c.y{background:#ffeb9c;color:#9c5700;border-color:#e6cf7a}
+html.xl .kgrid td.c.n{background:#d9d9d9;color:#595959;border-color:#c4c4c4}
+html.xl .kgrid td.c.sel{outline:2px solid var(--accent);outline-offset:-2px;z-index:1}
+html.xl .kgrid td.c.sel::after{content:'';position:absolute;right:-3px;bottom:-3px;width:6px;height:6px;background:var(--accent);border:1px solid var(--surface);z-index:2}
+html.xl .kgrid .krow.shake td.c{animation:ksh .3s}.kgrid td.c.pop{animation:kpop .25s}
+@media (prefers-color-scheme: dark){html.xl .kgrid td.c.g{background:#1e4d2b;color:#b7e4c4;border-color:#2c6b3d}html.xl .kgrid td.c.y{background:#5a4a12;color:#f4dc8a;border-color:#7a6620}html.xl .kgrid td.c.n{background:#3a3a3a;color:#bdbdbd;border-color:#4a4a4a}}
+html.xl .kd.kx .kr button{border-radius:2px;border:1px solid var(--hdrline,#c6c6c6);background:var(--ribbon,#f3f3f3);color:var(--ink);font-weight:600;box-shadow:none}
+html.xl .kd.kx .kr button.vw{background:var(--accent-soft)}html.xl .kd.kx .kr button.cn{background:var(--surface)}
+html.xl .kd.kx .kr button:active{background:var(--hl,#d3ebdc)}
+html.xl .kd.kx .kr button.g{background:#c6efce;color:#006100;border-color:#a9d9b3}html.xl .kd.kx .kr button.y{background:#ffeb9c;color:#9c5700;border-color:#e6cf7a}html.xl .kd.kx .kr button.n{background:#d9d9d9;color:#7f7f7f;border-color:#c4c4c4;opacity:1}
+html.xl .kd.kx .kr button.w.pri{background:var(--accent);border-color:var(--accent);color:#fff}
+html.xl .kd.kx .kres{border:1px solid var(--cell,#d4d4d4);background:var(--gold-soft,#fff2cc);padding:8px 10px;border-radius:0}
+html.xl .kd.kx .kmsg{font-size:12.5px}
+
+/* 표 모양일 때는 위의 칸(grid) 규칙을 끔 */
+html.xl .kd #board.kgrid{display:table;width:auto;max-width:none;gap:0;margin:2px auto 4px}
+html.xl .kd .kgrid .krow{display:table-row;gap:0;grid-template-columns:none}
+html.xl .kgrid thead tr{display:table-row}
+html.xl .kgrid th.ch{width:var(--kt);min-width:var(--kt)}
+html.xl .kd.kwide #board.kgrid{margin:4px 0}
+
+html.xl .kd.kx .kr button{min-width:30px}

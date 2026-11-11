@@ -4,7 +4,7 @@
  * 오늘 문제는 카카오 로그인한 회원이면 서버(Kodle.js)에 기록돼 점수가 꼬맨틀 주간 · 시즌 · 누적 점수에 더해짐 (정답은 서버가 확인). 연습 판 · 로그인 안 한 판은 이 기기에만 저장. */
 (function () {
   'use strict';
-  var VER = '1.10.0', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 12), LOGMAX = 400;
+  var VER = '1.11.0', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 12), LOGMAX = 400;
   var CFG = window.JMB_CONFIG || {}, ENV = CFG.env || 'prod', SFX = ENV !== 'prod' ? '_' + ENV : '';
   var KEY = 'jmb_kodle_v1' + SFX, KLOG = 'jmb_kodle_log' + SFX, KST = 'jmb_kodle_st' + SFX, KHELP = 'jmb_kodle_help', KAUTH = 'jmb_kakao_v2' + SFX;
   var CH = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
@@ -141,7 +141,10 @@
   }
   /** 겹글자 키(ㄲ · ㅐ …)는 풀린 자모가 모두 같은 상태일 때만 색을 보여 줌 */
   function keySt(c, st) { return st[c]; }
+  var KX = false;   // 엑셀 모드(꼬맨틀 화면 안에서 html.xl 일 때): 칸을 스프레드시트처럼 — 게임 방식은 그대로
+  var COLS = 'ABCDEF';
   function boardHTML(m, cur, pop) {
+    if (KX) return boardX(m, cur, pop);
     var h = '<div id="board" aria-live="polite">';
     for (var r = 0; r < TRIES; r++) {
       var w = m.guesses[r], typing = !w && r === m.guesses.length && !m.done, sc = w ? score(w, m.ans) : null;
@@ -151,6 +154,21 @@
     }
     return h + '</div>';
   }
+  /** 시트 모양 보드: 열 머리글 A~F · 행 번호 1~6 · 격자선 · 입력할 칸에 초록 테두리(활성 셀) · 맞춘 결과는 조건부 서식처럼 칸 채우기 */
+  function activeCell(m, cur) { return m.done ? null : { r: m.guesses.length, c: Math.min(cur.length, LEN - 1) }; }
+  function boardX(m, cur, pop) {
+    var act = activeCell(m, cur);
+    var h = '<table id="board" class="kgrid" aria-live="polite"><thead><tr><th class="corner"></th>' + COLS.split('').map(function (L, i) { return '<th class="ch' + (act && act.c === i ? ' hl' : '') + '">' + L + '</th>'; }).join('') + '</tr></thead><tbody>';
+    for (var r = 0; r < TRIES; r++) {
+      var w = m.guesses[r], typing = !w && r === m.guesses.length && !m.done, sc = w ? score(w, m.ans) : null;
+      h += '<tr class="krow" id="r' + r + '"><th class="rh' + (act && act.r === r ? ' hl' : '') + '">' + (r + 1) + '</th>';
+      for (var c = 0; c < LEN; c++) { var ch = w ? w.charAt(c) : typing ? cur.charAt(c) : ''; h += '<td class="c' + (sc ? ' ' + sc[c] : ch ? ' f' : '') + (act && act.r === r && act.c === c ? ' sel' : '') + (pop && w && r === m.guesses.length - 1 ? ' pop' : '') + '">' + ch + '</td>'; }
+      h += '</tr>';
+    }
+    return h + '</tbody></table>';
+  }
+  /** 엑셀 모드: 이름 상자(셀 주소)와 수식 입력줄에 지금 입력 중인 칸 · 글자를 보여 줌 (꼬맨틀 화면이 opt.onCell 로 받음) */
+  function cellInfo(m) { if (!KX || !opt.onCell) return; var a = activeCell(m, CUR[view]); opt.onCell(a ? COLS.charAt(a.c) + (a.r + 1) : 'A1', m.done ? m.aw : CUR[view]); }
   function keysHTML(m) {
     var st = keyStates(m), CONS = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
     function btn(c) { return '<button type="button" class="' + (CONS.indexOf(c) >= 0 ? 'cn ' : 'vw ') + (keySt(c, st) || '') + '" data-k="' + c + '">' + c + '</button>'; }
@@ -199,7 +217,7 @@
   }
   function gameHTML(which) {
     var m = GM[which];
-    return (which === 'play' ? bannerHTML() : '') + '<div class="card kd' + (opt.embedded ? ' kemb' : '') + '"><div class="kh"><b>' + (which === 'play' ? '오늘의 꼬들 <span class="tag">#' + (m.no + 1) + '</span>' : '연습 문제 <span class="tag">기록 없음</span>') + '</b><small>' + m.guesses.length + '/' + TRIES + '</small></div>' +
+    return (which === 'play' ? bannerHTML() : '') + '<div class="card kd' + (opt.embedded ? ' kemb' : '') + (KX ? ' kx' : '') + '"><div class="kh"><b>' + (which === 'play' ? '오늘의 꼬들 <span class="tag">#' + (m.no + 1) + '</span>' : '연습 문제 <span class="tag">기록 없음</span>') + '</b><small>' + m.guesses.length + '/' + TRIES + '</small></div>' +
       boardHTML(m, CUR[which], false) + '<div class="kmsg" id="msg"></div>' + (m.done ? resultHTML(m) : keysHTML(m)) + '</div>';
   }
   /** 한 화면에 다 들어오게: 칸 · 키 크기를 화면 남은 높이 · 너비에 맞춰 정함 (스크롤 없이 보드 + 키보드 / 결과) */
@@ -207,14 +225,14 @@
     var c = host && host.querySelector('.kd'); if (!c || !c.isConnected) return;
     var wide = (c.parentNode.clientWidth || window.innerWidth) >= 760; c.classList.toggle('kwide', wide);   // 넓은 화면(PC): 칸은 왼쪽 · 키보드(결과)는 오른쪽에 나란히
     var t0 = 40, k0 = 36; c.style.setProperty('--kt', t0 + 'px'); c.style.setProperty('--kk', k0 + 'px');
-    var keys = c.querySelector('.keys'), rowsH = 6 * t0 + 5 * 5, kbH = keys && !wide ? keys.offsetHeight : 0, total = c.offsetHeight;
+    var keys = c.querySelector('.keys'), rowsH = 6 * t0, kbH = keys && !wide ? keys.offsetHeight : 0, total = c.offsetHeight;
     var other = total - rowsH - kbH;                                  // 칸 · 키보드를 뺀 나머지 높이 (머리 · 안내 · 여백 · 결과)
     var top = c.getBoundingClientRect().top + (window.pageYOffset || 0);
     var xl = document.documentElement.classList.contains('xl'), reserve = xl ? 74 : 20;   // 엑셀 모드는 아래 시트 탭 · 상태줄 자리
     var avail = (window.innerHeight || 700) - top - reserve - 10;
     var width = Math.min(c.clientWidth || 360, 520) - 28;
     var unit = keys && !wide ? 6 + 4 * 0.85 : 6;                       // 좁은 화면에서 키보드가 아래에 있으면 칸 6줄 + 키 4줄(칸의 0.9배)
-    var t = Math.floor(Math.min((avail - other - (keys && !wide ? 24 : 0) - 25) / unit, wide ? 64 : (width - 25) / 6, 64)); t = Math.max(t, 20);
+    var t = Math.floor(Math.min((avail - other - (keys && !wide ? 24 : 0)) / unit, wide ? 64 : (width - (KX ? 38 : 25)) / 6, 64)); t = Math.max(t, 20);
     var kk = wide ? Math.max(40, Math.min(54, Math.round(t * 0.95))) : Math.max(26, Math.min(46, Math.round(t * 0.85)));
     c.style.setProperty('--kt', t + 'px'); c.style.setProperty('--kk', kk + 'px');
   }
@@ -246,8 +264,9 @@
     if (opt.onHead) opt.onHead(nick(), ready ? subText() : '');
     var tabs = opt.embedded ? '' : '<nav class="seg kdtabs" id="kdtabs">' + [['play', '🎯 오늘 꼬들'], ['prac', '🌱 연습'], ['hist', '📜 꼬들 기록']].map(function (t) { return '<button type="button" data-kv="' + t[0] + '"' + (t[0] === view ? ' class="on"' : '') + '>' + t[1] + '</button>'; }).join('') + '</nav>';
     if (!ready) { host.innerHTML = tabs + '<div class="card"><div class="empty">' + (loadErr ? '단어 목록을 불러오지 못했어요. 새로고침해 주세요' : '⏳ 단어를 불러오는 중…') + '</div></div>'; return; }
+    KX = !!opt.embedded && document.documentElement.classList.contains('xl');
     host.innerHTML = tabs + (view === 'hist' ? histHTML() : gameHTML(view));
-    wire(); if (view !== 'hist') fit();
+    wire(); if (view !== 'hist') { fit(); cellInfo(GM[view]); }
   }
   function msg(t, bad) { var e = $('msg'); if (e) { e.textContent = t || ''; e.className = 'kmsg' + (bad ? ' bad' : ''); } }
   function shake(m) { var r = $('r' + m.guesses.length); if (r) { r.classList.remove('shake'); void r.offsetWidth; r.classList.add('shake'); } }
@@ -263,8 +282,12 @@
   /** 입력 중인 줄의 칸만 갱신 (카드 전체를 다시 그리지 않음 — 키를 누를 때마다 가장 자주 도는 길이라 가볍게) */
   function paintCur(m) {
     var r = $('r' + m.guesses.length); if (!r) return render();
-    var cur = CUR[view], cs = r.children;
+    var cur = CUR[view], cs = r.querySelectorAll('.c');
     for (var i = 0; i < LEN; i++) { var ch = cur.charAt(i); if (cs[i].textContent !== ch) { cs[i].textContent = ch; cs[i].className = 'c' + (ch ? ' f' : ''); } }
+    if (KX) {   // 활성 셀 · 머리글 강조를 옮김
+      var a = activeCell(m, cur), old = host.querySelector('.c.sel'); if (old) old.classList.remove('sel'); if (a && cs[a.c]) cs[a.c].classList.add('sel');
+      [].forEach.call(host.querySelectorAll('.ch'), function (t, k) { t.classList.toggle('hl', !!a && a.c === k); }); cellInfo(m);
+    }
     msg('');
   }
   function press(k) {
