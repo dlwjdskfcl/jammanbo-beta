@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.9.0';
+  var VER = '1.10.0';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   var ENV_SFX = ENV !== 'prod' ? '_' + ENV : '';
@@ -31,7 +31,7 @@
             sort: lsGet(LS.sort) === 'order' ? 'order' : 'sim', scrollNew: false, scrollRes: false, sharing: false, focused: false,
             // (1.7.0) 연습 탭: 오늘 판과 연습 판의 문제 · 추측 상태를 갈아끼움 (ctx = 지금 S 에 들어 있는 쪽, hold = 안 쓰는 쪽 보관)
             ctx: 'td', hold: { td: null, pz: null }, pDone: [], pK: null,
-            xl: lsGet(LS.xl) !== '0' };   // (1.8.0) 엑셀 모드 — 기본 켜짐, 헤더 버튼(xlBtn)으로 끔 (기기에 저장)
+            xl: lsGet(LS.xl) !== '0', sel: null, xAddr: '' };   // (1.8.0) 엑셀 모드 — 기본 켜짐, 헤더 버튼(xlBtn)으로 끔 (기기에 저장)
   var CTX_KEYS = ['srv', 'L', 'sims', 'ans', 'rankOf', 'top', 'scale', 'lastW', 'fb'];
   function snap() { var o = {}; CTX_KEYS.forEach(function (k) { o[k] = S[k]; }); return o; }
   function load(o) { CTX_KEYS.forEach(function (k) { S[k] = o[k]; }); }
@@ -67,8 +67,76 @@
     });
     document.title = S.xl ? '업무현황.xlsx - Excel' : '잠만보 꼬맨틀';
     var xb = $('xlBtn'); if (xb) xb.setAttribute('aria-pressed', S.xl ? 'true' : 'false');
+    xlChrome();
   }
   function xlTitle() { return '업무현황' + (S.view === 'prac' ? '_연습' : S.view === 'rank' ? '_순위' : S.view === 'hist' ? '_이력' : S.srv && S.srv.no ? '_' + S.srv.no : '') + '.xlsx'; }
+
+  /* ---------- 엑셀 모드 껍데기 (1.10.0): 로고 · 리본 · 이름 상자 + 수식 입력줄 · 상태 표시줄. 켤 때 만들고 끌 때 지움.
+   * 입력창(#gw)과 추측 폼(#gf)은 수식 입력줄 안에 한 번만 있음 (켜진 동안). 리본의 '편집' 그룹 버튼이 힌트 · 포기 · 새 문제 · 정렬을 맡음 ---------- */
+  var XCOL = ['A', 'B', 'C', 'D', 'E', 'F'];
+  function xlMk(tag, id, cls, html) { var e = document.createElement(tag); if (id) e.id = id; if (cls) e.className = cls; e.innerHTML = html || ''; return e; }
+  function xlChrome() {
+    ['xlRibbon', 'xlFormula', 'xlStatus', 'xlLogo', 'xlSearch', 'xlWin'].forEach(function (id) { var e = $(id); if (e && e.parentNode) e.parentNode.removeChild(e); });
+    if (!S.xl) { updateTop(); return; }
+    var top = $('top'), bar = top.querySelector('.bar');
+    bar.insertBefore(xlMk('span', 'xlLogo', 'xlogo', '<b>X</b>'), $('ttl').parentNode);
+    bar.insertBefore(xlMk('span', 'xlSearch', 'xsearch', '검색 (Alt+Q)'), $('xlBtn'));
+    bar.appendChild(xlMk('span', 'xlWin', 'xwin', '–☐✕'));
+    top.insertBefore(xlMk('div', 'xlRibbon', 'xrib',
+      '<div class="xtabs" aria-hidden="true"><span>파일</span><span class="on">홈</span><span>삽입</span><span>페이지 레이아웃</span><span>수식</span><span>데이터</span><span>검토</span><span>보기</span></div>' +
+      '<div class="xbody">' +
+        '<div class="xg dec" aria-hidden="true"><div class="xgi"><span class="xbig"><span class="xi">⎘</span>붙여넣기</span><span class="xcol"><i>잘라내기</i><i>복사</i><i>서식 복사</i></span></div><div class="xgl">클립보드</div></div>' +
+        '<div class="xg dec" aria-hidden="true"><div class="xgi v"><span class="xrow"><span class="xsel w">맑은 고딕</span><span class="xsel">11</span></span><span class="xrow"><b>가</b><i>가</i><u>가</u><span class="xsep"></span><span>▦</span><span>A</span></span></div><div class="xgl">글꼴</div></div>' +
+        '<div class="xg dec" aria-hidden="true"><div class="xgi v"><span class="xrow"><span>≡</span><span>≡</span><span>≡</span></span><span class="xrow"><span>⇤</span><span>⇥</span><span>병합하고 가운데 맞춤</span></span></div><div class="xgl">맞춤</div></div>' +
+        '<div class="xg dec" aria-hidden="true"><div class="xgi v"><span class="xsel w">일반</span><span class="xrow"><span>%</span><span>,</span><span>.0</span><span>.00</span></span></div><div class="xgl">표시 형식</div></div>' +
+        '<div class="xg xgame"><div class="xgi">' +
+          '<button type="button" class="xb" id="rbHint"><span class="xi">Σ</span><span class="xt" id="rbHintT">힌트</span></button>' +
+          '<button type="button" class="xb" id="rbGive"><span class="xi">✕</span><span class="xt" id="rbGiveT">포기</span></button>' +
+          '<button type="button" class="xb" id="rbNext"><span class="xi">↻</span><span class="xt">새 문제</span></button>' +
+          '<button type="button" class="xb" id="rbSort"><span class="xi">⇅</span><span class="xt" id="rbSortT">정렬</span></button>' +
+        '</div><div class="xgl">편집</div></div>' +
+      '</div>'), $('tabs'));
+    top.insertBefore(xlMk('div', 'xlFormula', 'xform',
+      '<div class="nb" id="nameBox">A1</div>' +
+      '<div class="xfi"><span aria-hidden="true">✕</span><button type="submit" form="gf" class="xok" id="xOk" aria-label="입력">✓</button><span class="fxl" aria-hidden="true">fx</span></div>' +
+      '<form class="gform" id="gf" autocomplete="off"><input id="gw" type="text" inputmode="text" enterkeyhint="send" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="20" lang="ko" aria-label="추측할 단어" placeholder="단어 입력"></form>'), $('tabs'));
+    document.body.appendChild(xlMk('div', 'xlStatus', 'xstat',
+      '<span class="fb" id="fb" aria-live="polite">준비</span><span class="xinfo" id="xinfo"></span><span class="xview" aria-hidden="true">▦▤▥</span><span class="xzoom" aria-hidden="true"><span>−</span><i></i><span>+</span><b>100%</b></span>'));
+    xlState();   // 문제가 올 때까지는 입력 · 게임 버튼을 흐리게 (로딩 중에 친 단어가 조용히 사라지지 않게)
+    updateTop();
+  }
+  /** 보는 화면에 맞게 리본 버튼 · 수식 입력줄 · 이름 상자 · 상태 표시줄을 맞춤 (게임 화면이 아니면 입력 · 게임 버튼은 흐리게) */
+  function xlState() {
+    if (!S.xl || !$('xlRibbon')) return;
+    var game = (S.view === 'play' || (S.view === 'prac' && hasPrac())) && S.srv && S.srv.ready && S.L, L = game ? S.L : null;
+    var gw = $('gw'); if (gw) { gw.disabled = !L; if (!L) gw.value = ''; }
+    $('xOk').disabled = !L;
+    var hb = $('rbHint'), hi = L ? hintInfo() : { off: true };
+    hb.disabled = !L || hi.off; $('rbHintT').textContent = L ? hintShort() : '힌트';
+    $('rbGive').disabled = !L || L.done; $('rbGiveT').textContent = L && L.prac ? '정답 보기' : '포기';
+    $('rbNext').style.display = L && L.prac ? '' : 'none';
+    $('rbSort').disabled = !L; $('rbSortT').textContent = '정렬: ' + (S.sort === 'sim' ? '유사도' : '입력순');
+    $('nameBox').textContent = L ? (S.xAddr || 'B2') : 'A1';
+    $('xinfo').textContent = L ? (L.prac ? '연습 · ' : '') + '#' + S.srv.no + ' · 1위 ' + f2(S.scale.r1) + ' · 10위 ' + f2(S.scale.r10) + ' · 1000위 ' + f2(S.scale.rN) : '';
+    if (!L) { var fb = $('fb'); fb.className = 'fb'; fb.textContent = '준비'; }
+  }
+  /** 엑셀 모드 격자: 열 머리글(A~F) · 행 번호 · 1행 제목 · 추측은 2행부터 · 빈 셀이 이어짐 · 활성 셀(초록 테두리) */
+  function xlGrid(list) {
+    var sorted = S.sort === 'order' ? list.slice() : list.slice().sort(function (a, b) { return b.s - a.s; });
+    var NR = Math.max(sorted.length + 16, 64), lastO = S.lastW ? list.filter(function (o) { return o.w === S.lastW; })[0] : null, lastRow = 0;
+    sorted.forEach(function (o, i) { if (lastO && o.w === lastO.w) lastRow = i + 2; });
+    var sel = S.sel && S.sel.r >= 1 && S.sel.r <= NR ? S.sel : { r: lastRow || 2, c: 1 };
+    S.xAddr = XCOL[sel.c] + sel.r;
+    function td(r, c, cls, v) { return '<td data-rc="' + r + ',' + c + '" class="c' + c + (cls ? ' ' + cls : '') + (sel.r === r && sel.c === c ? ' sel' : '') + '">' + (v == null ? '' : v) + '</td>'; }
+    var h = '<table class="gt xlg"><thead><tr><th class="corner"></th>' + XCOL.map(function (c, i) { return '<th class="c' + i + (i === sel.c ? ' hl' : '') + '">' + c + '</th>'; }).join('') + '</tr></thead><tbody>';
+    for (var r = 1; r <= NR; r++) {
+      var o = r >= 2 ? sorted[r - 2] : null, cls = r === 1 ? 'xlt' : o ? (o.win ? 'win ' : '') + 't' + o.t + (o.h ? ' hintw' : '') : '';
+      var v = r === 1 ? ['#', '단어', '유사도', '순위'] : o ? [o.n, esc(o.w), f2(o.s), o.win ? '정답' : o.r ? o.r : ''] : ['', '', '', ''];
+      h += '<tr' + (o && lastO && o.w === lastO.w ? ' id="lastRow"' : '') + (cls ? ' class="' + cls + '"' : '') + '><td class="rn' + (sel.r === r ? ' hl' : '') + '">' + r + '</td>' +
+        td(r, 0, 'n', v[0]) + td(r, 1, 'w', v[1]) + td(r, 2, 's', v[2]) + td(r, 3, 'r', v[3]) + td(r, 4, 'xe', '') + td(r, 5, 'xe', '') + '</tr>';
+    }
+    return h + '</tbody></table>';
+  }
 
   /* ================= 로그인 (잠만보 카카오 로그인 세션을 같이 씀) ================= */
   function session() { var s = lsJSON(LS.auth); return s && s.token ? s : null; }
@@ -280,7 +348,7 @@
   function addGuess(w, isHint) {
     if (recordable() && !S.L.nonce) ensureStart();
     S.L.g.push({ w: w, h: isHint ? 1 : 0, t: Date.now() });
-    S.lastW = w; S.scrollNew = true; saveLocal(); scheduleSave();
+    S.lastW = w; S.sel = null; S.scrollNew = true; saveLocal(); scheduleSave();   // sel: 엑셀 모드 활성 셀 — 새 추측이 들어가면 그 줄로 옮겨 감
     var tr = tier(w);
     if (tr === 6 && !S.L.done) return win(w);
     if (S.L.done && tr === 6) { toast('🎉 정답이에요! (연습)'); S.fb = null; render(); return; }
@@ -293,13 +361,18 @@
   function hintsUnlocked() { return Math.floor(realCount() / HINT_EVERY); }
   function hintsLeft() { return hintsUnlocked() - S.L.hints; }
   function hintNext() { return HINT_EVERY - realCount() % HINT_EVERY; }
-  function hintBtn() {
+  function hintInfo() {
     var L = S.L, label, off = false;
     if (L.prac) label = '💡 힌트';   // 연습은 개수 제한 없음 (글자가 두 줄로 꺾이지 않게 짧게)
     else if (L.done) label = '💡 힌트 (연습)';
     else if (hintsLeft() > 0) label = '💡 힌트 (' + hintsLeft() + '개 남음)';   // 점수 비용은 확인창에서 알려 줌 (버튼 글자가 두 줄로 꺾이지 않게 짧게)
     else { off = true; label = '🔒 힌트 (' + hintNext() + '번 더 추측)'; }
-    return '<button type="button" class="btn" id="hintBtn"' + (off ? ' disabled' : '') + '>' + xe(label) + '</button>';
+    return { label: label, off: off };
+  }
+  function hintShort() { var L = S.L; return L.prac || L.done ? '힌트' : hintsLeft() > 0 ? '힌트 ' + hintsLeft() : '힌트 ' + hintNext() + '번 후'; }
+  function hintBtn() {
+    var h = hintInfo();
+    return '<button type="button" class="btn" id="hintBtn"' + (h.off ? ' disabled' : '') + '>' + xe(h.label) + '</button>';
   }
   function hint() {
     var gated = !S.L.done && !S.L.prac, rec = recordable();   // 연습 판은 힌트 제한 · 점수 없음
@@ -439,7 +512,7 @@
   function tabsOn() { [].forEach.call($('tabs').children, function (b) { b.classList.toggle('on', b.getAttribute('data-v') === S.view); }); }
   /* ---------- 로그인 안 하면 시작 못 함 (서버도 로그인 없이는 문제를 안 줌) ---------- */
   function renderGate(hasSession) {
-    $('tabs').hidden = true; updateTop();
+    $('tabs').hidden = true; updateTop(); xlState();
     $('ttl').textContent = S.xl ? '업무현황.xlsx' : '꼬맨틀'; $('sub').textContent = S.xl ? '로그인 필요' : '로그인하고 시작하세요';
     $('view').innerHTML = '<div class="card gate"><div class="em">🔒</div><h2>로그인하고 시작하세요</h2>' +
       '<p>꼬맨틀은 <b>잠만보 회원</b>만 할 수 있어요.<br>카카오로 로그인하면 기록 · 순위 · 레이팅이 남아요.</p>' +
@@ -449,10 +522,11 @@
   function render() {
     if (!S.nick) return renderGate(!!session());
     setHead(); tabsOn();
-    if (S.view === 'prac') return renderPrac();
-    if (S.view === 'rank') return renderRank();
-    if (S.view === 'hist') return renderHist();
-    renderPlay();
+    if (S.view === 'prac') renderPrac();
+    else if (S.view === 'rank') renderRank();
+    else if (S.view === 'hist') renderHist();
+    else renderPlay();
+    xlState();   // 엑셀 모드: 리본 · 수식 입력줄 · 상태 표시줄을 지금 화면에 맞춤
   }
 
   function metaCard() {
@@ -476,7 +550,7 @@
     if (L.prac) return '<div class="card res pop"><div class="em">' + (L.win ? '🎉' : '👀') + '</div><h2>' + (L.win ? '정답이에요!' : '정답은 이거였어요') + '</h2>' +
       '<p>' + (L.win ? '<b>' + esc(S.vocab[S.ans]) + '</b> — ' + n + '번 만에 맞혔어요' : '<b>' + esc(S.vocab[S.ans]) + '</b>') + ' <small>(연습 · 기록 없음)</small></p>' +
       '<div class="heat">' + L.g.slice(0, L.cnt).map(function (x) { return HEAT[tier(x.w)]; }).join('') + '</div>' +
-      '<div class="btns"><button type="button" class="btn pri" id="pracNext">🔁 다른 문제로 연습</button><button type="button" class="btn" id="topbtn">가까운 단어 1000개 보기</button><button type="button" class="btn" id="pracBack">🎯 오늘 문제로</button></div></div>';
+      '<div class="btns"><button type="button" class="btn pri" id="pracNext">' + xe('🔁 다른 문제로 연습') + '</button><button type="button" class="btn" id="topbtn">가까운 단어 1000개 보기</button><button type="button" class="btn" id="pracBack">' + xe('🎯 오늘 문제로') + '</button></div></div>';
     if (S.busy) return '<div class="card res"><div class="em">⏳</div><h2>기록 중…</h2></div>';
     var h = '<div class="card res pop"><div class="em">' + (L.win ? '🎉' : '😵') + '</div><h2>' + (L.win ? '정답이에요!' : '아쉬워요') + '</h2>' +
       '<p>' + (L.win ? '<b>' + esc(S.vocab[S.ans]) + '</b> — ' + n + '번 만에 맞혔어요' + (L.hints ? ' · 힌트 ' + L.hints : '') : '정답은 <b>' + esc(S.vocab[S.ans]) + '</b> 였어요') + '</p>';
@@ -490,13 +564,14 @@
     else if (L.pend) h += '<div class="note warn" style="margin-top:10px">기록을 아직 못 보냈어요. <button type="button" class="btn sm" id="retry">다시 보내기</button></div>';
     else if (!L.rec) h += '<p class="hint">연습이라 기록은 없어요.</p>';
     h += '<div class="heat">' + L.g.slice(0, L.cnt).map(function (x) { return HEAT[tier(x.w)]; }).join('') + '</div>' +
-      '<div class="btns"><button type="button" class="btn pri" id="share">📤 카톡으로 공유</button><button type="button" class="btn" id="topbtn">가까운 단어 1000개 보기</button>' +
-      (S.nick ? '<button type="button" class="btn" id="goRank">🏆 순위 보기</button>' : '') + '</div></div>';
+      '<div class="btns"><button type="button" class="btn pri" id="share">' + xe('📤 카톡으로 공유') + '</button><button type="button" class="btn" id="topbtn">가까운 단어 1000개 보기</button>' +
+      (S.nick ? '<button type="button" class="btn" id="goRank">' + xe('🏆 순위 보기') + '</button>' : '') + '</div></div>';
     return h;
   }
   function rows() {
     var L = S.L, list = L.g.map(function (x, i) { return { w: x.w, n: i + 1, s: simOf(x.w), r: rankIn(x.w), h: x.h, t: tier(x.w), win: S.idx.get(x.w) === S.ans }; });
-    var last = S.lastW ? list.filter(function (o) { return o.w === S.lastW; })[0] : null, rn = 1;   // 엑셀 모드: 머리글 줄이 1행이라 데이터는 2행부터
+    if (S.xl) return xlGrid(list);   // (1.10.0) 엑셀 모드는 진짜 격자
+    var last = S.lastW ? list.filter(function (o) { return o.w === S.lastW; })[0] : null, rn = 1;
     function tr(o, cls) {
       var pct = Math.max(0, Math.min(100, o.s / (S.scale.r1 || 1) * 100));
       var rk = o.win ? '정답!' : o.r ? '<div class="rbar"><em>' + o.r + '</em><i><b style="width:' + Math.max(4, (TOPN - o.r + 1) / TOPN * 100) + '%"></b></i></div>' : '<span class="sub">' + (S.xl ? '-' : '1000위 밖') + '</span>';
@@ -516,7 +591,8 @@
   }
   /** 입력창은 한 번만 만들고 그대로 둠 (다시 만들면 아이폰에서 키보드가 깜빡이거나 내려감). 나머지 영역만 갱신 */
   function ensurePlayFrame() {
-    if ($('gf')) return;
+    if ($('pList')) return;
+    if (S.xl) { $('view').innerHTML = '<div id="pTop"></div><div id="pTools"></div><div id="pList"></div>'; return; }   // 엑셀 모드: 입력창은 수식 입력줄(제목줄 아래)에 있음
     $('view').innerHTML = '<div id="pTop"></div><div class="stk" id="stk"><form class="gform" id="gf" autocomplete="off"><input id="gw" type="text" inputmode="text" enterkeyhint="send" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="20" lang="ko" aria-label="추측할 단어"><button type="submit" class="btn pri">' + (S.xl ? '입력' : '추측') + '</button></form><div class="fb" id="fb" aria-live="polite"></div></div><div class="tools" id="pTools"></div><div id="pList"></div>';
   }
   function renderPlay() {
@@ -525,13 +601,14 @@
       $('view').innerHTML = '<div class="card empty">📭<br><b>오늘 문제가 아직 준비되지 않았어요</b><br><small>운영진에게 알려 주세요 (시트 ‘꼬맨틀사전’ 에 오늘 날짜가 없어요)</small></div>'; return;
     }
     ensurePlayFrame();
-    $('pTop').innerHTML = (L.prac ? pracCard() : metaCard() + statusNote()) + (L.done ? resultCard() : '');
-    var inp = $('gw'); inp.placeholder = L.done ? '더 추측해 볼까요? (연습)' : '단어를 입력하세요';
+    $('pTop').innerHTML = S.xl ? (L.prac ? pracCard() : statusNote()) + (L.done ? resultCard() : '') : (L.prac ? pracCard() : metaCard() + statusNote()) + (L.done ? resultCard() : '');
+    var inp = $('gw'); inp.placeholder = S.xl ? (L.done ? '더 입력해 볼까요?' : '단어 입력') : L.done ? '더 추측해 볼까요? (연습)' : '단어를 입력하세요';
     var fb = S.fb; $('fb').className = 'fb t' + (fb ? fb.tr : 0);
-    $('fb').innerHTML = fb ? (S.xl ? '' : TIER[fb.tr].e + ' ') + '‘' + esc(fb.w) + '’ ' + TIER[fb.tr].t + (fb.r ? ' (' + fb.r + '위)' : '') : '';
-    $('pTools').innerHTML = hintBtn() + (L.done ? '' : '<button type="button" class="btn" id="giveBtn">' + xe(L.prac ? '👀 정답 보기' : '🏳️ 포기') + '</button>') + (L.prac && !L.done ? '<button type="button" class="btn" id="pracNext">' + xe('🔁 다른 문제') + '</button>' : '');
-    $('pList').innerHTML = L.g.length ? '<div class="card" style="padding:8px 10px">' + rows() + '</div>'
+    $('fb').innerHTML = fb ? (S.xl ? '' : TIER[fb.tr].e + ' ') + '‘' + esc(fb.w) + '’ ' + TIER[fb.tr].t + (fb.r ? ' (' + fb.r + '위)' : '') : (S.xl ? '준비' : '');
+    $('pTools').innerHTML = S.xl ? '' : hintBtn() + (L.done ? '' : '<button type="button" class="btn" id="giveBtn">' + xe(L.prac ? '👀 정답 보기' : '🏳️ 포기') + '</button>') + (L.prac && !L.done ? '<button type="button" class="btn" id="pracNext">' + xe('🔁 다른 문제') + '</button>' : '');
+    $('pList').innerHTML = S.xl ? rows() : L.g.length ? '<div class="card" style="padding:8px 10px">' + rows() + '</div>'   // 엑셀 모드는 추측이 없어도 빈 격자를 보여 줌
       : (!L.done ? '<p class="hint">처음 입력해 볼 단어는 뭐든 괜찮아요. 예: <b>사람</b> · <b>음식</b> · <b>하늘</b> — 점수가 높은 쪽으로 따라가 보세요!</p>' : '');
+    xlState();
     if (!S.focused && !L.done && !(navigator.maxTouchPoints > 0)) { S.focused = true; try { inp.focus({ preventScroll: true }); } catch (e) {} }   // 컴퓨터만 자동 포커스 (휴대폰은 키보드가 화면을 가리지 않게)
     var beh = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
     if (S.scrollRes && L.done && !S.busy) {   // 정답 · 포기 직후에는 결과 카드로
@@ -563,6 +640,7 @@
   }
   function pracCard() {
     var s = S.srv, c = coach();
+    if (S.xl) return c ? '<div class="xnote"><b>메모:</b> ' + c + '</div>' : '';   // 엑셀 모드: 셀 메모(노란 말풍선)로
     return '<div class="card"><div class="head"><div class="no">🌱 연습<small> · ' + s.no + '번째 문제 (지난 문제)</small></div><div class="meta">기록 · 점수 · 순위에 안 들어가요<br>힌트는 마음껏 써도 돼요</div></div>' +
       '<div class="scale"><div><b>' + f2(S.scale.r1) + '</b><small>1위 유사도</small></div><div><b>' + f2(S.scale.r10) + '</b><small>10위</small></div><div><b>' + f2(S.scale.rN) + '</b><small>1000위</small></div></div>' +
       (c ? '<div class="note ok coach">' + c + '</div>' : '') + '</div>';
@@ -725,6 +803,8 @@
   document.addEventListener('submit', function (e) { if (e.target.id === 'gf') { e.preventDefault(); var inp = $('gw'), v = inp.value; inp.value = ''; guess(v); } });
   document.addEventListener('click', function (e) {
     if (Date.now() - modalAt < 350) return;   // 창이 막 열리거나 닫힌 직후의 겹친 탭(더블탭의 두 번째)은 무시
+    var xc = S.xl && e.target.closest('td[data-rc]');   // 엑셀 모드: 셀을 누르면 그 칸이 활성 셀 (이름 상자 · 머리글 강조가 따라감)
+    if (xc) { var p = xc.getAttribute('data-rc').split(','); S.sel = { r: +p[0], c: +p[1] }; S.scrollNew = false; renderPlay(); return; }
     var rk = e.target.closest('.rk[data-nick]'); if (rk) { if (guard('rk', 450)) profile(rk.getAttribute('data-nick')); return; }
     var pc = e.target.closest('[data-pnick]'); if (pc) { if (guard('pc', 450)) profile(pc.getAttribute('data-pnick')); return; }
     var t = e.target.closest('button'); if (!t) return;
@@ -742,7 +822,10 @@
       case 'topbtn': return topList();
       case 'retry': return retryPending();
       case 'goRank': return go('rank');
-      case 'pracStart': case 'pracNext': return startPrac();
+      case 'pracStart': case 'pracNext': case 'rbNext': return startPrac();
+      case 'rbHint': return hint();
+      case 'rbGive': return giveUp();
+      case 'rbSort': S.sort = S.sort === 'sim' ? 'order' : 'sim'; lsSet(LS.sort, S.sort); S.scrollNew = false; renderPlay(); return;   // 엑셀 모드 리본의 정렬 버튼
       case 'pracBack': return go('play');
       case 'rkRetry': S.rank = null; return renderRank();
       case 'histRetry': S.hist = null; return renderHist();

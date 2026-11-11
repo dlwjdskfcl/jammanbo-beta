@@ -246,15 +246,16 @@ html.lock,html.lock body{overflow:hidden}
 .note.coach{font-weight:500;text-align:left;line-height:1.6;margin:10px 0 0}
 .gate ul.how{text-align:left;margin:14px auto 0;padding-left:20px;max-width:340px;color:var(--ink2);line-height:1.65;font-size:14px}
 
-/* ===== 엑셀 모드 (1.8.0) — html.xl, 기본 켜짐 · 헤더 버튼으로 끄고 켬 · 이모지 · 꽃가루 없음 ===== */
+/* ===== 엑셀 모드 (1.10.0) — html.xl · 진짜 스프레드시트 구조: 제목줄 · 리본 · 이름 상자 + 수식 입력줄 · 열/행 머리글 · 활성 셀 · 시트 탭 · 상태 표시줄 ===== */
 html.xl{
   --bg:#fff; --surface:#fff; --surface2:#f3f3f3; --line:#d4d4d4;
   --ink:#222; --ink2:#444; --muted:#777;
   --accent:#217346; --accent-soft:#e2f0e8; --accent-ink:#fff;
   --ok:#217346; --ok-soft:#dff0e6; --bad:#c00000; --bad-soft:#fde9e9; --gold:#9c6500; --gold-soft:#fff2cc;
-  --hot:#c55a11; --hot-soft:#fce4d6; --c3:#fff2cc; --c4:#fce4d6; --c5:#f4b183; --grid:#e1e1e1; --titlebar:#217346;
-  --shadow:none; --shadow-lg:0 4px 16px rgba(0,0,0,.25);
-  --sans:"Segoe UI","Malgun Gothic","Apple SD Gothic Neo",Calibri,sans-serif;
+  --hot:#c55a11; --hot-soft:#fce4d6; --c3:#fff2cc; --c4:#fce4d6; --c5:#f4b183;
+  --titlebar:#217346; --hdr:#efefef; --hdrline:#c6c6c6; --cell:#dadada; --hl:#d3ebdc; --hlink:#107c41; --ribbon:#f3f3f3;
+  --shadow:none; --shadow-lg:0 4px 16px rgba(0,0,0,.28); --xs:22px;
+  --sans:Calibri,"Segoe UI","Malgun Gothic","Apple SD Gothic Neo",sans-serif;
 }
 @media (prefers-color-scheme: dark){
   html.xl{
@@ -262,71 +263,134 @@ html.xl{
     --ink:#e6e6e6; --ink2:#bdbdbd; --muted:#8a8a8a;
     --accent:#3fa774; --accent-soft:#1e3a2b; --accent-ink:#0e1a13;
     --ok:#3fa774; --ok-soft:#1c3a2a; --bad:#ff6b6b; --bad-soft:#3a1a1a; --gold:#e0b050; --gold-soft:#3a3016;
-    --hot:#e08a50; --hot-soft:#3a2a1c; --c3:#3a3016; --c4:#4a2f1c; --c5:#6b3a1c; --grid:#2e2e2e; --titlebar:#1a5c38;
+    --hot:#e08a50; --hot-soft:#3a2a1c; --c3:#3a3016; --c4:#4a2f1c; --c5:#6b3a1c;
+    --titlebar:#1a5c38; --hdr:#2b2b2b; --hdrline:#444; --cell:#333; --hl:#1f3a2c; --hlink:#4cc38a; --ribbon:#2a2a2a;
   }
 }
-html.xl body{font-size:14px;letter-spacing:0;background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:72px 24px;background-position:0 -1px}
-html.xl #app{padding-bottom:calc(52px + env(safe-area-inset-bottom))}
-/* 제목 표시줄 */
+html.xl body{font-size:14px;letter-spacing:0;background:var(--bg)}
+html.xl #app{max-width:none;padding-bottom:calc(var(--xs) + 34px + env(safe-area-inset-bottom))}
+html.xl .wrap{padding:0 0 12px}
+html.xl .wrap>.card,html.xl .wrap>.note,html.xl .wrap>details,html.xl .wrap>.hint,html.xl .wrap>.seg,html.xl .wrap>.empty,html.xl #pTop>*{margin-left:12px;margin-right:12px}
+html.xl .wrap>.card:first-child,html.xl .wrap>.note:first-child,html.xl .wrap>.seg:first-child{margin-top:10px}
+/* 제목줄 (로고 · 파일 이름 · 검색 · 창 버튼) */
 html.xl .top{background:var(--titlebar);color:#fff;-webkit-backdrop-filter:none;backdrop-filter:none}
-html.xl .bar{padding-top:max(4px,env(safe-area-inset-top));padding-bottom:4px}
-html.xl .bar .ttl b{font-size:14px;font-weight:600;letter-spacing:0;color:#fff}
-html.xl .bar .ttl small{color:#cfe8d8;font-size:11px}
-html.xl .ibtn{color:#fff;border-radius:3px}
+html.xl .bar{padding:0 4px;padding-top:env(safe-area-inset-top);min-height:34px;gap:2px}
+html.xl .bar .ttl{display:flex;align-items:baseline;justify-content:center;line-height:1.25;overflow:hidden}
+html.xl .bar .ttl b{display:inline;font-size:13px;font-weight:600;letter-spacing:0;color:#fff}
+html.xl .bar .ttl small{display:inline;font-size:13px;color:#e3f1e8;white-space:nowrap}
+html.xl .bar .ttl small::before{content:"- "}
+html.xl .bar .ttl small{margin-left:.35em}
+html.xl .ibtn{width:34px;height:34px;color:#fff;border-radius:3px}
+html.xl .ibtn svg{width:19px;height:19px}
 html.xl .ibtn:hover,html.xl .ibtn[aria-pressed="true"]{background:rgba(255,255,255,.18)}
-html.xl .acct{background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:3px;font-weight:600}
+html.xl .acct{background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:3px;font-weight:600;padding:3px 10px;font-size:12px}
 html.xl .acct.on{background:#fff;color:#217346;border-color:#fff}
-/* 아래 시트 탭 */
-html.xl .seg.tabs{position:fixed;left:0;right:0;bottom:0;margin:0;border-radius:0;padding:0 6px env(safe-area-inset-bottom);gap:0;background:var(--surface2);border-top:1px solid var(--line);z-index:9;overflow-x:auto}
-html.xl .seg.tabs button{flex:none;min-height:36px;padding:6px 16px;border-radius:0 0 4px 4px;font-size:13px;font-weight:500;letter-spacing:0;color:var(--ink2);border-right:1px solid var(--line)}
-html.xl .seg.tabs button.on{background:var(--surface);color:var(--accent);font-weight:700;box-shadow:inset 0 -3px 0 var(--accent)}
-html.xl .toast{bottom:calc(64px + env(safe-area-inset-bottom));border-radius:3px}
-/* 수식 입력줄 */
-html.xl .stk{background:var(--surface);border-bottom:1px solid var(--line);padding-top:4px}
-html.xl .gform{gap:0;border:1px solid var(--line);background:var(--surface)}
-html.xl .gform::before{content:"fx";display:flex;align-items:center;padding:0 10px;color:var(--accent);font-style:italic;font-weight:700;border-right:1px solid var(--line);background:var(--surface2)}
-html.xl .gform input{border:0;border-radius:0;font-size:16px;font-weight:500;padding:9px 10px;background:var(--surface)}
-html.xl .gform input:focus{outline:2px solid var(--accent);outline-offset:-2px}
-html.xl .gform .btn{border-radius:0;border:0;border-left:1px solid var(--line);background:var(--surface2);color:var(--ink);font-weight:600;min-height:40px;padding:0 14px}
-html.xl .fb{font-weight:600;font-size:13px}
-html.xl .fb.t1,html.xl .fb.t2,html.xl .fb.t3,html.xl .fb.t4,html.xl .fb.t5{color:var(--accent)}
-/* 카드 · 버튼 · 창 — 모서리와 그림자를 없앰 */
+html.xl .xlogo{flex:none;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;background:#fff;color:#217346;border-radius:3px;margin:0 4px 0 2px}
+html.xl .xlogo b{font-size:15px;font-weight:900;line-height:1}
+html.xl .xsearch{flex:none;width:220px;background:#fff;color:#777;border-radius:3px;font-size:12px;padding:4px 10px;margin:0 8px;white-space:nowrap;overflow:hidden}
+html.xl .xwin{flex:none;letter-spacing:12px;font-size:13px;margin:0 6px 0 10px;pointer-events:none;color:#fff}
+/* 리본 */
+html.xl .xrib{background:var(--titlebar)}
+html.xl .xtabs{display:flex;padding:0 6px;color:#fff;font-size:13px;overflow:hidden}
+html.xl .xtabs span{padding:5px 13px 4px;white-space:nowrap}
+html.xl .xtabs .on{background:var(--ribbon);color:#217346;font-weight:600;border-radius:3px 3px 0 0}
+html.xl .xbody{display:flex;background:var(--ribbon);border-bottom:1px solid var(--hdrline);color:var(--ink);overflow-x:auto;scrollbar-width:none}
+html.xl .xbody::-webkit-scrollbar{display:none}
+html.xl .xg{flex:none;display:flex;flex-direction:column;justify-content:space-between;padding:4px 10px 2px;border-right:1px solid var(--hdrline)}
+html.xl .xgi{display:flex;gap:8px;align-items:flex-start;min-height:52px}
+html.xl .xgl{font-size:11px;color:var(--muted);text-align:center;margin-top:2px}
+html.xl .xbig{display:flex;flex-direction:column;align-items:center;gap:1px;font-size:12px;color:var(--ink)}
+html.xl .xbig .xi{font-size:24px;line-height:1;color:var(--hlink)}
+html.xl .xcol{display:flex;flex-direction:column;gap:2px;font-size:12px;font-style:normal}
+html.xl .xcol i{font-style:normal}
+html.xl .xrow{display:flex;align-items:center;gap:7px;font-size:13px;height:24px}
+html.xl .xgi.v{flex-direction:column;gap:3px}
+html.xl .xsel{border:1px solid var(--hdrline);background:var(--surface);padding:1px 8px;font-size:12px;min-width:36px;text-align:left}
+html.xl .xsel.w{min-width:92px}
+html.xl .xsep{width:1px;height:16px;background:var(--hdrline)}
+html.xl .xb{display:flex;flex-direction:column;align-items:center;gap:2px;background:transparent;border:1px solid transparent;border-radius:3px;padding:3px 9px;min-width:56px;font-size:12px;color:var(--ink);min-height:0}
+html.xl .xb:hover:not(:disabled){background:rgba(128,128,128,.18);border-color:var(--hdrline)}
+html.xl .xb:disabled{opacity:.38}
+html.xl .xb .xi{font-size:22px;line-height:1.1;color:var(--hlink);font-weight:700}
+/* 이름 상자 + 수식 입력줄 */
+html.xl .xform{display:flex;align-items:stretch;background:var(--surface);border-bottom:1px solid var(--hdrline);height:30px;color:var(--ink)}
+html.xl .xform .nb{width:72px;flex:none;display:flex;align-items:center;justify-content:center;border-right:1px solid var(--hdrline);font-size:13px}
+html.xl .xfi{display:flex;align-items:center;gap:11px;padding:0 10px;border-right:1px solid var(--hdrline);color:var(--muted);flex:none}
+html.xl .xok{border:0;background:transparent;color:var(--hlink);font-size:17px;padding:0;min-width:18px;line-height:1;min-height:0;font-weight:700}
+html.xl .xok:disabled{color:var(--muted);opacity:.5}
+html.xl .fxl{font-style:italic;font-weight:700;font-family:"Times New Roman",serif;color:var(--ink2)}
+html.xl .xform .gform{flex:1;margin:0;min-width:0;display:flex;border:0;background:transparent}
+html.xl .xform .gform input{width:100%;height:100%;border:0;border-radius:0;background:var(--surface);padding:0 8px;font-size:14px;font-weight:400;letter-spacing:0}
+html.xl .xform .gform input:focus{outline:2px solid var(--hlink);outline-offset:-2px}
+html.xl .xform .gform input:disabled{background:var(--surface2)}
+@media (pointer:coarse){html.xl .xform .gform input{font-size:16px}}
+/* 열 · 행 머리글 + 셀 격자 */
+html.xl .gt.xlg{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed;font-size:14px;border:0;background:var(--surface)}
+html.xl .xlg th{position:sticky;top:var(--top-h,0px);z-index:3;background:var(--hdr);color:var(--ink2);font-weight:400;font-size:12px;height:20px;padding:0;text-align:center;border-right:1px solid var(--hdrline);border-bottom:1px solid var(--hdrline)}
+html.xl .xlg th.hl{background:var(--hl);color:var(--hlink);font-weight:700;border-bottom:2px solid var(--hlink)}
+html.xl .xlg th.corner{width:38px}
+html.xl .xlg th.c0{width:46px} html.xl .xlg th.c2{width:84px} html.xl .xlg th.c3{width:84px} html.xl .xlg th.c4,html.xl .xlg th.c5{width:100px}
+html.xl .xlg td{height:23px;padding:0 6px;border-right:1px solid var(--cell);border-bottom:1px solid var(--cell);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative;background:var(--surface);vertical-align:middle;user-select:none;-webkit-user-select:none}
+html.xl .xlg td.rn{background:var(--hdr);color:var(--ink2);text-align:center;font-size:12px;padding:0;border-right:1px solid var(--hdrline);border-bottom:1px solid var(--hdrline)}
+html.xl .xlg td.rn.hl{background:var(--hl);color:var(--hlink);font-weight:700;border-right:2px solid var(--hlink)}
+html.xl .xlg td.n{text-align:center;color:var(--ink2)}
+html.xl .xlg td.w{font-weight:600}
+html.xl .xlg td.s,html.xl .xlg td.r{text-align:right;font-variant-numeric:tabular-nums}
+html.xl .xlg tr.xlt td:not(.rn){background:#217346;color:#fff;font-weight:700;border-right-color:rgba(255,255,255,.3)}
+html.xl .xlg tr.xlt td.s,html.xl .xlg tr.xlt td.r{text-align:right}
+html.xl .xlg tr.t3 td:not(.rn):not(.xe){background:var(--c3)}
+html.xl .xlg tr.t4 td:not(.rn):not(.xe){background:var(--c4)}
+html.xl .xlg tr.t5 td:not(.rn):not(.xe){background:var(--c5)}
+html.xl .xlg tr.win td:not(.rn):not(.xe){background:var(--ok-soft);color:var(--ok);font-weight:700}
+html.xl .xlg tr.hintw td.w::after{content:" *";color:var(--muted);font-weight:400}
+html.xl .xlg td.sel{outline:2px solid var(--hlink);outline-offset:-2px;z-index:2}
+html.xl .xlg td.sel::after{content:"";position:absolute;right:-3px;bottom:-3px;width:6px;height:6px;background:var(--hlink);border:1px solid var(--surface);z-index:4}
+html.xl .xlg tr{scroll-margin-top:calc(var(--top-h,96px) + 26px);scroll-margin-bottom:60px}
+@media (pointer:coarse){html.xl .xlg td{height:30px}}
+@media (max-width:700px){
+  html.xl .xlg .c4,html.xl .xlg .c5{display:none}
+  html.xl .xtabs,html.xl .xg.dec,html.xl .xgl,html.xl .xsearch,html.xl .xwin,html.xl .xview,html.xl .xzoom{display:none}
+  html.xl .xg{padding:3px 4px;border:0}
+  html.xl .xgi{min-height:0}
+  html.xl .xb{flex-direction:row;gap:5px;min-width:0;padding:7px 11px;font-size:13px;white-space:nowrap}
+  html.xl .xb .xi{font-size:15px}
+  html.xl .xform .nb{width:56px}
+  html.xl .xfi{gap:8px;padding:0 8px}
+}
+/* 메모 · 결과 메시지 상자 */
+html.xl .xnote{margin:8px 12px;padding:8px 12px;background:#ffffe1;border:1px solid #c9c98e;color:#333;font-size:13px;line-height:1.55;box-shadow:2px 2px 5px rgba(0,0,0,.18)}
+@media (prefers-color-scheme: dark){html.xl .xnote{background:#3d3a1c;border-color:#66622d;color:#eee}}
+html.xl .res{text-align:left;padding:0 0 12px;margin:10px 12px;border:1px solid #8a8a8a;border-radius:0;background:var(--surface2);box-shadow:3px 3px 10px rgba(0,0,0,.3);animation:none}
+html.xl .res::before{content:"Microsoft Excel";display:block;background:var(--surface);color:var(--ink);padding:5px 10px;font-size:12px;border-bottom:1px solid var(--line);margin-bottom:10px}
+html.xl .res>*{margin-left:14px;margin-right:14px}
+html.xl .res h2{font-size:16px;margin-top:4px;letter-spacing:0}
+html.xl .res .pts{border-radius:0;font-size:20px}
+html.xl .res .btns{justify-content:flex-start}
+html.xl .res .btn{flex:none;min-height:30px;padding:4px 16px;font-size:13px;border-radius:2px;background:var(--surface);border:1px solid #8a8a8a;font-weight:400}
+html.xl .res .btn.pri{background:var(--surface);color:var(--ink);border-color:var(--hlink);box-shadow:inset 0 0 0 1px var(--hlink)}
+/* 아래: 시트 탭 · 상태 표시줄 */
+html.xl .seg.tabs{position:fixed;left:0;right:0;bottom:calc(var(--xs) + env(safe-area-inset-bottom));margin:0;border-radius:0;padding:0 8px;gap:0;background:var(--ribbon);border-top:1px solid var(--hdrline);z-index:9;overflow-x:auto;scrollbar-width:none;align-items:flex-end}
+html.xl .seg.tabs::-webkit-scrollbar{display:none}
+html.xl .seg.tabs button{flex:none;min-height:30px;padding:4px 16px;border-radius:0 0 4px 4px;font-size:13px;font-weight:400;letter-spacing:0;color:var(--ink2);border:1px solid transparent;border-top:0;background:transparent}
+html.xl .seg.tabs button.on{background:var(--surface);color:var(--hlink);font-weight:700;border-color:var(--hdrline);box-shadow:inset 0 -3px 0 var(--hlink)}
+html.xl .seg.tabs::after{content:"+";flex:none;margin:3px 10px;width:22px;height:22px;border:1px solid var(--hdrline);border-radius:50%;text-align:center;line-height:20px;color:var(--ink2);background:var(--surface)}
+html.xl .xstat{position:fixed;left:0;right:0;bottom:0;height:calc(var(--xs) + env(safe-area-inset-bottom));padding:0 10px env(safe-area-inset-bottom);display:flex;align-items:center;gap:16px;background:var(--ribbon);border-top:1px solid var(--hdrline);font-size:12px;color:var(--ink);z-index:10}
+html.xl .xstat .fb{flex:1;min-width:0;min-height:0;margin:0;font-size:12px;font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink)}
+html.xl .xstat .fb.t3,html.xl .xstat .fb.t4,html.xl .xstat .fb.t5{color:var(--hlink);font-weight:700}
+html.xl .xinfo{flex:none;color:var(--ink2);white-space:nowrap}
+html.xl .xview{flex:none;letter-spacing:6px;color:var(--ink2)}
+html.xl .xzoom{flex:none;display:flex;align-items:center;gap:6px;color:var(--ink2)}
+html.xl .xzoom i{display:block;width:80px;height:2px;background:var(--hdrline);position:relative}
+html.xl .xzoom i::after{content:"";position:absolute;left:36px;top:-5px;width:6px;height:12px;background:var(--ink2);border-radius:1px}
+html.xl .toast{bottom:calc(var(--xs) + 44px + env(safe-area-inset-bottom));border-radius:2px}
+/* 그 밖 화면(순위 · 내 기록 · 창)은 모서리 · 그림자를 없앰 */
 html.xl .card{border-radius:0;border-color:var(--line);box-shadow:none}
-html.xl .btn,html.xl .btn.sm,html.xl .note,html.xl .chip,html.xl .scale div,html.xl .stats div,html.xl .badge,html.xl .pc,html.xl .gc,html.xl .cbox{border-radius:2px}
+html.xl .btn,html.xl .btn.sm,html.xl .note,html.xl .chip,html.xl .scale div,html.xl .stats div,html.xl .badge,html.xl .pc,html.xl .gc,html.xl .cbox,html.xl .sheet,html.xl .sheet .x{border-radius:2px}
 html.xl .btn{font-weight:600;font-size:14px}
 html.xl .btn.pri{background:var(--accent);border-color:var(--accent)}
-html.xl .sheet{border-radius:2px}
-html.xl .sheet .x{border-radius:2px}
 html.xl .head .no{color:var(--accent);font-size:26px;letter-spacing:0}
 html.xl .res .em,html.xl .gate .em,html.xl .empty .em{display:none}
-html.xl .seg:not(.tabs){border-radius:2px}
-html.xl .seg:not(.tabs) button{border-radius:2px}
-/* 추측 표 = 스프레드시트 */
-html.xl .gt{font-size:14px;border:1px solid var(--line);table-layout:fixed}
-html.xl .gt th,html.xl .gt td{border:1px solid var(--line);padding:5px 6px}
-html.xl .gt thead th{background:var(--surface2);color:var(--ink2);text-align:center;font-weight:500;padding:3px 4px}
-html.xl .gt .rn{width:34px;background:var(--surface2);color:var(--muted);text-align:center;font-variant-numeric:tabular-nums;padding:5px 2px}
-html.xl .gt .n{width:38px;text-align:center;color:var(--ink2)}
-html.xl .gt .s{width:80px;text-align:right}
-html.xl .gt .r{width:70px;text-align:right}
-html.xl .gt .w{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-html.xl .gt tr.xlt td:not(.rn){background:var(--surface2);font-weight:700;text-align:center}
-html.xl .gt tr.xlt td.s,html.xl .gt tr.xlt td.r{text-align:center}
-html.xl .te,html.xl .gt .bar2,html.xl .rbar i{display:none}
-html.xl .rbar{justify-content:flex-end;font-weight:600}
-html.xl .rbar em{color:inherit}
-html.xl .gt .sub{display:inline;font-size:12px;color:var(--muted)}
-html.xl .gt tr.hintw .w::after{content:" *";font-size:12px;color:var(--muted)}
-/* 조건부 서식처럼: 가까울수록 진한 셀 */
-html.xl .gt tr.t3 td:not(.rn){background:var(--c3)}
-html.xl .gt tr.t4 td:not(.rn){background:var(--c4)}
-html.xl .gt tr.t5 td:not(.rn){background:var(--c5)}
-html.xl .gt tr.win td:not(.rn){background:var(--ok-soft);color:var(--ok);font-weight:700}
-html.xl .gt tr.last td:not(.rn){box-shadow:inset 0 2px 0 var(--accent),inset 0 -2px 0 var(--accent)}
-html.xl .gt tr.last td.rn{color:var(--accent);font-weight:700}
-html.xl .gt tr.gap td{border:0!important;padding:3px!important;background:transparent!important}
-html.xl .heat{font-size:13px}
-/* 순위 · 기록 */
-html.xl .rk{border-radius:0}
-html.xl .rk.me{border-radius:0}
-html.xl .hc summary{min-height:44px}
+html.xl .seg:not(.tabs),html.xl .seg:not(.tabs) button{border-radius:2px}
+html.xl .rk,html.xl .rk.me{border-radius:0}
+@media (max-width:700px){html.xl .xview,html.xl .xzoom{display:none}}   /* 위의 일반 규칙이 뒤에 와서 덮으므로 한 번 더 */
+html.xl .heat{display:none}   /* 결과 이모지 줄은 엑셀 모드에서 숨김 */
