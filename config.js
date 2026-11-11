@@ -14,11 +14,12 @@ var JMB_ENV = !/github\.io$/.test(location.hostname) ? 'local'
 var JMB_API = (JMB_ENV === 'prod' || JMB_API_BETA.indexOf('YOUR_') === 0) ? JMB_API_PROD : JMB_API_BETA;
 
 window.JMB_CONFIG = {
-  version: '1.7.34',   // 바꾸면 auth.js/auth.css/router.js/extras.js/games.js/theme.css 캐시가 새로 받아짐
+  version: '1.7.35',   // 바꾸면 auth.js/auth.css/router.js/extras.js/games.js/theme.css 캐시가 새로 받아짐
   date: '2026-11-11', // version 을 올린 날 — 계정 창 아래에 '시작 페이지 v… · 날짜'로 표시
   env: JMB_ENV,       // prod 가 아니면 화면 왼쪽 아래 'TEST' 표시 + 기기 저장 칸을 따로 씀
   api: JMB_API,
   kakaoApi: JMB_API,
+  semEdge: 'https://jmb-edge.dlwjd.workers.dev',   // 꼬맨틀 표를 주는 엣지(Cloudflare Worker). 비우면 Apps Script 만 씀, 실패해도 자동으로 Apps Script 로 폴백
   /* 카카오 REST API 키 (공개되어도 안전한 값: 등록한 Redirect URI 에서만 동작) */
   kakaoRestKey: '3b96a1e29cf354319dfc02ac4ffd77b7'
 };

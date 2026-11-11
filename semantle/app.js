@@ -6,11 +6,12 @@
  */
 (function () {
   'use strict';
-  var VER = '1.12.0';
+  var VER = '1.13.0';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   var ENV_SFX = ENV !== 'prod' ? '_' + ENV : '';
   var API = window.SEM_API_LOCAL || CFG.api || '';
+  var EDGE = window.SEM_EDGE_LOCAL || CFG.semEdge || '';   // (1.13.0) 엣지(Cloudflare Worker): 표를 Apps Script 없이 0.1초대로 줌. 비어 있거나 실패하면 Apps Script 경로
   var ROOT = (function () { var seg = location.pathname.split('/')[1] || ''; return /\.github\.io$/.test(location.hostname) && seg ? '/' + seg + '/' : '/'; })();
   var LS = { auth: 'jmb_kakao_v2' + ENV_SFX, state: 'jmb_kakao_state' + ENV_SFX, play: 'jmb_sem_play' + ENV_SFX, pend: 'jmb_sem_pend' + ENV_SFX, help: 'jmb_sem_help', tab: 'jmb_sem_tab', sort: 'jmb_sem_sort', xl: 'jmb_sem_xl' };
   var HINT_COST = 15, TOPN = 1000, HINT_EVERY = 5;   // HINT_EVERY: 추측 5번마다 힌트가 하나씩 생김, 개수 제한 없음 (서버 SEM_CFG_.HINT_EVERY 와 같게)
@@ -177,6 +178,16 @@
         }
         return j.r;
       }, function (e) { clearTimeout(timer); var er = new Error(e && e.name === 'AbortError' ? '응답이 너무 늦어요. 잠시 후 다시 시도해 주세요' : e instanceof TypeError ? '인터넷 연결을 확인해 주세요' : (e && e.message) || '오류'); throw er; });
+  }
+
+  /** 엣지(Cloudflare Worker) 호출 — 오늘 · 어제 · 연습 표만. 어떤 이유로든 실패하면 거절(호출한 쪽이 Apps Script 로 폴백) */
+  function edgeCall(fn, extra) {
+    if (!EDGE) return Promise.reject(new Error('no edge'));
+    var ctl = typeof AbortController === 'function' ? new AbortController() : null, timer = ctl ? setTimeout(function () { ctl.abort(); }, 6000) : 0;
+    return fetch(EDGE + '/sem', { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, cache: 'no-store', signal: ctl ? ctl.signal : undefined,
+      body: JSON.stringify(Object.assign({ fn: fn, token: token() }, extra || {})) })
+      .then(function (r) { return r.json(); })
+      .then(function (j) { clearTimeout(timer); if (!j || !j.ok || !j.r) throw new Error((j && j.e) || 'edge'); return j.r; }, function (e) { clearTimeout(timer); throw e; });
   }
 
   /* ================= 데이터 (단어 목록 + 오늘 유사도 표) ================= */
@@ -688,7 +699,9 @@
     // (1.8.1) 서버가 사전에 실제로 있는 지난 날짜 중에서 k번째를 골라 줌 (예전에는 1~30일 전을 무작위로 물어 대부분 '없음'이라 실패했음)
     if (S.pK == null) S.pK = Math.floor(Math.random() * 1000);
     var td0 = S.ctx === 'td' ? S.srv : S.hold.td.srv;   // 오늘 판과 같은 표 형식 · 단어 목록으로 (목록이 다르면 연습할 수 없음)
-    api('semPractice', [token(), S.pK++, td0 && td0.fmt === 2 ? 2 : 0]).then(function (r) {
+    var kk = S.pK++, f2ok = !!(td0 && td0.fmt === 2);
+    (EDGE && f2ok ? edgeCall('practice', { k: kk }).catch(function () { return null; }) : Promise.resolve(null))
+      .then(function (er) { return er && er.ready ? er : api('semPractice', [token(), kk, f2ok ? 2 : 0]); }).then(function (r) {
       if (!r || !r.ready) throw new Error('아직 연습할 지난 문제가 없어요. 내일부터 하루에 하나씩 늘어나요');
       var td = S.ctx === 'td' ? snap() : S.hold.td;   // 오늘 판 상태는 그대로 보관
       if (td.srv.vh && r.vh && td.srv.vh !== r.vh) throw new Error('단어 목록이 달라서 연습할 수 없어요');
@@ -815,7 +828,9 @@
   function yesterdayList() {
     if (S.yd) return showTop('어제 정답과 가까운 단어 ' + TOPN + '개', S.yd.answer, S.yd.top, S.yd.sims, null);
     toast('불러오는 중…');
-    api('semYesterday', [token(), S.srv && S.srv.fmt === 2 ? 2 : 0]).then(function (r) {
+    var yf2 = !!(S.srv && S.srv.fmt === 2);
+    (EDGE && yf2 ? edgeCall('yesterday').catch(function () { return null; }) : Promise.resolve(null))
+      .then(function (er) { return er && er.ready ? er : api('semYesterday', [token(), yf2 ? 2 : 0]); }).then(function (r) {
       if (!r || !r.ready) return toast('어제 문제가 없어요', true);
       if (S.srv.vh && r.vh && S.srv.vh !== r.vh) return toast('단어 목록이 달라서 볼 수 없어요', true);
       var d = decodeSrv(r), p = pickTop(d.sims, d.exact);
@@ -952,6 +967,33 @@
     $('view').innerHTML = S.xl ? '<div class="xnote">오늘 문제를 불러오는 중이에요… 단어는 먼저 입력해 두세요 — 도착하면 바로 계산돼요</div>' + xlGrid([])
       : '<div class="empty">⏳ 오늘 문제를 불러오는 중…<br><small>처음엔 단어 목록(약 450KB)을 받느라 조금 걸려요</small></div>';
     xlState();
+    if (!EDGE) return bootGas();
+    return edgeStart().then(function (done) { return done ? undefined : bootGas(); });   // 엣지에서 못 받았으면 예전 경로
+  }
+  /** 엣지에서 오늘 표를 받아 바로 시작 (표 ≈ 0.1초대). 시작했으면 true — 서버 확인(내 기록 · 통계)은 뒤에서 Apps Script 로 */
+  function edgeStart() {
+    return Promise.all([loadVocab(V2).catch(function () { return null; }), edgeCall('today').catch(function () { return null; })]).then(function (res) {
+      var vocab = res[0], e = res[1];
+      if (!e || !e.ready || e.fmt !== 2 || !e.table || !e.top) return false;
+      var p = vocab && vocab.hash === e.vh ? Promise.resolve(vocab) : loadVocab(V2, true).catch(function () { return null; });   // 목록이 다르면 새로 받음
+      return p.then(function (v) {
+        var nick = e.me || myNick();
+        if (!v || v.hash !== e.vh || !nick) return false;
+        dayCachePut(e); startFast(v, e, nick);
+        gasLight();
+        return true;
+      });
+    }).catch(function () { return false; });
+  }
+  /** 서버(Apps Script)의 가벼운 확인 — 내 기록 · 통계 · 어제 정답을 지금 판에 합침 */
+  function gasLight() {
+    return api('semToday', [token(), 2, 1]).then(reconcile, function (e) {
+      S.optimistic = false;
+      if (/로그인이 만료/.test(e.message)) { dayCacheClear(); return renderGate(false); }
+      toast('서버 확인이 늦어요. 지금은 저장된 문제로 풀 수 있어요', true);   // 인터넷이 불안해도 풀 수는 있음 (기록은 연결되면)
+    });
+  }
+  function bootGas() {
     // 새 단어 목록(V2)과 오늘 표(형식 2 요청)를 동시에 받음. 서버가 옛 형식으로 답하면(새 사전이 아직 없음) 예전 목록(V1)으로 바꿔 받음
     return Promise.all([loadVocab(V2).catch(function () { return null; }), api('semToday', [token(), 2])]).then(function (res) {
       var vocab = res[0], srv = res[1];
@@ -1008,11 +1050,7 @@
       return false;
     }).then(function (fast) {
       if (!fast) return bootFull();
-      return api('semToday', [token(), 2, 1]).then(reconcile, function (e) {
-        S.optimistic = false;
-        if (/로그인이 만료/.test(e.message)) { dayCacheClear(); return renderGate(false); }
-        toast('서버 확인이 늦어요. 지금은 저장된 문제로 풀 수 있어요', true);   // 인터넷이 불안해도 풀 수는 있음 (기록은 연결되면)
-      });
+      return gasLight();
     }).catch(function () { return bootFull(); });
   }
   /* 접속 기록: 기기마다 30분에 한 번 잠만보 서버(logVisit)에 남김 → 시트 '접속기록' (페이지 = 꼬맨틀). 실패해도 게임과 상관없음 */
