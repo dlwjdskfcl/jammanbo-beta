@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.10.0';
+  var VER = '1.11.0';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   var ENV_SFX = ENV !== 'prod' ? '_' + ENV : '';
@@ -51,7 +51,7 @@
   function toast(msg, err) { var t = $('toast'); t.textContent = xe(msg); t.className = 'toast on' + (err ? ' err' : ''); clearTimeout(toastT); toastT = setTimeout(function () { t.className = 'toast'; }, err ? 3800 : 2200); }
   function av(name, px) { return window.JMB_FX && name ? '<span class="av">' + JMB_FX.avatar(name, px) + '</span>' : ''; }
   function mmss(s) { s = Math.max(0, Math.round(s)); var h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return (h ? h + ':' + (m < 10 ? '0' : '') : '') + m + ':' + (x < 10 ? '0' : '') + x; }
-  function f2(v) { return (v / 100).toFixed(2); }
+  function f2(v) { return v.toFixed(2); }   // (1.11.0) 값은 퍼센트(코사인 × 100) 그대로 — 안내문의 '-100 ~ 100' 과 같게 (예전에는 /100 이라 0.19 처럼 보였음)
   function hap(k) { try { window.JMB_FX && JMB_FX.haptic(k); } catch (e) {} }
   /* ---------- 엑셀 모드 (1.8.0): html.xl 클래스 + 시트 탭 이름 · 탭 제목 · 브라우저 색. 이모지는 엑셀 모드에서 뺌 ---------- */
   function xe(s) { return S.xl ? String(s).replace(/^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]+\s*/u, '') : s; }
@@ -186,30 +186,60 @@
   }
   /* (1.9.0) 단어 목록(약 410KB)은 기기(Cache Storage)에 저장해 두고 다음부터는 네트워크 없이 바로 읽음. 서버가 알려 주는 목록값(vh)과 다르면 새로 받음.
    * VOCAB_URL 의 숫자는 목록 내용이 바뀔 때만 올림 (시작 페이지 index.html 의 로그인 중 미리 받기 주소와 같게) — 화면 버전(VER)이 바뀌어도 다시 안 받음 */
-  var VOCAB_URL = 'vocab.txt?v=1', VCACHE = 'jmb_sem_vocab' + ENV_SFX;
-  function vocabFromCache() {
+  /* (1.11.0) 단어 목록 두 가지: V1 = 예전(vocab.txt, 4만 개 · 표 형식 1) / V2 = 늘린 것(vocab2.txt · 표 형식 2). 서버가 fmt=2 요청에 형식 2 로 답하면 V2, 아니면 V1 (운영 서버가 새 사전을 아직 안 가졌을 때 호환) */
+  var V1 = { id: 1, url: 'vocab.txt?v=1', key: 'vocab' }, V2 = { id: 2, url: 'vocab2.txt?v=1', key: 'vocab2' }, VCACHE = 'jmb_sem_vocab' + ENV_SFX;
+  function vocabFromCache(V) {
     if (!window.caches) return Promise.resolve(null);
-    return caches.open(VCACHE).then(function (c) { return c.match('vocab'); }).then(function (r) { return r ? r.json() : null; })
-      .then(function (o) { return o && o.t && o.h ? { words: o.t.split('\n'), hash: o.h, fromCache: true } : null; }, function () { return null; });
+    return caches.open(VCACHE).then(function (c) { return c.match(V.key); }).then(function (r) { return r ? r.json() : null; })
+      .then(function (o) { return o && o.t && o.h ? { words: o.t.split('\n'), hash: o.h, fromCache: true, src: V.id } : null; }, function () { return null; });
   }
-  function loadVocab(force) {
+  function loadVocab(V, force) {
     var net = function () {
-      return fetch(VOCAB_URL, force ? { cache: 'reload' } : undefined).then(function (r) { if (!r.ok) throw new Error('단어 목록을 받지 못했어요'); return r.text(); }).then(function (t) {
+      return fetch(V.url, force ? { cache: 'reload' } : undefined).then(function (r) { if (!r.ok) throw new Error('단어 목록을 받지 못했어요'); return r.text(); }).then(function (t) {
         return sha1hex(t).then(function (h) {
           h = h.slice(0, 10);
-          if (window.caches && h) { try { caches.open(VCACHE).then(function (c) { return c.put('vocab', new Response(JSON.stringify({ h: h, t: t }))); }).catch(function () {}); } catch (e) {} }
-          return { words: t.split('\n'), hash: h };
+          if (window.caches && h) { try { caches.open(VCACHE).then(function (c) { return c.put(V.key, new Response(JSON.stringify({ h: h, t: t }))); }).catch(function () {}); } catch (e) {} }
+          return { words: t.split('\n'), hash: h, src: V.id };
         });
       });
     };
-    return force ? net() : vocabFromCache().then(function (hit) { return hit || net(); });
+    return force ? net() : vocabFromCache(V).then(function (hit) { return hit || net(); });
   }
-  function decodeTable(b64, n) {
-    var bin = atob(b64), u = new Uint8Array(bin.length);
-    for (var i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+  /* 표 형식 — 값은 모두 '퍼센트'(코사인 × 100):
+   *  1 = int16 (퍼센트 정수, 예전 사전)
+   *  2 = 벌크 1바이트(값 = LO + 바이트 × STEP) + 상위 1500 정밀값('상위' 블록: u16 K | K × u16 번호 증분 | K × i16 값×100). 상위 값으로 벌크를 덮어씀 → 1000위 안 순위는 정확 */
+  var LO = -32, STEP = 0.25;
+  function b64bytes(b64) { var bin = atob(b64), u = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
+  function decodeSrv(srv) {   // → { sims, exact(정밀값이 있는 단어 번호들 | null) }
+    var u = b64bytes(srv.table), n = srv.n, i;
+    if (srv.fmt === 2) {
+      if (u.length !== n) throw new Error('오늘 표가 단어 목록과 달라요 (' + u.length + ' ≠ ' + n + ')');
+      var sims = new Float32Array(n); for (i = 0; i < n; i++) sims[i] = LO + u[i] * STEP;
+      var t = b64bytes(srv.top), dv = new DataView(t.buffer), K = t.length >= 2 ? dv.getUint16(0, true) : 0, exact = new Array(K), at = 0;
+      if (t.length !== 2 + 4 * K) throw new Error('상위 표가 올바르지 않아요');
+      for (var k = 0; k < K; k++) { at += dv.getUint16(2 + 2 * k, true); if (at >= n) throw new Error('상위 표가 올바르지 않아요'); exact[k] = at; sims[at] = dv.getInt16(2 + 2 * K + 2 * k, true) / 100; }
+      return { sims: sims, exact: exact };
+    }
     var a = new Int16Array(u.buffer, 0, u.length >> 1);
     if (a.length !== n) throw new Error('오늘 표가 단어 목록과 달라요 (' + a.length + ' ≠ ' + n + ')');
-    return a;
+    return { sims: a, exact: null };
+  }
+  function pickTop(sims, exact) {   // → { ans, top } top = 정답을 뺀 상위 TOPN 단어 번호 (유사도 높은 순, 동점은 번호 순)
+    var ans = -1, bv = -1e9, j, cand;
+    if (exact) {   // 형식 2: 상위 블록만 보면 됨 (4만~5만 개를 훑지 않음)
+      for (j = 0; j < exact.length; j++) if (sims[exact[j]] > bv) { bv = sims[exact[j]]; ans = exact[j]; }
+      cand = exact.filter(function (x) { return x !== ans; });
+      cand.sort(function (a, b) { return sims[b] - sims[a] || a - b; });
+      return { ans: ans, top: cand.slice(0, TOPN) };
+    }
+    for (j = 0; j < sims.length; j++) if (sims[j] > bv) { bv = sims[j]; ans = j; }
+    // (1.9.0) 전부 정렬하지 않고 1000위 경계 값을 세어 찾은 뒤 그 이상인 것만 정렬 (결과는 전체 정렬과 같음 — 동점은 번호 순)
+    var cnt = new Uint32Array(65536), cut, need = TOPN; cand = [];
+    for (j = 0; j < sims.length; j++) if (j !== ans) cnt[sims[j] + 32768]++;
+    for (cut = 65535; cut >= 0; cut--) { need -= cnt[cut]; if (need <= 0) break; }
+    for (j = 0; j < sims.length; j++) if (j !== ans && sims[j] + 32768 >= cut) cand.push(j);
+    cand.sort(function (a, b) { return sims[b] - sims[a]; });
+    return { ans: ans, top: cand.slice(0, TOPN) };
   }
   function prepare(vocab, srv) {
     S.vocab = vocab.words; S.idx = new Map();
@@ -217,19 +247,10 @@
     prepareTable(srv);
   }
   function prepareTable(srv) {
-    S.sims = decodeTable(srv.table, srv.n);
-    var best = -1, bv = -32768;
-    for (var k = 0; k < S.sims.length; k++) if (S.sims[k] > bv) { bv = S.sims[k]; best = k; }
-    S.ans = best;
-    // (1.9.0) 4만 개를 전부 정렬하지 않고, 1000위 경계 값을 세어 찾은 뒤 그 이상인 것만 정렬 (결과는 전체 정렬과 같음 — 동점은 번호 순) → 느린 폰에서 시작이 빨라짐
-    var cnt = new Uint32Array(65536), sims = S.sims, j, cut, need = TOPN, cand = [];
-    for (j = 0; j < sims.length; j++) if (j !== S.ans) cnt[sims[j] + 32768]++;
-    for (cut = 65535; cut >= 0; cut--) { need -= cnt[cut]; if (need <= 0) break; }
-    for (j = 0; j < sims.length; j++) if (j !== S.ans && sims[j] + 32768 >= cut) cand.push(j);
-    cand.sort(function (a, b) { return sims[b] - sims[a]; });
-    S.top = cand.slice(0, TOPN);
+    var d = decodeSrv(srv), p = pickTop(d.sims, d.exact);
+    S.sims = d.sims; S.ans = p.ans; S.top = p.top;
     S.rankOf = new Map(); S.top.forEach(function (ix, r) { S.rankOf.set(ix, r + 1); });
-    S.scale = { r1: S.sims[S.top[0]], r10: S.sims[S.top[9]], rN: S.sims[S.top[TOPN - 1]] };
+    S.scale = { r1: S.sims[S.top[0]], r10: S.sims[S.top[Math.min(9, S.top.length - 1)]], rN: S.sims[S.top[Math.min(TOPN, S.top.length) - 1]] };
   }
 
   /* ================= 오늘 판 (이 기기에 저장) ================= */
@@ -243,7 +264,7 @@
     var i = S.idx.get(w); if (i === S.ans) return 6;
     var r = S.rankOf.get(i) || 0, s = S.sims[i];
     if (r && r <= 10) return 5; if (r && r <= 100) return 4; if (r) return 3;
-    return s >= S.scale.rN - 300 ? 2 : s > 0 ? 1 : 0;
+    return s >= S.scale.rN - 3 ? 2 : s > 0 ? 1 : 0;   // 값은 퍼센트: 1000위 값보다 3점 안쪽이면 미지근 · 0 초과 차가움 · 그 밑 얼음 (1.11.0: 예전 -300 은 다른 단위 기준이라 거의 모두 '미지근' 이었음)
   }
   var TIER = [{ e: '🧊', t: '얼음장 같아요' }, { e: '🥶', t: '차가워요' }, { e: '😐', t: '미지근해요' }, { e: '😮', t: '따뜻해요! 1000위 안이에요' }, { e: '🥵', t: '뜨거워요! 100위 안이에요' }, { e: '🔥', t: '코앞이에요! 10위 안!' }, { e: '🎉', t: '정답!' }];
   var HEAT = ['⬛', '🟦', '🟨', '🟧', '🟥', '🔥', '🎯'];
@@ -436,7 +457,8 @@
     if (!S.L || !S.L.pend || !S.L.rec || !S.L.nonce) return;
     submit(S.L.pend.win, S.L.pend.word);
   }
-  function loadMine() { return api('semToday', [token()]).then(function (r) { var T = today_(); if (r && r.ready && T && T.srv) { T.srv.stats = r.stats; T.srv.my = r.my; T.srv.solvedToday = r.solvedToday; } render(); }, function () {}); }
+  /* loadMine: semToday 세 번째 인자 1 = 표 없이 기록 · 통계만 받음 (큰 표를 다시 받지 않음) */
+  function loadMine() { return api('semToday', [token(), 0, 1]).then(function (r) { var T = today_(); if (r && r.ready && T && T.srv) { T.srv.stats = r.stats; T.srv.my = r.my; T.srv.solvedToday = r.solvedToday; } render(); }, function () {}); }
 
   /* ================= 나눔 ================= */
   function shareText() {
@@ -658,7 +680,8 @@
     S.pBusy = true; toast('연습 문제를 불러오는 중…');
     // (1.8.1) 서버가 사전에 실제로 있는 지난 날짜 중에서 k번째를 골라 줌 (예전에는 1~30일 전을 무작위로 물어 대부분 '없음'이라 실패했음)
     if (S.pK == null) S.pK = Math.floor(Math.random() * 1000);
-    api('semPractice', [token(), S.pK++]).then(function (r) {
+    var td0 = S.ctx === 'td' ? S.srv : S.hold.td.srv;   // 오늘 판과 같은 표 형식 · 단어 목록으로 (목록이 다르면 연습할 수 없음)
+    api('semPractice', [token(), S.pK++, td0 && td0.fmt === 2 ? 2 : 0]).then(function (r) {
       if (!r || !r.ready) throw new Error('아직 연습할 지난 문제가 없어요. 내일부터 하루에 하나씩 늘어나요');
       var td = S.ctx === 'td' ? snap() : S.hold.td;   // 오늘 판 상태는 그대로 보관
       if (td.srv.vh && r.vh && td.srv.vh !== r.vh) throw new Error('단어 목록이 달라서 연습할 수 없어요');
@@ -785,15 +808,12 @@
   function yesterdayList() {
     if (S.yd) return showTop('어제 정답과 가까운 단어 ' + TOPN + '개', S.yd.answer, S.yd.top, S.yd.sims, null);
     toast('불러오는 중…');
-    api('semYesterday', [token()]).then(function (r) {
+    api('semYesterday', [token(), S.srv && S.srv.fmt === 2 ? 2 : 0]).then(function (r) {
       if (!r || !r.ready) return toast('어제 문제가 없어요', true);
       if (S.srv.vh && r.vh && S.srv.vh !== r.vh) return toast('단어 목록이 달라서 볼 수 없어요', true);
-      var sims = decodeTable(r.table, r.n), best = 0;
-      for (var i = 1; i < sims.length; i++) if (sims[i] > sims[best]) best = i;
-      var order = []; for (var j = 0; j < sims.length; j++) if (j !== best) order.push(j);
-      order.sort(function (a, b) { return sims[b] - sims[a]; });
-      S.yd = { answer: S.vocab[best] || r.answer, top: order.slice(0, TOPN), sims: sims };
-      showTop('어제 정답과 가까운 단어 ' + TOPN + '개', S.yd.answer, S.yd.top, sims, null);
+      var d = decodeSrv(r), p = pickTop(d.sims, d.exact);
+      S.yd = { answer: S.vocab[p.ans] || r.answer, top: p.top, sims: d.sims };
+      showTop('어제 정답과 가까운 단어 ' + TOPN + '개', S.yd.answer, S.yd.top, d.sims, null);
     }, function (e) { toast(e.message, true); });
   }
 
@@ -883,9 +903,14 @@
     if (!token()) { S.nick = ''; return renderGate(false); }   // 로그인한 회원만 시작할 수 있음
     $('tabs').hidden = false; updateTop();
     $('view').innerHTML = '<div class="empty">⏳ 오늘 문제를 불러오는 중…<br><small>처음엔 단어 목록(약 450KB)을 받느라 조금 걸려요</small></div>';
-    Promise.all([loadVocab(), api('semToday', [token()])]).then(function (res) {
+    // 새 단어 목록(V2)과 오늘 표(형식 2 요청)를 동시에 받음. 서버가 옛 형식으로 답하면(새 사전이 아직 없음) 예전 목록(V1)으로 바꿔 받음
+    Promise.all([loadVocab(V2).catch(function () { return null; }), api('semToday', [token(), 2])]).then(function (res) {
+      var vocab = res[0], srv = res[1];
+      if (!srv || srv.loginRequired || !srv.ready) return [vocab || { words: [], hash: '', src: 0 }, srv];
+      var want = srv.fmt === 2 ? V2 : V1;
+      if (!vocab || vocab.src !== want.id) return loadVocab(want).then(function (v) { return [v, srv]; });
       // 기기에 저장해 둔 목록이 서버의 것과 다르면(목록이 새로 바뀜) 한 번 새로 받아 씀
-      if (res[0].fromCache && res[1] && res[1].vh && res[0].hash !== res[1].vh) return loadVocab(true).then(function (v) { return [v, res[1]]; });
+      if (vocab.fromCache && srv.vh && vocab.hash !== srv.vh) return loadVocab(want, true).then(function (v) { return [v, srv]; });
       return res;
     }).then(function (res) {
       var vocab = res[0], srv = res[1];
