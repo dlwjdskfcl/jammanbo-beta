@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow, noai, noimageai">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; base-uri 'self'; form-action 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>잠만보 꼬들</title>
+<meta name="description" content="매일 하나, 두 글자 단어를 자모 색깔로 맞히는 단어 게임">
+<meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1014" media="(prefers-color-scheme: dark)">
+<link rel="icon" type="image/png" href="../icon-192.png">
+<link rel="stylesheet" href="style.css?v=1.0.0">
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <a class="back" href="../" aria-label="잠만보 홈">←</a>
+    <h1>꼬들 <small id="mode"></small></h1>
+    <button type="button" class="btn sm" id="help">?</button>
+  </header>
+  <main>
+    <div id="board" aria-live="polite"></div>
+    <div id="msg" class="msg"></div>
+    <form id="form" autocomplete="off">
+      <input id="inp" type="text" inputmode="text" lang="ko" maxlength="2" placeholder="두 글자 단어" aria-label="두 글자 단어 입력" autocapitalize="off" autocorrect="off" spellcheck="false">
+      <button type="submit" class="btn pri" id="go">입력</button>
+    </form>
+    <div id="keys" aria-hidden="true"></div>
+    <div id="end" class="end"></div>
+    <div class="links">
+      <button type="button" class="btn" id="practice">🎲 연습 한 판</button>
+      <a class="btn" href="../semantle/">🔤 꼬맨틀 하러 가기</a>
+    </div>
+  </main>
+</div>
+<div id="modal" class="modal"><div class="box" id="box"></div></div>
+<script src="app.js?v=1.0.0"></script>
+</body>
+</html>

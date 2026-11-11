@@ -21,7 +21,7 @@
 var SCOPE = new URL(self.registration.scope).pathname;   // '/jammanbo/' 또는 '/jammanbo-beta/'
 var CACHE = 'jmb-static-v3.3:' + SCOPE;
 // 미니게임 등 따로 동작하는 하위 폴더 (앱 첫 화면으로 바꿔치기하지 않음). 새 게임을 만들면 여기에 '폴더이름/' 추가
-var SKIP_DIRS = ['tichu/', 'roulette/', 'map/', 'timer/', 'sound/', 'escape/', 'aging/', 'semantle/', 'arcade/', 'mighty/', 'bingo/', 'jumprope/', 'rogue/', 'party/', 'toolbox/'];
+var SKIP_DIRS = ['tichu/', 'roulette/', 'map/', 'timer/', 'sound/', 'escape/', 'aging/', 'semantle/', 'kodle/', 'arcade/', 'mighty/', 'bingo/', 'jumprope/', 'rogue/', 'party/', 'toolbox/'];
 // 이 범위의 옛 캐시인지: 'jmb-static-…:범위' 형식이거나, 범위 표시가 없던 예전 이름(운영에서만 쓰던 것)
 function isMineOld(k) {
   if (k === CACHE || k.indexOf('jmb-static-') !== 0) return false;

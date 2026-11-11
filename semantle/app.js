@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.14.0';
+  var VER = '1.14.2';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   var ENV_SFX = ENV !== 'prod' ? '_' + ENV : '';
@@ -258,9 +258,11 @@
     cand.sort(function (a, b) { return sims[b] - sims[a]; });
     return { ans: ans, top: cand.slice(0, TOPN) };
   }
+  /* 욕설 · 성인 단어 (0_PC설정\도구\꼬맨틀_금지어.txt 와 같게): 추측으로 받지 않고 · 힌트 · 가까운 단어 목록에서 뺌. 번호(표)는 그대로 두고 글자만 거름 */
+  var BLOCK = {}; '시발 씨발 씹는 새끼 애꾸새끼라고 존나 졸라 븅신 호로 자지 보지 창녀 변태 개소리 꺼져 미친 미친다 미친듯이 미친다고 찌질이방법단 강간 윤간 성관계 성관계를 성교 그룹섹스 남성성기 여자성기 성기 음경 정액 정액존 질내사정 섹스 섹시 섹시미 섹시한 섹시한중년여성 야동 서양야동 일본야동 한국야동 포르노 음란 음란물 음란한 자위 오르가즘 애무 유두 젖꼭지 큰가슴 큰엉덩이 알몸 나체 누드 팬티 속옷 콘돔 발기 발기부전 매춘 매매춘 매춘부 성매매 성추행 성폭력 성폭행 성폭행한 몰카 유출몰카 도촬 성인용 성인용품 에로 유흥 유흥업소 스트립 불륜 간통 간통죄 고환 야한 사까시 불알 거시기 색녀 성행위 성행위를 성생활 성적쾌감 외설 선정적인 란제리 항문'.split(' ').forEach(function (w) { BLOCK[w] = 1; });
   function prepare(vocab, srv) {
     S.vocab = vocab.words; S.idx = new Map();
-    for (var i = 0; i < S.vocab.length; i++) if (!S.idx.has(S.vocab[i])) S.idx.set(S.vocab[i], i);
+    for (var i = 0; i < S.vocab.length; i++) if (!BLOCK[S.vocab[i]] && !S.idx.has(S.vocab[i])) S.idx.set(S.vocab[i], i);
     prepareTable(srv);
   }
   function prepareTable(srv) {
@@ -422,7 +424,7 @@
     var pick = -1;
     for (var d = 0; d < TOPN && pick < 0; d++) {
       var a = target - 1 + d, b = target - 1 - d;
-      if (a < TOPN && !have[S.top[a]]) pick = S.top[a]; else if (b >= 1 && !have[S.top[b]]) pick = S.top[b];
+      if (a < TOPN && !have[S.top[a]] && !BLOCK[S.vocab[S.top[a]]]) pick = S.top[a]; else if (b >= 1 && !have[S.top[b]] && !BLOCK[S.vocab[S.top[b]]]) pick = S.top[b];
     }
     if (pick < 0) return toast('더 줄 힌트가 없어요', true);
     var cost = rec ? ' (−' + HINT_COST + '점)' : '';
@@ -585,6 +587,8 @@
     if (my.state === '완료') return '<div class="note ok">✅ 오늘 기록은 끝났어요' + (my.result === '정답' ? ' (' + my.guesses + '번 · ' + my.points + '점)' : ' (포기)') + '. 아래는 연습이라 점수에 안 들어가요.</div>';
     return '';
   }
+  /** 끝나면 다음 게임으로: 꼬들 (두 글자 단어를 자모 색깔로 맞히기) */
+  function kodleLink() { return '<p style="text-align:center;margin:8px 0"><a class="btn" href="../kodle/">' + xe('🟩 이어서 꼬들 하러 가기') + '</a></p>'; }
   function resultCard() {
     var L = S.L, r = L.res, n = L.n;
     if (L.prac) return '<div class="card res pop"><div class="em">' + (L.win ? '🎉' : '👀') + '</div><h2>' + (L.win ? '정답이에요!' : '정답은 이거였어요') + '</h2>' +
@@ -644,7 +648,7 @@
       $('view').innerHTML = '<div class="card empty">📭<br><b>오늘 문제가 아직 준비되지 않았어요</b><br><small>운영진에게 알려 주세요 (시트 ‘꼬맨틀사전’ 에 오늘 날짜가 없어요)</small></div>'; return;
     }
     ensurePlayFrame();
-    $('pTop').innerHTML = S.xl ? (L.prac ? pracCard() : statusNote()) + (L.done ? resultCard() : '') : (L.prac ? pracCard() : metaCard() + statusNote()) + (L.done ? resultCard() : '');
+    $('pTop').innerHTML = S.xl ? (L.prac ? pracCard() : statusNote()) + (L.done ? resultCard() + kodleLink() : '') : (L.prac ? pracCard() : metaCard() + statusNote()) + (L.done ? resultCard() + kodleLink() : '');
     var inp = $('gw'); inp.placeholder = S.xl ? (L.done ? '더 입력해 볼까요?' : '단어 입력') : L.done ? '더 추측해 볼까요? (연습)' : '단어를 입력하세요';
     var fb = S.fb; $('fb').className = 'fb t' + (fb ? fb.tr : 0);
     $('fb').innerHTML = fb ? (S.xl ? '' : TIER[fb.tr].e + ' ') + '‘' + esc(fb.w) + '’ ' + TIER[fb.tr].t + (fb.r ? ' (' + fb.r + '위)' : '') : (S.xl ? '준비' : '');
@@ -834,7 +838,7 @@
 
   function showTop(title, answer, top, sims, have) {
     var h = '<h2>' + esc(title) + '</h2><p>정답: <b>' + esc(answer) + '</b></p><div class="toplist">';
-    top.forEach(function (ix, r) { var w = S.vocab[ix]; h += '<div class="' + (have && have[w] ? 'g' : '') + '"><span class="n">' + (r + 1) + '</span><span class="w">' + esc(w) + '</span><span class="s">' + f2(sims[ix]) + '</span></div>'; });
+    top.forEach(function (ix, r) { var w = S.vocab[ix]; if (BLOCK[w]) return; h += '<div class="' + (have && have[w] ? 'g' : '') + '"><span class="n">' + (r + 1) + '</span><span class="w">' + esc(w) + '</span><span class="s">' + f2(sims[ix]) + '</span></div>'; });
     openModal(h + '</div><div class="btns"><button type="button" class="btn pri" data-x>닫기</button></div>');
   }
   function topList() {
