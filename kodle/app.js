@@ -1,12 +1,13 @@
-/* 잠만보 꼬들 1.1.0 — 원작 꼬들 규칙: 정답은 기본 자모 24개(자음 14 · 모음 10)로 풀어 쓴 6칸짜리 단어, 6번 안에 자모 키보드로 입력.
+/* 잠만보 꼬들 1.2.0 — 원작 꼬들 규칙: 정답은 기본 자모 24개(자음 14 · 모음 10)로 풀어 쓴 6칸짜리 단어, 6번 안에 자모 키보드로 입력.
  * ㄲ→ㄱㄱ · ㅐ→ㅏㅣ · ㅘ→ㅗㅏ · 겹받침→둘 처럼 기본 자모로 풀어서 셈. 서버 없이 이 기기에서만 돌아감 (기록 · 연속은 기기에 저장) */
 (function () {
   'use strict';
-  var VER = '1.1.0', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 12), KEY = 'jmb_kodle_v1';
+  var VER = '1.2.0', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 11), KEY = 'jmb_kodle_v1';
   var CH = ['ㄱ', 'ㄱㄱ', 'ㄴ', 'ㄷ', 'ㄷㄷ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅂㅂ', 'ㅅ', 'ㅅㅅ', 'ㅇ', 'ㅈ', 'ㅈㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
   var JU = ['ㅏ', 'ㅏㅣ', 'ㅑ', 'ㅑㅣ', 'ㅓ', 'ㅓㅣ', 'ㅕ', 'ㅕㅣ', 'ㅗ', 'ㅗㅏ', 'ㅗㅏㅣ', 'ㅗㅣ', 'ㅛ', 'ㅜ', 'ㅜㅓ', 'ㅜㅓㅣ', 'ㅜㅣ', 'ㅠ', 'ㅡ', 'ㅡㅣ', 'ㅣ'];
   var JO = ['', 'ㄱ', 'ㄱㄱ', 'ㄱㅅ', 'ㄴ', 'ㄴㅈ', 'ㄴㅎ', 'ㄷ', 'ㄹ', 'ㄹㄱ', 'ㄹㅁ', 'ㄹㅂ', 'ㄹㅅ', 'ㄹㅌ', 'ㄹㅍ', 'ㄹㅎ', 'ㅁ', 'ㅂ', 'ㅂㅅ', 'ㅅ', 'ㅅㅅ', 'ㅇ', 'ㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
-  var ROWS = ['ㅂㅈㄷㄱㅅㅛㅕㅑ', 'ㅁㄴㅇㄹㅎㅗㅓㅏㅣ', 'ㅋㅌㅊㅍㅠㅜㅡ'];   // 두벌식 배열 모양 (겹자음 · ㅐ ㅔ 는 기본 자모 두 개로 입력)
+  var ROWS = ['ㄲㄸㅃㅆㅉㅒㅖ', 'ㅂㅈㄷㄱㅅㅛㅕㅑㅐㅔ', 'ㅁㄴㅇㄹㅎㅗㅓㅏㅣ', 'ㅋㅌㅊㅍㅠㅜㅡ'];   // 두벌식 배열 모양. 쌍자음 · ㅐ ㅒ ㅔ ㅖ 키는 기본 자모 둘로 풀려서 들어감
+  var EXP = { 'ㄲ': 'ㄱㄱ', 'ㄸ': 'ㄷㄷ', 'ㅃ': 'ㅂㅂ', 'ㅆ': 'ㅅㅅ', 'ㅉ': 'ㅈㅈ', 'ㅐ': 'ㅏㅣ', 'ㅒ': 'ㅑㅣ', 'ㅔ': 'ㅓㅣ', 'ㅖ': 'ㅕㅣ' };
   var PHYS = { KeyQ: 'ㅂ', KeyW: 'ㅈ', KeyE: 'ㄷ', KeyR: 'ㄱ', KeyT: 'ㅅ', KeyY: 'ㅛ', KeyU: 'ㅕ', KeyI: 'ㅑ', KeyA: 'ㅁ', KeyS: 'ㄴ', KeyD: 'ㅇ', KeyF: 'ㄹ', KeyG: 'ㅎ', KeyH: 'ㅗ', KeyJ: 'ㅓ', KeyK: 'ㅏ', KeyL: 'ㅣ', KeyZ: 'ㅋ', KeyX: 'ㅌ', KeyC: 'ㅊ', KeyV: 'ㅍ', KeyB: 'ㅠ', KeyN: 'ㅜ', KeyM: 'ㅡ' };
   var $ = function (id) { return document.getElementById(id); };
   var A = [], G = {}, S = { ans: '', aw: '', prac: false, guesses: [], done: false, win: false, no: 0, day: '' }, cur = '';
@@ -46,11 +47,13 @@
     var st = {}, rank = { n: 1, y: 2, g: 3 };
     S.guesses.forEach(function (w) { var s = score(w, S.ans); w.split('').forEach(function (c, i) { if (!st[c] || rank[s[i]] > rank[st[c]]) st[c] = s[i]; }); });
     $('keys').innerHTML = ROWS.map(function (row, i) {
-      return '<div class="kr">' + (i === 2 ? '<button type="button" class="w pri" data-k="Enter">입력</button>' : '') + row.split('').map(function (c) { return '<button type="button" class="' + (st[c] || '') + '" data-k="' + c + '">' + c + '</button>'; }).join('') + (i === 2 ? '<button type="button" class="w" data-k="Back">⌫</button>' : '') + '</div>';
+      return '<div class="kr">' + (i === 3 ? '<button type="button" class="w pri" data-k="Enter">입력</button>' : '') + row.split('').map(function (c) { return '<button type="button" class="' + (keySt(c, st) || '') + '" data-k="' + c + '">' + c + '</button>'; }).join('') + (i === 3 ? '<button type="button" class="w" data-k="Back">⌫</button>' : '') + '</div>';
     }).join('');
     $('mode').textContent = S.prac ? '연습' : '오늘 #' + (S.no + 1);
     endView();
   }
+  /** 겹글자 키(ㄲ · ㅐ …)는 풀린 자모가 모두 같은 상태일 때만 색을 보여 줌 */
+  function keySt(c, st) { var e = EXP[c]; if (!e) return st[c]; var a = st[e.charAt(0)], b = st[e.charAt(1)]; return a && a === b ? a : ''; }
   function shareText() {
     var rows = S.guesses.map(function (w) { return score(w, S.ans).map(function (x) { return x === 'g' ? '🟩' : x === 'y' ? '🟨' : '⬛'; }).join(''); }).join('\n');
     return '잠만보 꼬들 ' + (S.prac ? '연습' : '#' + (S.no + 1)) + ' ' + (S.win ? S.guesses.length : 'X') + '/' + TRIES + '\n' + rows;
@@ -87,7 +90,8 @@
       if (S.guesses[S.guesses.length - 1] === S.ans) finish(true); else if (S.guesses.length >= TRIES) finish(false);
       persist(); return draw(true);
     }
-    if (cur.length < LEN) { cur += k; msg(''); draw(false); }
+    var add = EXP[k] || k;
+    if (cur.length + add.length <= LEN) { cur += add; msg(''); draw(false); }
   }
   function modal(h) {
     $('box').innerHTML = h; $('modal').classList.add('on');
@@ -100,7 +104,7 @@
   }
   function help() {
     modal('<h3>꼬들 하는 법</h3><p>정답은 <b>자모 6개</b>로 이루어진 단어예요. <b>6번 안에</b> 맞혀 보세요. 자모 키보드로 6칸을 채우고 <b>입력</b>을 누르면 색깔로 알려 줘요.</p>' +
-      '<div class="ex"><div class="c g">ㅅ</div><div class="c y">ㅏ</div><div class="c n">ㄱ</div></div><p>🟩 자모와 자리가 모두 맞음 · 🟨 자모는 있지만 다른 자리 · ⬛ 정답에 없음</p><p>쌍자음 · ㅐ · ㅔ · ㅘ 같은 글자와 겹받침은 <b>기본 자모(자음 14 · 모음 10)로 풀어서</b> 세요. 예: ㄲ=ㄱㄱ · ㅐ=ㅏㅣ · ㅘ=ㅗㅏ · ㄳ=ㄱㅅ → ‘공룡’ = ㄱㅗㅇㄹㅠㅇ, ‘강아지’ = ㄱㅏㅇㅇㅏㅈㅣ(7칸이라 안 나와요).</p><p>매일 하나(자정에 바뀜). 끝나면 연습 판도 할 수 있어요. 컴퓨터에서는 자판(두벌식)으로도 입력돼요.</p><p style="text-align:center"><button class="btn pri" id="mc">시작</button></p>');
+      '<div class="ex"><div class="c g">ㅅ</div><div class="c y">ㅏ</div><div class="c n">ㄱ</div></div><p>🟩 자모와 자리가 모두 맞음 · 🟨 자모는 있지만 다른 자리 · ⬛ 정답에 없음</p><p>쌍자음 · ㅐ · ㅔ · ㅘ 같은 글자와 겹받침은 <b>기본 자모(자음 14 · 모음 10)로 풀어서</b> 세요. 예: ㄲ=ㄱㄱ · ㅐ=ㅏㅣ · ㅘ=ㅗㅏ · ㄳ=ㄱㅅ (ㄲ · ㅐ 키를 누르면 알아서 두 칸이 채워져요) → ‘공룡’ = ㄱㅗㅇㄹㅠㅇ, ‘강아지’ = ㄱㅏㅇㅇㅏㅈㅣ(7칸이라 안 나와요).</p><p>매일 하나(자정에 바뀜). 끝나면 연습 판도 할 수 있어요. 컴퓨터에서는 자판(두벌식)으로도 입력돼요.</p><p style="text-align:center"><button class="btn pri" id="mc">시작</button></p>');
     save(KEY + '_help', 1);
   }
   $('modal').onclick = function (e) { if (e.target === $('modal')) $('modal').classList.remove('on'); };
