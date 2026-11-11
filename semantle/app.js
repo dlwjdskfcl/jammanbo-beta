@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.6.4';
+  var VER = '1.7.0';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   var ENV_SFX = ENV !== 'prod' ? '_' + ENV : '';
@@ -28,7 +28,17 @@
   var S = { view: 'play', vocab: null, idx: null, sims: null, ans: -1, rankOf: null, top: null, srv: null, L: null, rank: null, rkTab: lsGet(LS.tab) || 'today',
             nick: '', hist: null, histAt: 0, startP: null, busy: false, fb: null, lastW: '', t0: 0, scale: null,
             // sort: 기본은 유사도 순 (입력 순서를 직접 고른 사람만 입력 순서)
-            sort: lsGet(LS.sort) === 'order' ? 'order' : 'sim', scrollNew: false, scrollRes: false, sharing: false, focused: false };
+            sort: lsGet(LS.sort) === 'order' ? 'order' : 'sim', scrollNew: false, scrollRes: false, sharing: false, focused: false,
+            // (1.7.0) 연습 탭: 오늘 판과 연습 판의 문제 · 추측 상태를 갈아끼움 (ctx = 지금 S 에 들어 있는 쪽, hold = 안 쓰는 쪽 보관)
+            ctx: 'td', hold: { td: null, pz: null }, pDone: [] };
+  var CTX_KEYS = ['srv', 'L', 'sims', 'ans', 'rankOf', 'top', 'scale', 'lastW', 'fb'];
+  function snap() { var o = {}; CTX_KEYS.forEach(function (k) { o[k] = S[k]; }); return o; }
+  function load(o) { CTX_KEYS.forEach(function (k) { S[k] = o[k]; }); }
+  function useCtx(name) {
+    if (S.ctx === name || !S.hold[name]) return;
+    S.hold[S.ctx] = snap(); load(S.hold[name]); S.ctx = name;
+  }
+  function today_() { return S.ctx === 'td' ? S : S.hold.td; }   // 연습 중에도 오늘 판 쪽에 접근 (비동기 응답이 늦게 올 때)
 
   /* ================= 공통 ================= */
   function $(id) { return document.getElementById(id); }
@@ -104,6 +114,9 @@
   function prepare(vocab, srv) {
     S.vocab = vocab.words; S.idx = new Map();
     for (var i = 0; i < S.vocab.length; i++) if (!S.idx.has(S.vocab[i])) S.idx.set(S.vocab[i], i);
+    prepareTable(srv);
+  }
+  function prepareTable(srv) {
     S.sims = decodeTable(srv.table, srv.n);
     var best = -1, bv = -32768;
     for (var k = 0; k < S.sims.length; k++) if (S.sims[k] > bv) { bv = S.sims[k]; best = k; }
@@ -117,7 +130,7 @@
 
   /* ================= 오늘 판 (이 기기에 저장) ================= */
   function freshLocal() { return { day: S.srv.day, vh: S.srv.vh, g: [], hints: 0, done: false, win: false, rec: false, nonce: '', startAt: 0, res: null, pend: false }; }
-  function saveLocal() { lsSet(LS.play, JSON.stringify(S.L)); }
+  function saveLocal() { if (S.L && S.L.prac) return; lsSet(LS.play, JSON.stringify(S.L)); }   // 연습 판은 저장하지 않음 (오늘 판을 덮어쓰면 안 됨)
   function guessWords() { return S.L.g.map(function (x) { return x.w; }); }
   function realCount() { return S.L.g.filter(function (x) { return !x.h; }).length; }
   function simOf(w) { return S.sims[S.idx.get(w)]; }
@@ -235,7 +248,7 @@
     var tr = tier(w);
     if (tr === 6 && !S.L.done) return win(w);
     if (S.L.done && tr === 6) { toast('🎉 정답이에요! (연습)'); S.fb = null; render(); return; }
-    if (!isHint && !S.L.done && realCount() % HINT_EVERY === 0) setTimeout(function () { toast('💡 힌트가 생겼어요! (' + hintsLeft() + '개 사용 가능)'); }, 450);
+    if (!isHint && !S.L.done && !S.L.prac && realCount() % HINT_EVERY === 0) setTimeout(function () { toast('💡 힌트가 생겼어요! (' + hintsLeft() + '개 사용 가능)'); }, 450);
     S.fb = { tr: tr, w: w, r: rankIn(w) };
     hap(tr >= 4 ? 'turn' : 'tap');
     render();
@@ -246,13 +259,14 @@
   function hintNext() { return HINT_EVERY - realCount() % HINT_EVERY; }
   function hintBtn() {
     var L = S.L, label, off = false;
-    if (L.done) label = '💡 힌트 (연습)';
+    if (L.prac) label = '💡 힌트';   // 연습은 개수 제한 없음 (글자가 두 줄로 꺾이지 않게 짧게)
+    else if (L.done) label = '💡 힌트 (연습)';
     else if (hintsLeft() > 0) label = '💡 힌트 (' + hintsLeft() + '개 남음)';   // 점수 비용은 확인창에서 알려 줌 (버튼 글자가 두 줄로 꺾이지 않게 짧게)
     else { off = true; label = '🔒 힌트 (' + hintNext() + '번 더 추측)'; }
     return '<button type="button" class="btn" id="hintBtn"' + (off ? ' disabled' : '') + '>' + label + '</button>';
   }
   function hint() {
-    var gated = !S.L.done, rec = recordable();
+    var gated = !S.L.done && !S.L.prac, rec = recordable();   // 연습 판은 힌트 제한 · 점수 없음
     if (gated && hintsLeft() <= 0) return toast(hintNext() + '번 더 추측하면 힌트가 생겨요', true);
     var best = 0; guessWords().forEach(function (w) { var r = rankIn(w); if (r && (!best || r < best)) best = r; });
     var target = best ? Math.max(2, Math.floor(best / 2)) : 300 + Math.floor(Math.random() * 400);
@@ -275,6 +289,7 @@
   }
   function giveUp() {
     if (S.L.done) return;
+    if (S.L.prac) return ask('👀 정답을 볼까요?', '연습 문제라 기록은 없어요. 정답과 가까운 단어를 구경하며 감을 익혀 보세요.', '정답 보기').then(function (ok) { if (ok && !S.L.done) { finish(false); S.scrollRes = true; render(); } });
     ask('🏳️ 정말 포기할까요?', S.L.rec ? '정답 기록은 <b>0점</b>이고 연속 기록이 끊겨요.' : '오늘 문제를 포기해요.', '포기하기', true).then(function (ok) {
       if (!ok || S.L.done) return;
       finish(false); S.scrollRes = true;
@@ -312,7 +327,7 @@
     if (!S.L || !S.L.pend || !S.L.rec || !S.L.nonce) return;
     submit(S.L.pend.win, S.L.pend.word);
   }
-  function loadMine() { return api('semToday', [token()]).then(function (r) { if (r && r.ready) { S.srv.stats = r.stats; S.srv.my = r.my; S.srv.solvedToday = r.solvedToday; } render(); }, function () {}); }
+  function loadMine() { return api('semToday', [token()]).then(function (r) { var T = today_(); if (r && r.ready && T && T.srv) { T.srv.stats = r.stats; T.srv.my = r.my; T.srv.solvedToday = r.solvedToday; } render(); }, function () {}); }
 
   /* ================= 나눔 ================= */
   function shareText() {
@@ -380,6 +395,7 @@
   /* ================= 화면 ================= */
   function setHead() {
     var st = S.srv && S.srv.stats;
+    if (S.view === 'prac') { $('ttl').textContent = '꼬맨틀 연습'; $('sub').textContent = '기록 없이 마음껏 — 힌트도 무제한'; return; }
     $('ttl').textContent = S.srv && S.srv.no ? '꼬맨틀 #' + S.srv.no : '꼬맨틀';
     $('sub').textContent = st && st.streak ? '🔥 ' + st.streak + '일 연속 정답 중' : '오늘의 비밀 단어를 찾아라';
   }
@@ -396,6 +412,7 @@
   function render() {
     if (!S.nick) return renderGate(!!session());
     setHead(); tabsOn();
+    if (S.view === 'prac') return renderPrac();
     if (S.view === 'rank') return renderRank();
     if (S.view === 'hist') return renderHist();
     renderPlay();
@@ -419,6 +436,10 @@
   }
   function resultCard() {
     var L = S.L, r = L.res, n = L.n;
+    if (L.prac) return '<div class="card res pop"><div class="em">' + (L.win ? '🎉' : '👀') + '</div><h2>' + (L.win ? '정답이에요!' : '정답은 이거였어요') + '</h2>' +
+      '<p>' + (L.win ? '<b>' + esc(S.vocab[S.ans]) + '</b> — ' + n + '번 만에 맞혔어요' : '<b>' + esc(S.vocab[S.ans]) + '</b>') + ' <small>(연습 · 기록 없음)</small></p>' +
+      '<div class="heat">' + L.g.slice(0, L.cnt).map(function (x) { return HEAT[tier(x.w)]; }).join('') + '</div>' +
+      '<div class="btns"><button type="button" class="btn pri" id="pracNext">🔁 다른 문제로 연습</button><button type="button" class="btn" id="topbtn">가까운 단어 1000개 보기</button><button type="button" class="btn" id="pracBack">🎯 오늘 문제로</button></div></div>';
     if (S.busy) return '<div class="card res"><div class="em">⏳</div><h2>기록 중…</h2></div>';
     var h = '<div class="card res pop"><div class="em">' + (L.win ? '🎉' : '😵') + '</div><h2>' + (L.win ? '정답이에요!' : '아쉬워요') + '</h2>' +
       '<p>' + (L.win ? '<b>' + esc(S.vocab[S.ans]) + '</b> — ' + n + '번 만에 맞혔어요' + (L.hints ? ' · 힌트 ' + L.hints : '') : '정답은 <b>' + esc(S.vocab[S.ans]) + '</b> 였어요') + '</p>';
@@ -465,11 +486,11 @@
       $('view').innerHTML = '<div class="card empty">📭<br><b>오늘 문제가 아직 준비되지 않았어요</b><br><small>운영진에게 알려 주세요 (시트 ‘꼬맨틀사전’ 에 오늘 날짜가 없어요)</small></div>'; return;
     }
     ensurePlayFrame();
-    $('pTop').innerHTML = metaCard() + statusNote() + (L.done ? resultCard() : '');
+    $('pTop').innerHTML = (L.prac ? pracCard() : metaCard() + statusNote()) + (L.done ? resultCard() : '');
     var inp = $('gw'); inp.placeholder = L.done ? '더 추측해 볼까요? (연습)' : '단어를 입력하세요';
     var fb = S.fb; $('fb').className = 'fb t' + (fb ? fb.tr : 0);
     $('fb').innerHTML = fb ? TIER[fb.tr].e + ' ‘' + esc(fb.w) + '’ ' + TIER[fb.tr].t + (fb.r ? ' (' + fb.r + '위)' : '') : '';
-    $('pTools').innerHTML = hintBtn() + (L.done ? '' : '<button type="button" class="btn" id="giveBtn">🏳️ 포기</button>');
+    $('pTools').innerHTML = hintBtn() + (L.done ? '' : '<button type="button" class="btn" id="giveBtn">' + (L.prac ? '👀 정답 보기' : '🏳️ 포기') + '</button>') + (L.prac && !L.done ? '<button type="button" class="btn" id="pracNext">🔁 다른 문제</button>' : '');
     $('pList').innerHTML = L.g.length ? '<div class="card" style="padding:8px 10px">' + rows() + '</div>'
       : (!L.done ? '<p class="hint">처음 입력해 볼 단어는 뭐든 괜찮아요. 예: <b>사람</b> · <b>음식</b> · <b>하늘</b> — 점수가 높은 쪽으로 따라가 보세요!</p>' : '');
     if (!S.focused && !L.done && !(navigator.maxTouchPoints > 0)) { S.focused = true; try { inp.focus({ preventScroll: true }); } catch (e) {} }   // 컴퓨터만 자동 포커스 (휴대폰은 키보드가 화면을 가리지 않게)
@@ -482,6 +503,54 @@
       var lr = $('lastRow');
       if (lr) setTimeout(function () { lr.scrollIntoView({ block: 'center', behavior: beh }); }, 60);
     }
+  }
+
+  /* ================= 연습 (1.7.0) — 이미 끝난 지난 문제로 기록 없이 연습: 힌트 무제한 · 길 안내 · 정답 보기 ================= */
+  function freshPrac(r) { return { day: r.day, vh: r.vh, g: [], hints: 0, done: false, win: false, rec: false, nonce: '', startAt: 0, res: null, pend: false, prac: true }; }
+  function hasPrac() { return S.ctx === 'pz' || !!S.hold.pz; }
+  function syncCtx(v) { if (v === 'prac' && S.hold.pz) useCtx('pz'); else useCtx('td'); }
+  /** 지금까지의 추측을 보고 다음에 해 볼 일을 한 줄로 안내 */
+  function coach() {
+    var L = S.L; if (L.done) return '';
+    if (!L.g.length) return '첫 단어는 뭐든 괜찮아요. <b>사람 · 음식 · 하늘 · 집 · 동물</b> 처럼 넓은 말로 시작해 보세요.';
+    var best = null;
+    L.g.forEach(function (x) { var t = tier(x.w), s = simOf(x.w); if (!best || t > best.t || (t === best.t && s > best.s)) best = { w: x.w, t: t, s: s, r: rankIn(x.w) }; });
+    var w = '‘' + esc(best.w) + '’', stuck = realCount() >= 3 && best.t <= 2 ? '<br>막히면 <b>💡 힌트</b>를 눌러 보세요. 연습에서는 마음껏 써도 돼요.' : '';
+    if (best.t <= 1) return '아직 멀어요. 사람 · 장소 · 음식 · 동물 · 물건 · 행동… <b>분야를 바꿔서</b> 넓게 던져 보세요. 숫자가 높아지는 쪽이 정답 방향이에요.' + stuck;
+    if (best.t === 2) return '조금 가까워지고 있어요. 지금까지 가장 높은 단어는 ' + w + ' (' + f2(best.s) + '). 이 단어와 <b>같은 분야의 다른 말</b>을 써 보세요.' + stuck;
+    if (best.t === 3) return '좋아요! ' + w + ' 가 <b>1000위 안</b>(' + best.r + '위)이에요. 이 단어와 <b>같은 상황에 함께 나오는 말</b>(장소 · 도구 · 행동)을 떠올려 보세요.';
+    if (best.t === 4) return '뜨거워요! ' + w + ' 가 <b>100위 안</b>(' + best.r + '위)이에요. 거의 다 왔어요 — 이 단어의 <b>비슷한 말 · 반대말 · 하위 개념</b>을 시도해 보세요.';
+    return '코앞이에요! ' + w + ' 가 <b>10위 안</b>(' + best.r + '위)이에요. 조금만 비틀어 보세요.';
+  }
+  function pracCard() {
+    var s = S.srv, c = coach();
+    return '<div class="card"><div class="head"><div class="no">🌱 연습<small> · ' + s.no + '번째 문제 (지난 문제)</small></div><div class="meta">기록 · 점수 · 순위에 안 들어가요<br>힌트는 마음껏 써도 돼요</div></div>' +
+      '<div class="scale"><div><b>' + f2(S.scale.r1) + '</b><small>1위 유사도</small></div><div><b>' + f2(S.scale.r10) + '</b><small>10위</small></div><div><b>' + f2(S.scale.rN) + '</b><small>1000위</small></div></div>' +
+      (c ? '<div class="note ok coach">' + c + '</div>' : '') + '</div>';
+  }
+  function renderPrac() {
+    if (hasPrac()) { if (S.ctx !== 'pz') useCtx('pz'); return renderPlay(); }
+    $('view').innerHTML = '<div class="card gate"><div class="em">🌱</div><h2>연습해 볼까요?</h2>' +
+      '<p>지난 문제 중 하나로 <b>기록 없이</b> 연습해요.<br>힌트는 <b>처음부터 마음껏</b> 쓸 수 있고, 막히면 정답도 볼 수 있어요.</p>' +
+      '<ul class="how"><li>아무 단어나 입력하면 비밀 단어와 <b>뜻이 얼마나 가까운지</b> 숫자로 알려 줘요</li><li><b>숫자가 높은 쪽</b>으로 따라가세요. 1000위 안에 들면 순위도 보여요</li><li>도우미 글이 다음에 해 볼 일을 알려 줘요</li></ul>' +
+      '<div class="btns"><button type="button" class="btn pri" id="pracStart">🌱 연습 시작</button></div></div>';
+  }
+  function startPrac() {
+    if (S.busy || S.startP) return toast('기록 중이에요. 잠시 뒤에 다시 눌러 주세요', true);
+    if (S.pBusy) return;
+    S.pBusy = true; toast('연습 문제를 불러오는 중…');
+    var tried = 0;
+    (function next() {
+      api('semPractice', [token(), 1 + Math.floor(Math.random() * 30)]).then(function (r) {
+        if (!r || !r.ready || (S.pDone.indexOf(r.day) >= 0 && tried < 5)) { if (++tried < 6) return next(); throw new Error('연습할 문제를 찾지 못했어요'); }
+        var td = S.ctx === 'td' ? snap() : S.hold.td;   // 오늘 판 상태는 그대로 보관
+        if (td.srv.vh && r.vh && td.srv.vh !== r.vh) throw new Error('단어 목록이 달라서 연습할 수 없어요');
+        if (S.ctx === 'pz') load(td);
+        prepareTable(r); S.srv = r; S.L = freshPrac(r); S.lastW = ''; S.fb = null; S.focused = false; S.scrollNew = false; S.scrollRes = false;
+        S.hold.td = td; S.hold.pz = snap(); S.ctx = 'pz'; S.pDone.push(r.day); S.pBusy = false; S.view = 'prac';
+        render(); updateTop();
+      }).catch(function (e) { S.pBusy = false; toast(e.message || '연습 문제를 불러오지 못했어요', true); });
+    })();
   }
 
   /* ---------- 순위 ---------- */
@@ -634,6 +703,8 @@
       case 'topbtn': return topList();
       case 'retry': return retryPending();
       case 'goRank': return go('rank');
+      case 'pracStart': case 'pracNext': return startPrac();
+      case 'pracBack': return go('play');
       case 'rkRetry': S.rank = null; return renderRank();
       case 'histRetry': S.hist = null; return renderHist();
     }
@@ -644,18 +715,19 @@
   function go(v) {
     if (v === S.view) { window.scrollTo(0, 0); return; }
     var st = history.state || {};
+    if (v === 'prac' && (S.busy || S.startP)) return toast('기록 중이에요. 잠시 뒤에 눌러 주세요', true);   // 오늘 판 기록이 끝나기 전엔 연습으로 못 감 (상태가 섞이지 않게)
     if (v === 'play' && st.p) { try { history.back(); return; } catch (e) {} }   // popstate 가 화면을 바꿈
     var push = S.view === 'play' && v !== 'play';
     S.view = v;
     if (v === 'rank' && S.rank && Date.now() - S.rank.at > 30000) S.rank = null;
     if (v === 'hist' && Date.now() - S.histAt > 30000) S.hist = null;
     try { history[push ? 'pushState' : 'replaceState']({ v: v, p: push || st.p ? 1 : 0 }, ''); } catch (e) {}
-    render(); window.scrollTo(0, 0); updateTop();
+    syncCtx(v); render(); window.scrollTo(0, 0); updateTop();
   }
   window.addEventListener('popstate', function (e) {
     if (modalOpen) { closeModal(true); return; }
     var v = e.state && e.state.v;
-    if (v && v !== S.view && S.nick) { S.view = v; render(); window.scrollTo(0, 0); updateTop(); }
+    if (v && v !== S.view && S.nick) { S.view = v; syncCtx(v); render(); window.scrollTo(0, 0); updateTop(); }
   });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && modalOpen) closeModal(); });
   $('back').onclick = function () { if (modalOpen) return closeModal(); if (S.view !== 'play') return go('play'); location.href = ROOT; };
@@ -664,7 +736,7 @@
   window.addEventListener('online', retryPending);
   document.addEventListener('visibilitychange', function () { if (document.hidden) flushSave(); });
   window.addEventListener('pagehide', flushSave);
-  document.addEventListener('visibilitychange', function () { if (!document.hidden && S.srv && S.srv.ready && S.L && S.L.day && S.srv.day !== todayKST()) location.reload(); });
+  document.addEventListener('visibilitychange', function () { var T = today_(); if (!document.hidden && T && T.srv && T.srv.ready && T.L && T.L.day && T.srv.day !== todayKST()) location.reload(); });   // 연습 중에도 오늘 판 기준으로 날짜 확인
   function todayKST() { return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); }
   /* 위쪽 고정 영역 높이 → 입력창이 그 바로 아래에 붙어 따라오게. 키보드가 올라와 화면이 낮으면 탭을 숨겨 공간 확보 */
   function updateTop() {

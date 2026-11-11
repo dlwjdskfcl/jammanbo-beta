@@ -240,3 +240,8 @@ html.lock,html.lock body{overflow:hidden}
 .sheet .btns.two .btn{flex:1 1 0;width:auto}
 .btn.dng{background:var(--bad);border-color:var(--bad);color:#fff}
 .cbox{width:100%;border:1px solid var(--line);border-radius:12px;padding:10px;background:var(--surface2);color:var(--ink);font:inherit;font-size:16px;resize:none}
+
+/* 연습 탭 (1.7.0) */
+.seg.tabs button{font-size:12.5px;padding:7px 1px;letter-spacing:-.04em}
+.note.coach{font-weight:500;text-align:left;line-height:1.6;margin:10px 0 0}
+.gate ul.how{text-align:left;margin:14px auto 0;padding-left:20px;max-width:340px;color:var(--ink2);line-height:1.65;font-size:14px}
