@@ -1,18 +1,19 @@
-/* 잠만보 꼬들 1.5.0 — 원작 꼬들 규칙: 정답은 기본 자모 24개(자음 14 · 모음 10)로 풀어 쓴 6칸짜리 단어, 6번 안에 자모 키보드로 입력.
+/* 잠만보 꼬들 1.6.0 — 원작 꼬들 규칙: 정답은 기본 자모 24개(자음 14 · 모음 10)로 풀어 쓴 6칸짜리 단어, 6번 안에 자모 키보드로 입력.
  * ㄲ→ㄱㄱ · ㅐ→ㅏㅣ · ㅘ→ㅗㅏ · 겹받침→둘 처럼 기본 자모로 풀어서 셈. 화면은 꼬맨틀과 같은 머리줄 · 탭 · 카드.
  * 이 파일은 모듈: window.JMB_KODLE.mount(요소, 옵션) — 꼬들 자체 페이지(kodle/)와 꼬맨틀 페이지의 '🟩 꼬들' 탭에서 같이 씀.
  * 오늘 문제는 카카오 로그인한 회원이면 서버(Kodle.js)에 기록돼 점수가 꼬맨틀 주간 · 시즌 · 누적 점수에 더해짐 (정답은 서버가 확인). 연습 판 · 로그인 안 한 판은 이 기기에만 저장. */
 (function () {
   'use strict';
-  var VER = '1.5.0', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 11), LOGMAX = 400;
+  var VER = '1.6.1', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 11), LOGMAX = 400;
   var CFG = window.JMB_CONFIG || {}, ENV = CFG.env || 'prod', SFX = ENV !== 'prod' ? '_' + ENV : '';
   var KEY = 'jmb_kodle_v1' + SFX, KLOG = 'jmb_kodle_log' + SFX, KST = 'jmb_kodle_st' + SFX, KHELP = 'jmb_kodle_help', KAUTH = 'jmb_kakao_v2' + SFX;
   var CH = ['ㄱ', 'ㄱㄱ', 'ㄴ', 'ㄷ', 'ㄷㄷ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅂㅂ', 'ㅅ', 'ㅅㅅ', 'ㅇ', 'ㅈ', 'ㅈㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
   var JU = ['ㅏ', 'ㅏㅣ', 'ㅑ', 'ㅑㅣ', 'ㅓ', 'ㅓㅣ', 'ㅕ', 'ㅕㅣ', 'ㅗ', 'ㅗㅏ', 'ㅗㅏㅣ', 'ㅗㅣ', 'ㅛ', 'ㅜ', 'ㅜㅓ', 'ㅜㅓㅣ', 'ㅜㅣ', 'ㅠ', 'ㅡ', 'ㅡㅣ', 'ㅣ'];
   var JO = ['', 'ㄱ', 'ㄱㄱ', 'ㄱㅅ', 'ㄴ', 'ㄴㅈ', 'ㄴㅎ', 'ㄷ', 'ㄹ', 'ㄹㄱ', 'ㄹㅁ', 'ㄹㅂ', 'ㄹㅅ', 'ㄹㅌ', 'ㄹㅍ', 'ㄹㅎ', 'ㅁ', 'ㅂ', 'ㅂㅅ', 'ㅅ', 'ㅅㅅ', 'ㅇ', 'ㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
-  var ROWS = ['ㄲㄸㅃㅆㅉㅒㅖ', 'ㅂㅈㄷㄱㅅㅛㅕㅑㅐㅔ', 'ㅁㄴㅇㄹㅎㅗㅓㅏㅣ', 'ㅋㅌㅊㅍㅠㅜㅡ'];   // 두벌식 배열 모양. 쌍자음 · ㅐ ㅒ ㅔ ㅖ 키는 기본 자모 둘로 풀려서 들어감
+  var ROWS = ['ㅂㅈㄷㄱㅅㅛㅕㅑㅐㅔ', 'ㅁㄴㅇㄹㅎㅗㅓㅏㅣ', 'ㅋㅌㅊㅍㅠㅜㅡ'];   // 두벌식 배열 모양 (3줄). ⇧ 를 누르면 ㅂㅈㄷㄱㅅ → ㅃㅉㄸㄲㅆ · ㅐㅔ → ㅒㅖ. 쌍자음 · ㅐ ㅒ ㅔ ㅖ 는 기본 자모 둘로 풀려서 들어감
+  var SHIFTED = { 'ㅂ': 'ㅃ', 'ㅈ': 'ㅉ', 'ㄷ': 'ㄸ', 'ㄱ': 'ㄲ', 'ㅅ': 'ㅆ', 'ㅐ': 'ㅒ', 'ㅔ': 'ㅖ' }, shift = false;
   var EXP = { 'ㄲ': 'ㄱㄱ', 'ㄸ': 'ㄷㄷ', 'ㅃ': 'ㅂㅂ', 'ㅆ': 'ㅅㅅ', 'ㅉ': 'ㅈㅈ', 'ㅐ': 'ㅏㅣ', 'ㅒ': 'ㅑㅣ', 'ㅔ': 'ㅓㅣ', 'ㅖ': 'ㅕㅣ' };
-  var PHYS = { KeyQ: 'ㅂ', KeyW: 'ㅈ', KeyE: 'ㄷ', KeyR: 'ㄱ', KeyT: 'ㅅ', KeyY: 'ㅛ', KeyU: 'ㅕ', KeyI: 'ㅑ', KeyA: 'ㅁ', KeyS: 'ㄴ', KeyD: 'ㅇ', KeyF: 'ㄹ', KeyG: 'ㅎ', KeyH: 'ㅗ', KeyJ: 'ㅓ', KeyK: 'ㅏ', KeyL: 'ㅣ', KeyZ: 'ㅋ', KeyX: 'ㅌ', KeyC: 'ㅊ', KeyV: 'ㅍ', KeyB: 'ㅠ', KeyN: 'ㅜ', KeyM: 'ㅡ' };
+  var PHYS = { KeyQ: 'ㅂ', KeyW: 'ㅈ', KeyE: 'ㄷ', KeyR: 'ㄱ', KeyT: 'ㅅ', KeyY: 'ㅛ', KeyU: 'ㅕ', KeyI: 'ㅑ', KeyA: 'ㅁ', KeyS: 'ㄴ', KeyD: 'ㅇ', KeyF: 'ㄹ', KeyG: 'ㅎ', KeyH: 'ㅗ', KeyJ: 'ㅓ', KeyK: 'ㅏ', KeyL: 'ㅣ', KeyZ: 'ㅋ', KeyX: 'ㅌ', KeyC: 'ㅊ', KeyV: 'ㅍ', KeyB: 'ㅠ', KeyN: 'ㅜ', KeyM: 'ㅡ', KeyO: 'ㅐ', KeyP: 'ㅔ' };
   var BASE = (document.currentScript && document.currentScript.src ? document.currentScript.src : location.href).replace(/[?#].*$/, '').replace(/[^\/]*$/, '');
   var host = null, opt = {}, loading = false, kbound = false;
   var $ = function (id) { return host ? host.querySelector('#' + id) : null; };   // 꼬들 칸 안의 요소만 (머리줄 · 탭은 쓰는 페이지 몫)
@@ -152,8 +153,10 @@
   }
   function keysHTML(m) {
     var st = keyStates(m);
+    function btn(c) { var d = shift && SHIFTED[c] ? SHIFTED[c] : c; return '<button type="button" class="' + (keySt(d, st) || '') + '" data-k="' + d + '">' + d + '</button>'; }
     return '<div class="keys">' + ROWS.map(function (row, i) {
-      return '<div class="kr">' + (i === 3 ? '<button type="button" class="w pri" data-k="Enter">입력</button>' : '') + row.split('').map(function (c) { return '<button type="button" class="' + (keySt(c, st) || '') + '" data-k="' + c + '">' + c + '</button>'; }).join('') + (i === 3 ? '<button type="button" class="w" data-k="Back">⌫</button>' : '') + '</div>';
+      return '<div class="kr">' + (i === 2 ? '<button type="button" class="w' + (shift ? ' pri' : '') + '" data-k="Shift" aria-label="쌍자음 · ㅒ ㅖ">⇧</button>' : '') + row.split('').map(btn).join('') +
+        (i === 1 ? '<button type="button" class="w pri" data-k="Enter">입력</button>' : '') + (i === 2 ? '<button type="button" class="w" data-k="Back" aria-label="지우기">⌫</button>' : '') + '</div>';
     }).join('') + '</div>';
   }
   /** 오늘 판 점수 칸: 서버가 확정한 값 · 확정 전에는 잠정(기본 점수만) · 로그인 안 했으면 안내 */
@@ -178,16 +181,35 @@
   }
   function resultHTML(m) {
     if (!m.done) return '';
-    return '<div class="card kres"><div class="em">' + (m.win ? '🎉' : '😵') + '</div><h2>' + (m.win ? '정답이에요!' : '아쉬워요') + '</h2>' +
+    var emb = !!opt.embedded;
+    var more = m.prac ? '<button type="button" class="btn" id="pracNext">🔁 다른 문제</button>'
+      : emb ? '<button type="button" class="btn" data-go="rank">🏆 순위</button><button type="button" class="btn" data-go="prac" data-ks="kodle">🌱 연습</button>'
+      : '<button type="button" class="btn" id="goPrac">🌱 연습</button><a class="btn" href="../semantle/">🔤 꼬맨틀</a>';
+    return '<div class="kres"><div class="khead"><span class="em">' + (m.win ? '🎉' : '😵') + '</span><b>' + (m.win ? '정답이에요!' : '아쉬워요') + '</b></div>' +
       '<p class="ans">' + (m.win ? '<b>' + esc(m.aw) + '</b> — ' + m.guesses.length + '번 만에 맞혔어요' : '정답은 <b>' + esc(m.aw) + '</b> 였어요') + ' <small>(' + m.ans.split('').join(' ') + ')</small>' + (m.prac ? ' <small>· 연습(기록 없음)</small>' : '') + '</p>' +
-      (m.prac ? '' : scoreHTML(m)) + '<pre>' + grid(m) + '</pre><div class="btns"><button type="button" class="btn pri" id="share">결과 복사</button>' +
-      (m.prac ? '<button type="button" class="btn" id="pracNext">🔁 다른 문제로 연습</button>' : '<button type="button" class="btn" id="goPrac">🌱 연습 한 판</button><a class="btn" href="../semantle/">🔤 꼬맨틀 하러 가기</a>') + '</div>' +
-      (m.prac ? '' : '<p class="hint" style="text-align:center">다음 문제는 내일 00:00에 열려요</p>') + '</div>';
+      (m.prac ? '' : scoreHTML(m)) + '<div class="btns"><button type="button" class="btn pri" id="share">결과 복사</button>' + more + '</div>' +
+      (m.prac ? '' : '<p class="hint" style="text-align:center;margin:4px 0 0">다음 문제는 내일 00:00에 열려요</p>') + '</div>';
   }
   function gameHTML(which) {
     var m = GM[which];
-    return (which === 'play' ? bannerHTML() : '') + '<div class="card kd"><h3>' + (which === 'play' ? '오늘의 꼬들 <span class="tag">#' + (m.no + 1) + '</span>' : '연습 문제 <span class="tag">기록 없음</span>') + '<span class="sp"></span><small>' + m.guesses.length + '/' + TRIES + '</small></h3>' +
-      boardHTML(m, CUR[which], false) + '<div class="kmsg" id="msg"></div>' + keysHTML(m) + '</div>' + resultHTML(m);
+    return (which === 'play' ? bannerHTML() : '') + '<div class="card kd' + (opt.embedded ? ' kemb' : '') + '"><div class="kh"><b>' + (which === 'play' ? '오늘의 꼬들 <span class="tag">#' + (m.no + 1) + '</span>' : '연습 문제 <span class="tag">기록 없음</span>') + '</b><small>' + m.guesses.length + '/' + TRIES + '</small></div>' +
+      boardHTML(m, CUR[which], false) + '<div class="kmsg" id="msg"></div>' + (m.done ? resultHTML(m) : keysHTML(m)) + '</div>';
+  }
+  /** 한 화면에 다 들어오게: 칸 · 키 크기를 화면 남은 높이 · 너비에 맞춰 정함 (스크롤 없이 보드 + 키보드 / 결과) */
+  function fit() {
+    var c = host && host.querySelector('.kd'); if (!c || !c.isConnected) return;
+    var wide = (c.parentNode.clientWidth || window.innerWidth) >= 760; c.classList.toggle('kwide', wide);   // 넓은 화면(PC): 칸은 왼쪽 · 키보드(결과)는 오른쪽에 나란히
+    var t0 = 40, k0 = 36; c.style.setProperty('--kt', t0 + 'px'); c.style.setProperty('--kk', k0 + 'px');
+    var keys = c.querySelector('.keys'), rowsH = 6 * t0 + 5 * 5, kbH = keys && !wide ? keys.offsetHeight : 0, total = c.offsetHeight;
+    var other = total - rowsH - kbH;                                  // 칸 · 키보드를 뺀 나머지 높이 (머리 · 안내 · 여백 · 결과)
+    var top = c.getBoundingClientRect().top + (window.pageYOffset || 0);
+    var xl = document.documentElement.classList.contains('xl'), reserve = xl ? 74 : 20;   // 엑셀 모드는 아래 시트 탭 · 상태줄 자리
+    var avail = (window.innerHeight || 700) - top - reserve - 10;
+    var width = Math.min(c.clientWidth || 360, 520) - 28;
+    var unit = keys && !wide ? 6 + 3 * 0.9 : 6;                       // 좁은 화면에서 키보드가 아래에 있으면 칸 6줄 + 키 3줄(칸의 0.9배)
+    var t = Math.floor(Math.min((avail - other - (keys && !wide ? 12 : 0) - 25) / unit, wide ? 64 : (width - 25) / 6, 64)); t = Math.max(t, 22);
+    var kk = wide ? Math.max(40, Math.min(54, Math.round(t * 0.95))) : Math.max(30, Math.min(46, Math.round(t * 0.95)));
+    c.style.setProperty('--kt', t + 'px'); c.style.setProperty('--kk', kk + 'px');
   }
   /** 지난 판 목록: 서버(오늘 문제 기록) + 이 기기 로그(연습 포함)를 합쳐 최근순 */
   function rowsAll() {
@@ -215,10 +237,10 @@
   function render(pop) {
     if (!host) return;
     if (opt.onHead) opt.onHead(nick(), ready ? subText() : '');
-    var tabs = '<nav class="seg kdtabs" id="kdtabs">' + [['play', '🎯 오늘 꼬들'], ['prac', '🌱 연습'], ['hist', '📜 꼬들 기록']].map(function (t) { return '<button type="button" data-kv="' + t[0] + '"' + (t[0] === view ? ' class="on"' : '') + '>' + t[1] + '</button>'; }).join('') + '</nav>';
+    var tabs = opt.embedded ? '' : '<nav class="seg kdtabs" id="kdtabs">' + [['play', '🎯 오늘 꼬들'], ['prac', '🌱 연습'], ['hist', '📜 꼬들 기록']].map(function (t) { return '<button type="button" data-kv="' + t[0] + '"' + (t[0] === view ? ' class="on"' : '') + '>' + t[1] + '</button>'; }).join('') + '</nav>';
     if (!ready) { host.innerHTML = tabs + '<div class="card"><div class="empty">' + (loadErr ? '단어 목록을 불러오지 못했어요. 새로고침해 주세요' : '⏳ 단어를 불러오는 중…') + '</div></div>'; return; }
     host.innerHTML = tabs + (view === 'hist' ? histHTML() : gameHTML(view));
-    wire();
+    wire(); if (view !== 'hist') fit();
   }
   function msg(t, bad) { var e = $('msg'); if (e) { e.textContent = t || ''; e.className = 'kmsg' + (bad ? ' bad' : ''); } }
   function shake(m) { var r = $('r' + m.guesses.length); if (r) { r.classList.remove('shake'); void r.offsetWidth; r.classList.add('shake'); } }
@@ -235,6 +257,7 @@
     if (!ready || modalOpen || (view !== 'play' && view !== 'prac')) return;
     var m = GM[view]; if (m.done) return;
     var cur = CUR[view];
+    if (k === 'Shift') { shift = !shift; return render(); }
     if (k === 'Back') { CUR[view] = cur.slice(0, -1); return render(); }
     if (k === 'Enter') {
       if (cur.length < LEN) { msg('자모 6개를 모두 넣어 주세요', true); return shake(m); }
@@ -246,8 +269,8 @@
       if (cur === m.ans) finish(m, true); else if (m.guesses.length >= TRIES) finish(m, false); else srvSave(m);
       persist(m); return render(true);
     }
-    var add = EXP[k] || k;
-    if (cur.length + add.length <= LEN) { if (!m.t0 && !m.guesses.length) m.t0 = Date.now(); CUR[view] = cur + add; render(); }
+    var add = EXP[k] || k; shift = false;
+    if (cur.length + add.length <= LEN) { if (!m.t0 && !m.guesses.length) m.t0 = Date.now(); CUR[view] = cur + add; render(); } else render();
   }
 
   /* ── 창 ── */
@@ -288,17 +311,19 @@
     document.addEventListener('keydown', function (e) {
       if (!host || !host.isConnected || e.ctrlKey || e.metaKey || e.altKey) return;
       var t = e.target; if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
-      if (e.key === 'Enter') { e.preventDefault(); press('Enter'); } else if (e.key === 'Backspace') { e.preventDefault(); press('Back'); } else if (PHYS[e.code]) { e.preventDefault(); press(PHYS[e.code]); }
+      if (e.key === 'Enter') { e.preventDefault(); press('Enter'); } else if (e.key === 'Backspace') { e.preventDefault(); press('Back'); } else if (PHYS[e.code]) { e.preventDefault(); var ch = PHYS[e.code]; press(e.shiftKey && SHIFTED[ch] ? SHIFTED[ch] : ch); }
     });
   }
   /** 칸(host)에 꼬들을 그림. opt: standalone(자기 페이지) · onHead(닉네임, 부제) · toast(글, 오류?) · view('play' | 'prac' | 'hist') */
   function mount(h, o) {
     host = h; opt = o || {}; modalOpen = false; closeModal();
     if (opt.view) view = opt.view;
+    if (opt.embedded && opt.mode) view = opt.mode;
     host.addEventListener('click', onHostClick);
     render(); loadWords();
     if (ready && token()) srvToday().then(function () { render(); });
   }
+  window.addEventListener('resize', function () { if (host && host.isConnected && view !== 'hist') fit(); });
   window.JMB_KODLE = { mount: mount, help: help, go: go, version: VER };
   var own = document.getElementById('kodleHost');
   if (own) {   // 꼬들 자기 페이지: 머리줄 버튼을 여기서 연결

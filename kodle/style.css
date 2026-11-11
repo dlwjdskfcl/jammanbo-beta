@@ -22,3 +22,26 @@ details.hc{border-top:1px solid var(--line);padding:8px 0}details.hc summary{cur
 details.hc pre{margin:6px 0 0;font:inherit;line-height:1.25}
 
 .kdtabs{margin:0 0 10px!important}.kdtabs button{font-size:13px}
+
+/* 한 화면 맞춤 (1.6.0): 칸 · 키 크기는 app.js fit() 이 --kt · --kk 로 정함 */
+.kd{--kt:44px;--kk:38px;padding:10px 12px 12px}
+.kd .kh{display:flex;align-items:center;justify-content:space-between;margin:0 2px 4px}.kd .kh b{font-size:15px}.kd .kh small{font-weight:700;color:var(--muted)}
+.kd .kh .tag{font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:999px;padding:1px 9px;font-size:12px;margin-left:4px}
+.kd #board{width:calc(var(--kt)*6 + 25px);max-width:100%;margin:4px auto 4px;gap:5px}
+.kd .krow{grid-template-columns:repeat(6,var(--kt));gap:5px;justify-content:center}
+.kd .krow .c{width:var(--kt);height:var(--kt);aspect-ratio:auto;font-size:calc(var(--kt)*.5);border-radius:calc(var(--kt)*.2)}
+.kd .kmsg{min-height:18px;margin:0 0 4px;font-size:13px}
+.kd .keys{gap:5px;margin:2px auto 0;max-width:460px}
+.kd .kr{gap:4px}
+.kd .kr button{height:var(--kk);padding:0;font-size:calc(var(--kk)*.45);border-radius:8px;max-width:none}
+.kd .kr button.w{flex:1.5;font-size:calc(var(--kk)*.36)}
+.kres{text-align:center}.kres .khead{display:flex;gap:8px;align-items:center;justify-content:center}.kres .khead .em{font-size:26px}.kres .khead b{font-size:18px}
+.kres .ans{margin:2px 0;font-size:14px}.kres .pts{font-size:22px;margin:2px 0}.kres .btns{margin-top:8px;gap:6px}.kres .btns .btn{padding:9px 12px;font-size:13.5px;flex:1 1 90px}
+.kres .parts{margin:2px 0}.kres .hint{margin:4px 0 0}
+.kemb .kres pre{display:none}
+
+/* 넓은 화면(PC): 칸은 왼쪽, 키보드 · 결과는 오른쪽에 나란히 */
+.kd.kwide{display:grid;grid-template-columns:auto auto;justify-content:center;grid-template-areas:'kh kh' 'bd side' 'ms side';column-gap:28px;align-content:start}
+.kd.kwide .kh{grid-area:kh}.kd.kwide #board{grid-area:bd;margin:4px 0}.kd.kwide .kmsg{grid-area:ms;text-align:left}
+.kd.kwide .keys,.kd.kwide .kres{grid-area:side;align-self:center;max-width:560px;width:100%;justify-self:center}
+.kd.kwide .kr{gap:6px}

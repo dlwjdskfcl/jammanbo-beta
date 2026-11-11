@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.15.0';
+  var VER = '1.16.0';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   var KODLE_ON = /jammanbo-beta/.test(location.pathname) || ENV !== 'prod';   // 꼬들 탭은 테스트 사이트에서만 (운영에는 공개할 때 true 로)
@@ -33,7 +33,8 @@
             sort: lsGet(LS.sort) === 'order' ? 'order' : 'sim', scrollNew: false, scrollRes: false, sharing: false, focused: false,
             // (1.7.0) 연습 탭: 오늘 판과 연습 판의 문제 · 추측 상태를 갈아끼움 (ctx = 지금 S 에 들어 있는 쪽, hold = 안 쓰는 쪽 보관)
             ctx: 'td', hold: { td: null, pz: null }, pDone: [], pK: null,
-            xl: lsGet(LS.xl) !== '0', sel: null, xAddr: '', queue: [], loading: false, optimistic: false };   // (1.8.0) 엑셀 모드 — 기본 켜짐, 헤더 버튼(xlBtn)으로 끔 (기기에 저장)
+            xl: lsGet(LS.xl) !== '0', sel: null, xAddr: '', queue: [], loading: false, optimistic: false };
+  S.kSub = { prac: 'sem', hist: 'sem' };   // (1.16.0) 연습 · 내 기록 탭 안에서 보는 게임: 'sem' 꼬맨틀 · 'kodle' 꼬들   // (1.8.0) 엑셀 모드 — 기본 켜짐, 헤더 버튼(xlBtn)으로 끔 (기기에 저장)
   var CTX_KEYS = ['srv', 'L', 'sims', 'ans', 'rankOf', 'top', 'scale', 'lastW', 'fb'];
   function snap() { var o = {}; CTX_KEYS.forEach(function (k) { o[k] = S[k]; }); return o; }
   function load(o) { CTX_KEYS.forEach(function (k) { S[k] = o[k]; }); }
@@ -71,7 +72,7 @@
     var xb = $('xlBtn'); if (xb) xb.setAttribute('aria-pressed', S.xl ? 'true' : 'false');
     xlChrome();
   }
-  function xlTitle() { return '업무현황' + (S.view === 'kodle' ? '_꼬들' : S.view === 'prac' ? '_연습' : S.view === 'rank' ? '_순위' : S.view === 'hist' ? '_이력' : S.srv && S.srv.no ? '_' + S.srv.no : '') + '.xlsx'; }
+  function xlTitle() { return '업무현황' + (S.view === 'kodle' ? '_꼬들' : S.view === 'prac' ? (S.kSub.prac === 'kodle' && KODLE_ON ? '_꼬들연습' : '_연습') : S.view === 'rank' ? '_순위' : S.view === 'hist' ? '_이력' : S.srv && S.srv.no ? '_' + S.srv.no : '') + '.xlsx'; }
 
   /* ---------- 엑셀 모드 껍데기 (1.10.0): 로고 · 리본 · 이름 상자 + 수식 입력줄 · 상태 표시줄. 켤 때 만들고 끌 때 지움.
    * 입력창(#gw)과 추측 폼(#gf)은 수식 입력줄 안에 한 번만 있음 (켜진 동안). 리본의 '편집' 그룹 버튼이 힌트 · 포기 · 새 문제 · 정렬을 맡음 ---------- */
@@ -111,6 +112,7 @@
   function xlState() {
     if (!S.xl || !$('xlRibbon')) return;
     var game = (S.view === 'play' || (S.view === 'prac' && hasPrac())) && S.srv && S.srv.ready && S.L, L = game ? S.L : null;
+    if (kodleSub()) { game = false; L = null; }   // 꼬들 화면(탭 · 연습 · 기록 안의 꼬들)에서는 꼬맨틀 입력 · 리본 버튼을 흐리게
     var gw = $('gw'), open = !!L || S.loading; if (gw) { gw.disabled = !open; if (!open) gw.value = ''; }   // 불러오는 중에도 입력 가능 (대기열)
     $('xOk').disabled = !open;
     var hb = $('rbHint'), hi = L ? hintInfo() : { off: true };
@@ -549,6 +551,7 @@
     var st = S.srv && S.srv.stats;
     if (S.xl) { $('ttl').textContent = xlTitle(); $('sub').textContent = '저장됨'; return; }
     if (S.view === 'kodle') { $('ttl').textContent = '꼬들'; $('sub').textContent = '자모 6개를 색깔로 맞혀라 · 점수는 꼬맨틀에 합산'; return; }
+    if (S.view !== 'kodle' && kodleSub()) { $('ttl').textContent = S.view === 'prac' ? '꼬들 연습' : '꼬들 기록'; $('sub').textContent = S.view === 'prac' ? '기록 없이 마음껏' : '꼬들 점수 · 연속 · 지난 판'; return; }
     if (S.view === 'prac') { $('ttl').textContent = '꼬맨틀 연습'; $('sub').textContent = '기록 없이 마음껏 — 힌트도 무제한'; return; }
     $('ttl').textContent = S.srv && S.srv.no ? '꼬맨틀 #' + S.srv.no : '꼬맨틀';
     $('sub').textContent = st && st.streak ? '🔥 ' + st.streak + '일 연속 정답 중' : '오늘의 비밀 단어를 찾아라';
@@ -569,7 +572,7 @@
     if (S.view === 'prac') renderPrac();
     else if (S.view === 'rank') renderRank();
     else if (S.view === 'hist') renderHist();
-    else if (S.view === 'kodle') renderKodle();
+    else if (S.view === 'kodle') renderKodle('play');
     else renderPlay();
     xlState();   // 엑셀 모드: 리본 · 수식 입력줄 · 상태 표시줄을 지금 화면에 맞춤
   }
@@ -578,14 +581,24 @@
   var kodleP = null;
   function loadKodle() {
     if (window.JMB_KODLE) return Promise.resolve();
-    if (!kodleP) kodleP = new Promise(function (res, rej) { var s = document.createElement('script'); s.src = '../kodle/app.js?v=1.5.0'; s.onload = res; s.onerror = function () { kodleP = null; rej(new Error('꼬들 파일을 못 받았어요')); }; document.head.appendChild(s); });
+    if (!kodleP) kodleP = new Promise(function (res, rej) { var s = document.createElement('script'); s.src = '../kodle/app.js?v=1.6.1'; s.onload = res; s.onerror = function () { kodleP = null; rej(new Error('꼬들 파일을 못 받았어요')); }; document.head.appendChild(s); });
     return kodleP;
   }
-  function renderKodle() {
-    var host = document.createElement('div'); host.id = 'kdHost'; host.style.display = 'contents';   // 엑셀 모드의 '.wrap > .card' 규칙이 그대로 먹도록
-    $('view').innerHTML = ''; $('view').appendChild(host);
+  /** 꼬들이 보이는 화면인가: 🟩 꼬들 탭, 또는 연습 · 내 기록 탭에서 '꼬들' 을 고른 경우 */
+  function kodleSub() { return KODLE_ON && (S.view === 'kodle' || ((S.view === 'prac' || S.view === 'hist') && S.kSub[S.view] === 'kodle')); }
+  /** 연습 · 내 기록 위의 '꼬맨틀 | 꼬들' 선택 줄 */
+  function segHTML(v) {
+    var lab = v === 'prac' ? ['🔤 꼬맨틀 연습', '🟩 꼬들 연습'] : ['🔤 꼬맨틀 기록', '🟩 꼬들 기록'], on = S.kSub[v] === 'kodle' ? 1 : 0;
+    return '<nav class="seg" id="kSeg"><button type="button" data-ks="sem"' + (on ? '' : ' class="on"') + '>' + lab[0] + '</button><button type="button" data-ks="kodle"' + (on ? ' class="on"' : '') + '>' + lab[1] + '</button></nav>';
+  }
+  /** v = 'play'(🟩 꼬들 탭) · 'prac' · 'hist' — 꼬들 모듈을 이 화면 안에 그림 */
+  function renderKodle(v) {
+    v = v || 'play';
+    var old = $('kdHost'); if (old && old.isConnected && old.getAttribute('data-m') === v && window.JMB_KODLE) return;   // 이미 그려져 있으면 다시 그리지 않음 (입력 중이던 칸 보존)
+    var host = document.createElement('div'); host.id = 'kdHost'; host.setAttribute('data-m', v); host.style.display = 'contents';   // 엑셀 모드의 '.wrap > .card' 규칙이 그대로 먹도록
+    $('view').innerHTML = v === 'play' ? '' : segHTML(v); $('view').appendChild(host);
     host.innerHTML = '<div class="card"><div class="empty">⏳ 꼬들을 불러오는 중…</div></div>';
-    loadKodle().then(function () { if (S.view === 'kodle' && $('view').firstChild === host) JMB_KODLE.mount(host, { toast: toast }); }, function (e) { host.innerHTML = '<div class="card empty">' + esc(e.message) + '</div>'; });
+    loadKodle().then(function () { if (kodleSub() && $('view').lastChild === host) JMB_KODLE.mount(host, { embedded: true, mode: v, toast: toast }); }, function (e) { host.innerHTML = '<div class="card empty">' + esc(e.message) + '</div>'; });
   }
   function metaCard() {
     var s = S.srv, h = '<div class="card"><div class="head"><div class="no">#' + s.no + '<small> 번째 문제</small></div><div class="meta">' +
@@ -912,8 +925,18 @@
     if (t.parentNode && t.parentNode.id === 'rkTabs') { S.rkTab = t.getAttribute('data-t'); lsSet(LS.tab, S.rkTab); renderRank(); }
   });
   $('tabs').addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) go(b.getAttribute('data-v')); });
-  $('view').addEventListener('click', function (e) { var b = e.target.closest('[data-go]'); if (b) go(b.getAttribute('data-go')); });   // 결과 카드의 '꼬들 하러 가기' 등
-  if (KODLE_ON) $('tabKodle').hidden = false;
+  $('view').addEventListener('click', function (e) {
+    var k = e.target.closest('[data-ks]');   // 연습 · 내 기록의 '꼬맨틀 | 꼬들' 선택, 또는 '꼬들 연습' 으로 가는 버튼
+    if (k) { var tv = k.hasAttribute('data-go') ? k.getAttribute('data-go') : S.view; S.kSub[tv] = k.getAttribute('data-ks'); if (tv !== S.view) return go(tv); S.xAddr = ''; render(); return; }
+    var b = e.target.closest('[data-go]'); if (b) go(b.getAttribute('data-go'));   // 결과 카드의 '꼬들 하러 가기' · '순위' 등
+  });
+  /* (1.16.0) 꼬들: 위 탭 = 꼬맨틀 · 꼬들 · 연습 · 순위 · 내 기록. 연습 · 내 기록은 안에서 '꼬맨틀 | 꼬들' 을 고름 (꼬들은 한 화면에 다 들어오게) */
+  if (KODLE_ON) {
+    $('tabKodle').hidden = false; $('tabs').children[0].textContent = '🔤 꼬맨틀';
+    var _rp = renderPrac, _rh = renderHist;
+    renderPrac = function () { if (S.kSub.prac === 'kodle') renderKodle('prac'); else { _rp(); $('view').insertAdjacentHTML('afterbegin', segHTML('prac')); } };
+    renderHist = function () { if (S.kSub.hist === 'kodle') renderKodle('hist'); else { _rh(); $('view').insertAdjacentHTML('afterbegin', segHTML('hist')); } };
+  }
   /* 화면 이동과 뒤로가기: 오늘 문제 → 순위 · 내 기록은 한 칸 쌓아서(뒤로가기 = 오늘 문제), 순위 ↔ 내 기록은 갈아끼움. 창(모달)은 한 칸 쌓여서 뒤로가기로 닫힘 */
   function go(v) {
     if (v === S.view) { window.scrollTo(0, 0); return; }
