@@ -3,34 +3,39 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex, nofollow, noai, noimageai">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; base-uri 'self'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://cdn.jsdelivr.net data:; img-src 'self' data:; connect-src 'self'; base-uri 'self'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="format-detection" content="telephone=no">
 <title>잠만보 꼬들</title>
 <meta name="description" content="매일 하나, 6개 자모로 이루어진 단어를 색깔로 맞히는 단어 게임">
 <meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0e1014" media="(prefers-color-scheme: dark)">
 <link rel="icon" type="image/png" href="../icon-192.png">
-<link rel="stylesheet" href="style.css?v=1.1.0">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="../semantle/style.css?v=1.14.2">
+<link rel="stylesheet" href="style.css?v=1.3.0">
 </head>
 <body>
 <div id="app">
-  <header class="top">
-    <a class="back" href="../" aria-label="잠만보 홈">←</a>
-    <h1>꼬들 <small id="mode"></small></h1>
-    <button type="button" class="btn sm" id="help">?</button>
+  <div class="top" id="top">
+  <header class="bar">
+    <button type="button" class="ibtn" id="back" aria-label="뒤로"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <div class="ttl"><b>꼬들</b><small id="sub">자모 6개를 색깔로 맞혀라</small></div>
+    <button type="button" class="ibtn" id="helpBtn" aria-label="도움말"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .8-1 1.5M12 17h.01"/></svg></button>
+    <button type="button" class="acct" id="acct">로그인</button>
   </header>
-  <main>
-    <div id="board" aria-live="polite"></div>
-    <div id="msg" class="msg"></div>
-    <div id="keys"></div>
-    <div id="end" class="end"></div>
-    <div class="links">
-      <button type="button" class="btn" id="practice">🎲 연습 한 판</button>
-      <a class="btn" href="../semantle/">🔤 꼬맨틀 하러 가기</a>
-    </div>
-  </main>
+  <nav class="seg tabs" id="tabs" role="tablist">
+    <button type="button" role="tab" data-v="play" class="on">🎯 오늘 문제</button>
+    <button type="button" role="tab" data-v="prac">🌱 연습</button>
+    <button type="button" role="tab" data-v="hist">📜 내 기록</button>
+  </nav>
+  </div>
+  <main class="wrap" id="view"></main>
 </div>
-<div id="modal" class="modal"><div class="box" id="box"></div></div>
-<script src="app.js?v=1.2.0"></script>
+<div id="modal"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<noscript><p style="padding:24px">자바스크립트를 켜야 이용할 수 있어요.</p></noscript>
+<script src="../config.js"></script>
+<script src="app.js?v=1.3.0"></script>
 </body>
 </html>
