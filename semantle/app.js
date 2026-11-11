@@ -6,14 +6,14 @@
  */
 (function () {
   'use strict';
-  var VER = '1.13.0';
+  var VER = '1.14.0';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   var ENV_SFX = ENV !== 'prod' ? '_' + ENV : '';
   var API = window.SEM_API_LOCAL || CFG.api || '';
   var EDGE = window.SEM_EDGE_LOCAL || CFG.semEdge || '';   // (1.13.0) 엣지(Cloudflare Worker): 표를 Apps Script 없이 0.1초대로 줌. 비어 있거나 실패하면 Apps Script 경로
   var ROOT = (function () { var seg = location.pathname.split('/')[1] || ''; return /\.github\.io$/.test(location.hostname) && seg ? '/' + seg + '/' : '/'; })();
-  var LS = { auth: 'jmb_kakao_v2' + ENV_SFX, state: 'jmb_kakao_state' + ENV_SFX, play: 'jmb_sem_play' + ENV_SFX, pend: 'jmb_sem_pend' + ENV_SFX, help: 'jmb_sem_help', tab: 'jmb_sem_tab', sort: 'jmb_sem_sort', xl: 'jmb_sem_xl' };
+  var LS = { auth: 'jmb_kakao_v2' + ENV_SFX, state: 'jmb_kakao_state' + ENV_SFX, play: 'jmb_sem_play' + ENV_SFX, pend: 'jmb_sem_pend' + ENV_SFX, help: 'jmb_sem_help', tab: 'jmb_sem_tab', sort: 'jmb_sem_sort', xl: 'jmb_sem_xl', rkc: 'jmb_sem_rkc' + ENV_SFX, hsc: 'jmb_sem_hsc' + ENV_SFX };   // rkc · hsc: 순위 · 내 기록을 기기에 저장해 두었다가 먼저 보여 줌 (1.14.0)
   var HINT_COST = 15, TOPN = 1000, HINT_EVERY = 5;   // HINT_EVERY: 추측 5번마다 힌트가 하나씩 생김, 개수 제한 없음 (서버 SEM_CFG_.HINT_EVERY 와 같게)
   var BADGES = [   // 서버 Semantle.js badgesOf 와 같은 id
     { id: 'first', e: '🥇', n: '선두 주자', d: '그 날 가장 먼저 정답' },
@@ -591,10 +591,13 @@
       '<p>' + (L.win ? '<b>' + esc(S.vocab[S.ans]) + '</b> — ' + n + '번 만에 맞혔어요' : '<b>' + esc(S.vocab[S.ans]) + '</b>') + ' <small>(연습 · 기록 없음)</small></p>' +
       '<div class="heat">' + L.g.slice(0, L.cnt).map(function (x) { return HEAT[tier(x.w)]; }).join('') + '</div>' +
       '<div class="btns"><button type="button" class="btn pri" id="pracNext">' + xe('🔁 다른 문제로 연습') + '</button><button type="button" class="btn" id="topbtn">가까운 단어 1000개 보기</button><button type="button" class="btn" id="pracBack">' + xe('🎯 오늘 문제로') + '</button></div></div>';
-    if (S.busy) return '<div class="card res"><div class="em">⏳</div><h2>기록 중…</h2></div>';
     var h = '<div class="card res pop"><div class="em">' + (L.win ? '🎉' : '😵') + '</div><h2>' + (L.win ? '정답이에요!' : '아쉬워요') + '</h2>' +
       '<p>' + (L.win ? '<b>' + esc(S.vocab[S.ans]) + '</b> — ' + n + '번 만에 맞혔어요' + (L.hints ? ' · 힌트 ' + L.hints : '') : '정답은 <b>' + esc(S.vocab[S.ans]) + '</b> 였어요') + '</p>';
-    if (r && !r.error) {
+    if (S.busy && !r) {   // (1.14.0) 서버 확인을 기다리지 않고 결과부터 보여 줌 — 점수는 '잠정'(기본 점수 − 힌트), 서버가 확정하면 연속 보너스까지 반영해 바뀜
+      var base = L.win ? Math.max(0, 150 - n - 15 * (L.hints || 0)) : 0;
+      h += L.win ? '<div class="pts">+' + base + '점 <small>(잠정)</small></div><div class="parts"><span class="chip">기본 <b>' + Math.max(0, 150 - n) + '</b></span>' + (L.hints ? '<span class="chip">힌트 <b>-' + 15 * L.hints + '</b></span>' : '') + '<span class="chip">기록 확인 중…</span></div>'
+        : '<p class="hint">기록 확인 중…</p>';
+    } else if (r && !r.error) {
       if (r.win) {
         h += '<div class="pts">+' + r.points + '점</div><div class="parts">' +
           '<span class="chip">기본 <b>' + r.parts.base + '</b></span>' + '<span class="chip">오늘 ' + r.order + '번째 정답</span>' +
@@ -754,7 +757,19 @@
   function loadRank() {
     if (S.rank && Date.now() - S.rank.at < 30000) return Promise.resolve();
     $('view').innerHTML = '<div class="empty">⏳ 순위를 불러오는 중…</div>';
-    return api('semRank', [token()]).then(function (r) { S.rank = r; r.at = Date.now(); }, function (e) { S.rank = null; toast(e.message, true); });
+    return api('semRank', [token()]).then(function (r) { S.rank = r; r.at = Date.now(); saveRank(r); }, function (e) { S.rank = null; toast(e.message, true); });
+  }
+  /* (1.14.0) 순위 · 내 기록: 기기에 저장해 둔 마지막 내용을 곧바로 보여 주고(서버 1.5초를 기다리지 않음), 뒤에서 새로 받아 바꿈 */
+  var rkBusy = false, hsBusy = false;
+  function saveRank(r) { try { lsSet(LS.rkc, JSON.stringify({ nick: S.nick, r: r })); } catch (e) {} }
+  function refreshRank() {
+    if (rkBusy) return; rkBusy = true;
+    api('semRank', [token()]).then(function (r) { r.at = Date.now(); S.rank = r; saveRank(r); rkBusy = false; if (S.view === 'rank') renderRank(); }, function () { rkBusy = false; });
+  }
+  function saveHist(r) { try { lsSet(LS.hsc, JSON.stringify({ nick: S.nick, r: r })); } catch (e) {} }
+  function refreshHist() {
+    if (hsBusy) return; hsBusy = true;
+    api('semHistory', [token()]).then(function (r) { S.hist = r; S.histAt = Date.now(); saveHist(r); hsBusy = false; if (S.view === 'hist') renderHist(); }, function () { hsBusy = false; });
   }
   function rkRows(list, kind) {
     if (!list || !list.length) return kind === 'rate' ? '<div class="empty">아직 레이팅 순위에 오른 사람이 없어요.<br>하루에 두 명 이상 풀고, 3일 이상 참여하면 올라와요! 📈</div>' : '<div class="empty">아직 기록이 없어요.<br>첫 번째 주인공이 되어 보세요! 🏁</div>';
@@ -770,6 +785,7 @@
   }
   function renderRank() {
     var R = S.rank;
+    if (!R) { var rc = lsJSON(LS.rkc); if (rc && rc.r && rc.nick === S.nick) { S.rank = R = rc.r; R.at = 0; refreshRank(); } }   // 저장해 둔 순위를 먼저 보여 줌
     if (!R) { loadRank().then(function () { if (S.view === 'rank') { if (S.rank) renderRank(); else $('view').innerHTML = '<div class="card empty">순위를 불러오지 못했어요.<br><button type="button" class="btn sm" id="rkRetry">다시 시도</button></div>'; } }); return; }
     var me = R.mine, h = '';
     if (me) {
@@ -795,9 +811,10 @@
   function dayLabel(d) { var p = String(d).split('-'); return p.length === 3 ? (+p[1]) + '/' + (+p[2]) + '(' + WD[new Date(+p[0], +p[1] - 1, +p[2]).getDay()] + ')' : d; }
   function renderHist() {
     if (!S.nick) { $('view').innerHTML = '<div class="note warn">🔒 로그인하면 지난 기록과 내가 입력한 단어를 다시 볼 수 있어요.<br><button type="button" class="btn sm" id="login">카카오 로그인</button></div>'; return; }
+    if (!S.hist) { var hc = lsJSON(LS.hsc); if (hc && hc.r && hc.nick === S.nick) { S.hist = hc.r; S.histAt = 0; refreshHist(); } }   // 저장해 둔 기록을 먼저 보여 줌
     if (!S.hist) {
       $('view').innerHTML = '<div class="empty">⏳ 내 기록을 불러오는 중…</div>';
-      api('semHistory', [token()]).then(function (r) { S.hist = r; S.histAt = Date.now(); if (S.view === 'hist') renderHist(); },
+      api('semHistory', [token()]).then(function (r) { S.hist = r; S.histAt = Date.now(); saveHist(r); if (S.view === 'hist') renderHist(); },
         function (e) { if (S.view === 'hist') $('view').innerHTML = '<div class="card empty">기록을 불러오지 못했어요.<br><small>' + esc(e.message) + '</small><br><button type="button" class="btn sm" id="histRetry" style="margin-top:8px">다시 시도</button></div>'; });
       return;
     }
@@ -857,7 +874,7 @@
       case 'goHome': location.href = ROOT; return;
       case 'ydBtn': return yesterdayList();
       case 'askOk': { var r = askRes; askRes = null; closeModal(); if (r) setTimeout(function () { r(true); }, 80); return; }   // 창이 닫힌 뒤에 다음 동작
-      case 'logoutBtn': ask('로그아웃할까요?', '잠만보 앱도 함께 로그아웃돼요.', '로그아웃', true).then(function (ok) { if (ok) { lsSet(LS.auth, null); dayCacheClear(); location.reload(); } }); return;
+      case 'logoutBtn': ask('로그아웃할까요?', '잠만보 앱도 함께 로그아웃돼요.', '로그아웃', true).then(function (ok) { if (ok) { lsSet(LS.auth, null); lsSet(LS.rkc, null); lsSet(LS.hsc, null); dayCacheClear(); location.reload(); } }); return;
       case 'hintBtn': return hint();
       case 'giveBtn': return giveUp();
       case 'share': return share();
