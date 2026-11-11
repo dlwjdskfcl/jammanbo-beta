@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.16.0';
+  var VER = '1.16.1';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   var KODLE_ON = /jammanbo-beta/.test(location.pathname) || ENV !== 'prod';   // 꼬들 탭은 테스트 사이트에서만 (운영에는 공개할 때 true 로)
@@ -15,7 +15,7 @@
   var EDGE = window.SEM_EDGE_LOCAL || CFG.semEdge || '';   // (1.13.0) 엣지(Cloudflare Worker): 표를 Apps Script 없이 0.1초대로 줌. 비어 있거나 실패하면 Apps Script 경로
   var ROOT = (function () { var seg = location.pathname.split('/')[1] || ''; return /\.github\.io$/.test(location.hostname) && seg ? '/' + seg + '/' : '/'; })();
   var LS = { auth: 'jmb_kakao_v2' + ENV_SFX, state: 'jmb_kakao_state' + ENV_SFX, play: 'jmb_sem_play' + ENV_SFX, pend: 'jmb_sem_pend' + ENV_SFX, help: 'jmb_sem_help', tab: 'jmb_sem_tab', sort: 'jmb_sem_sort', xl: 'jmb_sem_xl', rkc: 'jmb_sem_rkc' + ENV_SFX, hsc: 'jmb_sem_hsc' + ENV_SFX };   // rkc · hsc: 순위 · 내 기록을 기기에 저장해 두었다가 먼저 보여 줌 (1.14.0)
-  var HINT_COST = 15, TOPN = 1000, HINT_EVERY = 5;   // HINT_EVERY: 추측 5번마다 힌트가 하나씩 생김, 개수 제한 없음 (서버 SEM_CFG_.HINT_EVERY 와 같게)
+  var BASE_PTS = 200, HINT_COST = 40, TOPN = 1000, HINT_EVERY = 5;   // 점수 상수 (서버 SEM_CFG_ BASE · HINT_COST 와 같게 — 1.16.1 에서 150 · 15 → 200 · 40)   // HINT_EVERY: 추측 5번마다 힌트가 하나씩 생김, 개수 제한 없음 (서버 SEM_CFG_.HINT_EVERY 와 같게)
   var BADGES = [   // 서버 Semantle.js badgesOf 와 같은 id
     { id: 'first', e: '🥇', n: '선두 주자', d: '그 날 가장 먼저 정답' },
     { id: 'fast', e: '⚡', n: '번개', d: '10번 안에 정답' },
@@ -541,7 +541,7 @@
       '<p>매일 하나의 <b>비밀 단어</b>가 정해져요. 아무 단어나 입력하면 비밀 단어와 <b>뜻이 얼마나 가까운지</b>(유사도)를 알려 줘요. 철자가 아니라 <b>쓰임새·의미</b>가 비슷해야 점수가 높아요.</p>' +
       '<ul><li>유사도는 -100 ~ 100. 높을수록 가까워요.</li><li><b>1000위 안</b>에 들면 순위가 보여요. (1위 = 비밀 단어와 가장 가까운 단어)</li><li>같은 문맥에 같이 나올 법한 단어를 떠올려 보세요. 반대말도 의외로 가까울 수 있어요. ‘사랑’과 ‘증오’는 뜻은 반대지만 같은 문맥에 자주 나와서 비슷해요. ‘밤’처럼 뜻이 여럿인 단어(어두운 밤 · 먹는 밤)는 어느 쪽인지도 생각해 보세요.</li><li>정답을 맞힌 뒤에도 추측을 계속할 수 있어요. 맞힌 뒤에 보이는 <b>가까운 단어 1000개</b>를 살펴보면 유사도를 이해하는 데 도움이 돼요. 정답은 한국 시간 자정에 바뀌고, 어제 정답과 가까운 단어도 볼 수 있어요.</li><li>비밀 단어는 명사 · 동사 · 형용사 등 모든 품사의 <b>기본형</b>이고 <b>두 글자 이상</b>이에요. 예) 행복, 기쁘다, 사랑하다. 추측은 한 글자 단어도 할 수 있어요.</li></ul>' +
       '<h4>🏆 점수와 순위</h4>' +
-      '<ul><li><b>정답 점수</b> = 150 − 추측 횟수 − 힌트 × 15 (최소 0점) — 적게 추측하고 힌트를 덜 쓸수록 높아요. 일찍 푼다고 더 받지는 않아요</li><li><b>연속 보너스</b> 이틀째부터 연속 정답 하루마다 +5 (최대 +30)</li><li><b>힌트</b>는 처음엔 못 써요. 추측 <b>5번마다 하나씩</b> 생기고 개수 제한은 없어요. 하나당 −15점. 지금까지 찾은 가장 가까운 단어보다 더 가까운 단어를 알려 줘요</li><li>포기하면 0점 · 연속 기록이 끊겨요</li><li>하루에 한 번만 기록돼요. 정답을 맞힌 뒤에도 계속 연습할 수 있어요.</li><li>순위는 오늘(점수 순) · 이번 주 · 시즌(분기) · 연속 정답 · 레이팅이 있어요. <b>다른 사람에게는 힌트 수와 점수만 보여요</b> (추측 횟수 · 걸린 시간은 나만 봐요).</li>' + (/jammanbo-beta/.test(location.pathname) ? '<li>🟩 <b>꼬들</b> 점수(정답 100 − 추측당 10 · 연속 보너스)도 주간 · 시즌 · 누적 점수에 더해져요. 정답 횟수 · 평균 · 연속 · 레이팅은 꼬맨틀만 셈</li>' : '') + '<li><b>레이팅</b>은 그 날 푼 사람끼리 추측 횟수를 겨루는 점수예요 (처음 1500점). 적게 맞히면 오르고 많이 맞히면 내려가요. 같으면 무승부, 포기는 꼴찌, 힌트 1개는 추측 5번으로 쳐요. 분기마다 새로 시작하고 3일 이상 참여하면 순위에 올라요.</li><li>순위에서 이름을 누르면 그 사람의 기록과 나와의 비교를 볼 수 있어요.</li></ul>' +
+      '<ul><li><b>정답 점수</b> = ' + BASE_PTS + ' − 추측 횟수 − 힌트 × ' + HINT_COST + ' (최소 0점) — 힌트를 안 쓰고 적게 추측할수록 높아요. 힌트 하나가 꽤 아파요. 일찍 푼다고 더 받지는 않아요</li><li><b>연속 보너스</b> 이틀째부터 연속 정답 하루마다 +5 (최대 +30)</li><li><b>힌트</b>는 처음엔 못 써요. 추측 <b>5번마다 하나씩</b> 생기고 개수 제한은 없어요. 하나당 −' + HINT_COST + '점. 지금까지 찾은 가장 가까운 단어보다 더 가까운 단어를 알려 줘요</li><li>포기하면 0점 · 연속 기록이 끊겨요</li><li>하루에 한 번만 기록돼요. 정답을 맞힌 뒤에도 계속 연습할 수 있어요.</li><li>순위는 오늘(점수 순) · 이번 주 · 시즌(분기) · 연속 정답 · 레이팅이 있어요. <b>다른 사람에게는 힌트 수와 점수만 보여요</b> (추측 횟수 · 걸린 시간은 나만 봐요).</li>' + (/jammanbo-beta/.test(location.pathname) ? '<li>🟩 <b>꼬들</b> 점수(정답 100 − 추측당 10 · 연속 보너스)도 주간 · 시즌 · 누적 점수에 더해져요. 정답 횟수 · 평균 · 연속 · 레이팅은 꼬맨틀만 셈</li>' : '') + '<li><b>레이팅</b>은 그 날 푼 사람끼리 추측 횟수를 겨루는 점수예요 (처음 1500점). 적게 맞히면 오르고 많이 맞히면 내려가요. 같으면 무승부, 포기는 꼴찌, 힌트 1개는 추측 5번으로 쳐요. 분기마다 새로 시작하고 3일 이상 참여하면 순위에 올라요.</li><li>순위에서 이름을 누르면 그 사람의 기록과 나와의 비교를 볼 수 있어요.</li></ul>' +
       '<h4>📱 팁</h4><p>한글 단어만 입력할 수 있어요 (영어 · 숫자는 안 돼요). ‘먹었다’ · ‘학교에서’ · ‘웃다’ 처럼 사전에 없는 꼴은 사전에 있는 가까운 꼴(‘먹다’ · ‘학교’ · ‘웃는’)로 바꿔 찾아요. 점수는 컴퓨터가 웹 · 위키백과 글에서 단어가 함께 쓰인 정도를 학습해 계산한 뜻 거리라서, 학습한 글에 따라 편향이 있거나 가끔 이상한 점수가 나올 수 있어요. 웃고 넘겨 주세요 😄</p><p class="hint">단어 벡터 출처: 페이스북(메타) 패스트텍스트, CC BY-SA 3.0 · 게임 방식은 뉴스젤리 꼬맨틀을 참고했어요.</p>' +
       '<div class="btns"><button type="button" class="btn pri" data-x>알겠어요</button></div>');
   }
@@ -627,8 +627,8 @@
     var h = '<div class="card res pop"><div class="em">' + (L.win ? '🎉' : '😵') + '</div><h2>' + (L.win ? '정답이에요!' : '아쉬워요') + '</h2>' +
       '<p>' + (L.win ? '<b>' + esc(S.vocab[S.ans]) + '</b> — ' + n + '번 만에 맞혔어요' + (L.hints ? ' · 힌트 ' + L.hints : '') : '정답은 <b>' + esc(S.vocab[S.ans]) + '</b> 였어요') + '</p>';
     if (S.busy && !r) {   // (1.14.0) 서버 확인을 기다리지 않고 결과부터 보여 줌 — 점수는 '잠정'(기본 점수 − 힌트), 서버가 확정하면 연속 보너스까지 반영해 바뀜
-      var base = L.win ? Math.max(0, 150 - n - 15 * (L.hints || 0)) : 0;
-      h += L.win ? '<div class="pts">+' + base + '점 <small>(잠정)</small></div><div class="parts"><span class="chip">기본 <b>' + Math.max(0, 150 - n) + '</b></span>' + (L.hints ? '<span class="chip">힌트 <b>-' + 15 * L.hints + '</b></span>' : '') + '<span class="chip">기록 확인 중…</span></div>'
+      var base = L.win ? Math.max(0, BASE_PTS - n - HINT_COST * (L.hints || 0)) : 0;
+      h += L.win ? '<div class="pts">+' + base + '점 <small>(잠정)</small></div><div class="parts"><span class="chip">기본 <b>' + Math.max(0, BASE_PTS - n) + '</b></span>' + (L.hints ? '<span class="chip">힌트 <b>-' + HINT_COST * L.hints + '</b></span>' : '') + '<span class="chip">기록 확인 중…</span></div>'
         : '<p class="hint">기록 확인 중…</p>';
     } else if (r && !r.error) {
       if (r.win) {
