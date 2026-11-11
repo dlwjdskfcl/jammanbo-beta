@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.11.0';
+  var VER = '1.12.0';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   var ENV_SFX = ENV !== 'prod' ? '_' + ENV : '';
@@ -31,7 +31,7 @@
             sort: lsGet(LS.sort) === 'order' ? 'order' : 'sim', scrollNew: false, scrollRes: false, sharing: false, focused: false,
             // (1.7.0) 연습 탭: 오늘 판과 연습 판의 문제 · 추측 상태를 갈아끼움 (ctx = 지금 S 에 들어 있는 쪽, hold = 안 쓰는 쪽 보관)
             ctx: 'td', hold: { td: null, pz: null }, pDone: [], pK: null,
-            xl: lsGet(LS.xl) !== '0', sel: null, xAddr: '' };   // (1.8.0) 엑셀 모드 — 기본 켜짐, 헤더 버튼(xlBtn)으로 끔 (기기에 저장)
+            xl: lsGet(LS.xl) !== '0', sel: null, xAddr: '', queue: [], loading: false, optimistic: false };   // (1.8.0) 엑셀 모드 — 기본 켜짐, 헤더 버튼(xlBtn)으로 끔 (기기에 저장)
   var CTX_KEYS = ['srv', 'L', 'sims', 'ans', 'rankOf', 'top', 'scale', 'lastW', 'fb'];
   function snap() { var o = {}; CTX_KEYS.forEach(function (k) { o[k] = S[k]; }); return o; }
   function load(o) { CTX_KEYS.forEach(function (k) { S[k] = o[k]; }); }
@@ -109,8 +109,8 @@
   function xlState() {
     if (!S.xl || !$('xlRibbon')) return;
     var game = (S.view === 'play' || (S.view === 'prac' && hasPrac())) && S.srv && S.srv.ready && S.L, L = game ? S.L : null;
-    var gw = $('gw'); if (gw) { gw.disabled = !L; if (!L) gw.value = ''; }
-    $('xOk').disabled = !L;
+    var gw = $('gw'), open = !!L || S.loading; if (gw) { gw.disabled = !open; if (!open) gw.value = ''; }   // 불러오는 중에도 입력 가능 (대기열)
+    $('xOk').disabled = !open;
     var hb = $('rbHint'), hi = L ? hintInfo() : { off: true };
     hb.disabled = !L || hi.off; $('rbHintT').textContent = L ? hintShort() : '힌트';
     $('rbGive').disabled = !L || L.done; $('rbGiveT').textContent = L && L.prac ? '정답 보기' : '포기';
@@ -203,7 +203,13 @@
         });
       });
     };
-    return force ? net() : vocabFromCache(V).then(function (hit) { return hit || net(); });
+    if (force) return net();
+    // 같은 목록을 동시에 두 번 부르면(저장된 표 확인 → 전체 시작) 한 번만 받음
+    if (!loadVocab.fl) loadVocab.fl = {};
+    if (loadVocab.fl[V.id]) return loadVocab.fl[V.id];
+    var p = vocabFromCache(V).then(function (hit) { return hit || net(); });
+    loadVocab.fl[V.id] = p; p.then(null, function () { delete loadVocab.fl[V.id]; });
+    return p;
   }
   /* 표 형식 — 값은 모두 '퍼센트'(코사인 × 100):
    *  1 = int16 (퍼센트 정수, 예전 사전)
@@ -313,6 +319,7 @@
   /* ================= 추측 ================= */
   function normalize(s) { return String(s || '').normalize('NFC').replace(/\s+/g, '').replace(/[^가-힣ㄱ-ㅎㅏ-ㅣ]/g, ''); }
   function guess(raw) {
+    if (S.loading || !S.idx) { var qw = normalize(raw); if (qw) { S.queue.push(raw); toast('문제를 불러오는 중이에요. ‘' + qw + '’ 은(는) 곧 계산돼요'); } return; }   // (1.12.0) 불러오는 동안 먼저 입력한 단어는 대기열로
     var w = normalize(raw), inp = $('gw');
     if (/[A-Za-z0-9]/.test(String(raw || ''))) {   // 영어 · 숫자는 안 됨 (단어 목록이 한글뿐)
       toast('한글로만 입력해 주세요 (영어 · 숫자는 안 돼요)', true); hap('warn');
@@ -835,7 +842,7 @@
       case 'goHome': location.href = ROOT; return;
       case 'ydBtn': return yesterdayList();
       case 'askOk': { var r = askRes; askRes = null; closeModal(); if (r) setTimeout(function () { r(true); }, 80); return; }   // 창이 닫힌 뒤에 다음 동작
-      case 'logoutBtn': ask('로그아웃할까요?', '잠만보 앱도 함께 로그아웃돼요.', '로그아웃', true).then(function (ok) { if (ok) { lsSet(LS.auth, null); location.reload(); } }); return;
+      case 'logoutBtn': ask('로그아웃할까요?', '잠만보 앱도 함께 로그아웃돼요.', '로그아웃', true).then(function (ok) { if (ok) { lsSet(LS.auth, null); dayCacheClear(); location.reload(); } }); return;
       case 'hintBtn': return hint();
       case 'giveBtn': return giveUp();
       case 'share': return share();
@@ -896,15 +903,57 @@
   if (window.visualViewport) window.visualViewport.addEventListener('resize', updateTop);
 
   /* ================= 시작 ================= */
-  function boot() {
-    if (/[?&]reset\b/.test(location.search)) history.replaceState(null, '', location.pathname);   // 잠만보 메뉴가 붙이는 ?reset (예전 서비스 워커 우회용)
-    try { history.replaceState({ v: 'play', p: 0 }, ''); } catch (e) {}   // 뒤로가기 기준점
-    applyXl(); renderAcct(); updateTop();
-    if (!token()) { S.nick = ''; return renderGate(false); }   // 로그인한 회원만 시작할 수 있음
-    $('tabs').hidden = false; updateTop();
-    $('view').innerHTML = '<div class="empty">⏳ 오늘 문제를 불러오는 중…<br><small>처음엔 단어 목록(약 450KB)을 받느라 조금 걸려요</small></div>';
+  /* (1.12.0) 오늘 표를 기기(Cache Storage)에 저장해 두고, 재방문은 서버를 기다리지 않고 바로 시작 → 서버에는 가벼운 확인(내 기록 · 통계)만 뒤에서 보내고 합침.
+   * 저장된 표가 없는 하루 첫 방문은 입력창을 바로 열어 두고, 먼저 친 단어는 대기열(S.queue)에 넣었다가 표가 오면 계산. 표 한 개 = 하루 약 77KB */
+  var DCACHE = 'jmb_sem_day' + ENV_SFX;
+  function dayCacheGet() {
+    if (!window.caches) return Promise.resolve(null);
+    return caches.open(DCACHE).then(function (c) { return c.match('today'); }).then(function (r) { return r ? r.json() : null; })
+      .then(function (o) { return o && o.table && o.day ? o : null; }, function () { return null; });
+  }
+  function dayCachePut(srv) {
+    if (!window.caches || !srv || !srv.table || !srv.day) return;
+    try { caches.open(DCACHE).then(function (c) { return c.put('today', new Response(JSON.stringify({ day: srv.day, no: srv.no, n: srv.n, vh: srv.vh, fmt: srv.fmt || 1, table: srv.table, top: srv.top || '' }))); }).catch(function () {}); } catch (e) {}
+  }
+  function dayCacheClear() { try { if (window.caches) caches.delete(DCACHE); } catch (e) {} }
+  function flushQueue() {   // 불러오는 동안 먼저 입력한 단어를 차례로 계산
+    var q = S.queue.splice(0, S.queue.length);
+    q.forEach(function (w) { guess(w); });
+  }
+  /** 저장된 오늘 표로 곧바로 시작 */
+  function startFast(vocab, c, nick) {
+    S.srv = { ready: true, day: c.day, no: c.no, n: c.n, vh: c.vh, fmt: c.fmt, table: c.table, top: c.top, me: nick, yesterday: '', solvedToday: 0, people: 0, my: null, stats: null };
+    S.nick = nick; prepare(vocab, S.srv);
+    var L = lsJSON(LS.play);
+    if (!L || L.day !== S.srv.day || L.vh !== S.srv.vh) { L = freshLocal(); L.rec = true; }   // 기록 여부는 서버 확인 뒤 바로잡음 (먼저 풀기 시작해도 서버가 '이미 했어요' 면 연습으로 전환)
+    S.L = L; saveLocal(); S.optimistic = true; S.loading = false;
+    if (lsGet(LS.help) !== '1') setTimeout(help, 400);
+    render(); flushQueue();
+    return true;
+  }
+  /** 서버의 가벼운 확인 결과를 지금 판에 합침 */
+  function reconcile(r) {
+    S.optimistic = false;
+    if (!r || r.loginRequired || !r.me) { dayCacheClear(); S.nick = ''; return renderGate(!!session()); }   // 토큰이 만료됐거나 닉네임이 연결되지 않음
+    if (!r.ready) { render(); return; }
+    if (r.day !== S.srv.day) { dayCacheClear(); return bootFull(); }   // 날짜가 바뀜 → 새 표 (진행 중 추측은 판마다 따로 저장돼 있음)
+    var s = S.srv; s.my = r.my; s.stats = r.stats; s.solvedToday = r.solvedToday; s.yesterday = r.yesterday; s.me = r.me; s.people = r.people; S.nick = r.me;
+    var L = S.L, my = r.my;
+    mergeServer(L, my);
+    if (!L.done && L.g.length === 0) L.rec = !!(S.nick && my && my.state !== '완료');
+    else if (S.nick && my && my.state === '완료' && L.rec && !L.res) L.rec = false;   // 다른 기기에서 이미 기록함
+    if (L.rec && my && my.state === '진행중' && !L.nonce) ensureStart();
+    saveLocal(); render();
+    if (L.pend) retryPending();
+  }
+  function bootFull() {
+    S.loading = true; S.optimistic = false;
+    // 불러오는 동안에도 입력할 수 있게: 엑셀 모드는 빈 격자 + 안내를 보여 주고 입력창을 열어 둠 (먼저 친 단어는 대기열)
+    $('view').innerHTML = S.xl ? '<div class="xnote">오늘 문제를 불러오는 중이에요… 단어는 먼저 입력해 두세요 — 도착하면 바로 계산돼요</div>' + xlGrid([])
+      : '<div class="empty">⏳ 오늘 문제를 불러오는 중…<br><small>처음엔 단어 목록(약 450KB)을 받느라 조금 걸려요</small></div>';
+    xlState();
     // 새 단어 목록(V2)과 오늘 표(형식 2 요청)를 동시에 받음. 서버가 옛 형식으로 답하면(새 사전이 아직 없음) 예전 목록(V1)으로 바꿔 받음
-    Promise.all([loadVocab(V2).catch(function () { return null; }), api('semToday', [token(), 2])]).then(function (res) {
+    return Promise.all([loadVocab(V2).catch(function () { return null; }), api('semToday', [token(), 2])]).then(function (res) {
       var vocab = res[0], srv = res[1];
       if (!srv || srv.loginRequired || !srv.ready) return [vocab || { words: [], hash: '', src: 0 }, srv];
       var want = srv.fmt === 2 ? V2 : V1;
@@ -914,11 +963,13 @@
       return res;
     }).then(function (res) {
       var vocab = res[0], srv = res[1];
+      S.loading = false;
       S.srv = srv; S.nick = srv.me || '';
-      if (srv.loginRequired || !S.nick) { renderGate(!!session()); return; }   // 토큰이 만료됐거나 닉네임이 연결되지 않음
+      if (srv.loginRequired || !S.nick) { S.queue = []; renderGate(!!session()); return; }   // 토큰이 만료됐거나 닉네임이 연결되지 않음
       if (!srv.ready) { render(); return; }
       if (vocab.hash && srv.vh && vocab.hash !== srv.vh) throw new Error('단어 목록이 새로 바뀌었어요. 주소 끝에 ?x=' + Date.now() % 1000 + ' 를 붙여 새로고침 해 주세요');
       prepare(vocab, srv);
+      dayCachePut(srv);   // 다음부터는 서버를 기다리지 않고 바로 시작
       var L = lsJSON(LS.play);
       if (!L || L.day !== srv.day || L.vh !== srv.vh) L = freshLocal();
       S.L = L;
@@ -929,13 +980,40 @@
       if (L.rec && my && my.state === '진행중' && !L.nonce) ensureStart();   // 다른 기기/새로고침: 이어 하기 (서버가 확인값을 다시 줌)
       saveLocal();
       if (S.view === 'play' && lsGet(LS.help) !== '1') setTimeout(help, 400);
-      render();
+      render(); flushQueue();
       if (L.pend) retryPending();
     }).catch(function (e) {
+      S.loading = false; S.queue = [];
       if (!token()) return renderGate(false);   // 로그인이 만료돼 지워졌으면 로그인 안내
       $('view').innerHTML = '<div class="card empty">😢<br><b>' + esc(e.message || '불러오지 못했어요') + '</b><br><button type="button" class="btn sm" id="again" style="margin-top:10px">다시 시도</button></div>';
       var b = $('again'); if (b) b.onclick = boot;
     });
+  }
+  function boot() {
+    if (/[?&]reset\b/.test(location.search)) history.replaceState(null, '', location.pathname);   // 잠만보 메뉴가 붙이는 ?reset (예전 서비스 워커 우회용)
+    try { history.replaceState({ v: 'play', p: 0 }, ''); } catch (e) {}   // 뒤로가기 기준점
+    applyXl(); renderAcct(); updateTop();
+    if (!token()) { S.nick = ''; return renderGate(false); }   // 로그인한 회원만 시작할 수 있음
+    $('tabs').hidden = false; updateTop();
+    var nick = myNick();
+    if (!nick) return bootFull();   // 닉네임을 아직 모르면(처음 연결 등) 서버 확인부터
+    // ① 오늘 표와 단어 목록이 기기에 있으면 서버를 기다리지 않고 바로 시작 ② 서버에는 가벼운 확인만 뒤에서
+    S.loading = true; xlState();
+    Promise.all([dayCacheGet(), loadVocab(V2).catch(function () { return null; })]).then(function (r) {
+      var c = r[0], vocab = r[1];
+      if (c && c.day === todayKST()) {
+        var V = c.fmt === 2 ? V2 : V1, vp = vocab && vocab.src === V.id ? Promise.resolve(vocab) : loadVocab(V).catch(function () { return null; });
+        return vp.then(function (v) { return v && (!c.vh || v.hash === c.vh) ? startFast(v, c, nick) : false; });
+      }
+      return false;
+    }).then(function (fast) {
+      if (!fast) return bootFull();
+      return api('semToday', [token(), 2, 1]).then(reconcile, function (e) {
+        S.optimistic = false;
+        if (/로그인이 만료/.test(e.message)) { dayCacheClear(); return renderGate(false); }
+        toast('서버 확인이 늦어요. 지금은 저장된 문제로 풀 수 있어요', true);   // 인터넷이 불안해도 풀 수는 있음 (기록은 연결되면)
+      });
+    }).catch(function () { return bootFull(); });
   }
   /* 접속 기록: 기기마다 30분에 한 번 잠만보 서버(logVisit)에 남김 → 시트 '접속기록' (페이지 = 꼬맨틀). 실패해도 게임과 상관없음 */
   function logVisit() {
