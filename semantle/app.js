@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.8.0';
+  var VER = '1.9.0';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   var ENV_SFX = ENV !== 'prod' ? '_' + ENV : '';
@@ -30,7 +30,7 @@
             // sort: 기본은 유사도 순 (입력 순서를 직접 고른 사람만 입력 순서)
             sort: lsGet(LS.sort) === 'order' ? 'order' : 'sim', scrollNew: false, scrollRes: false, sharing: false, focused: false,
             // (1.7.0) 연습 탭: 오늘 판과 연습 판의 문제 · 추측 상태를 갈아끼움 (ctx = 지금 S 에 들어 있는 쪽, hold = 안 쓰는 쪽 보관)
-            ctx: 'td', hold: { td: null, pz: null }, pDone: [],
+            ctx: 'td', hold: { td: null, pz: null }, pDone: [], pK: null,
             xl: lsGet(LS.xl) !== '0' };   // (1.8.0) 엑셀 모드 — 기본 켜짐, 헤더 버튼(xlBtn)으로 끔 (기기에 저장)
   var CTX_KEYS = ['srv', 'L', 'sims', 'ans', 'rankOf', 'top', 'scale', 'lastW', 'fb'];
   function snap() { var o = {}; CTX_KEYS.forEach(function (k) { o[k] = S[k]; }); return o; }
@@ -116,10 +116,25 @@
     if (!(window.crypto && crypto.subtle && window.TextEncoder)) return Promise.resolve('');
     return crypto.subtle.digest('SHA-1', new TextEncoder().encode(text)).then(function (b) { return [].map.call(new Uint8Array(b), function (x) { return (x < 16 ? '0' : '') + x.toString(16); }).join(''); });
   }
-  function loadVocab() {
-    return fetch('vocab.txt?v=' + VER).then(function (r) { if (!r.ok) throw new Error('단어 목록을 받지 못했어요'); return r.text(); }).then(function (t) {
-      return sha1hex(t).then(function (h) { return { words: t.split('\n'), hash: h.slice(0, 10) }; });
-    });
+  /* (1.9.0) 단어 목록(약 410KB)은 기기(Cache Storage)에 저장해 두고 다음부터는 네트워크 없이 바로 읽음. 서버가 알려 주는 목록값(vh)과 다르면 새로 받음.
+   * VOCAB_URL 의 숫자는 목록 내용이 바뀔 때만 올림 (시작 페이지 index.html 의 로그인 중 미리 받기 주소와 같게) — 화면 버전(VER)이 바뀌어도 다시 안 받음 */
+  var VOCAB_URL = 'vocab.txt?v=1', VCACHE = 'jmb_sem_vocab' + ENV_SFX;
+  function vocabFromCache() {
+    if (!window.caches) return Promise.resolve(null);
+    return caches.open(VCACHE).then(function (c) { return c.match('vocab'); }).then(function (r) { return r ? r.json() : null; })
+      .then(function (o) { return o && o.t && o.h ? { words: o.t.split('\n'), hash: o.h, fromCache: true } : null; }, function () { return null; });
+  }
+  function loadVocab(force) {
+    var net = function () {
+      return fetch(VOCAB_URL, force ? { cache: 'reload' } : undefined).then(function (r) { if (!r.ok) throw new Error('단어 목록을 받지 못했어요'); return r.text(); }).then(function (t) {
+        return sha1hex(t).then(function (h) {
+          h = h.slice(0, 10);
+          if (window.caches && h) { try { caches.open(VCACHE).then(function (c) { return c.put('vocab', new Response(JSON.stringify({ h: h, t: t }))); }).catch(function () {}); } catch (e) {} }
+          return { words: t.split('\n'), hash: h };
+        });
+      });
+    };
+    return force ? net() : vocabFromCache().then(function (hit) { return hit || net(); });
   }
   function decodeTable(b64, n) {
     var bin = atob(b64), u = new Uint8Array(bin.length);
@@ -138,9 +153,13 @@
     var best = -1, bv = -32768;
     for (var k = 0; k < S.sims.length; k++) if (S.sims[k] > bv) { bv = S.sims[k]; best = k; }
     S.ans = best;
-    var order = []; for (var j = 0; j < S.sims.length; j++) if (j !== S.ans) order.push(j);
-    order.sort(function (a, b) { return S.sims[b] - S.sims[a]; });
-    S.top = order.slice(0, TOPN);
+    // (1.9.0) 4만 개를 전부 정렬하지 않고, 1000위 경계 값을 세어 찾은 뒤 그 이상인 것만 정렬 (결과는 전체 정렬과 같음 — 동점은 번호 순) → 느린 폰에서 시작이 빨라짐
+    var cnt = new Uint32Array(65536), sims = S.sims, j, cut, need = TOPN, cand = [];
+    for (j = 0; j < sims.length; j++) if (j !== S.ans) cnt[sims[j] + 32768]++;
+    for (cut = 65535; cut >= 0; cut--) { need -= cnt[cut]; if (need <= 0) break; }
+    for (j = 0; j < sims.length; j++) if (j !== S.ans && sims[j] + 32768 >= cut) cand.push(j);
+    cand.sort(function (a, b) { return sims[b] - sims[a]; });
+    S.top = cand.slice(0, TOPN);
     S.rankOf = new Map(); S.top.forEach(function (ix, r) { S.rankOf.set(ix, r + 1); });
     S.scale = { r1: S.sims[S.top[0]], r10: S.sims[S.top[9]], rN: S.sims[S.top[TOPN - 1]] };
   }
@@ -559,18 +578,18 @@
     if (S.busy || S.startP) return toast('기록 중이에요. 잠시 뒤에 다시 눌러 주세요', true);
     if (S.pBusy) return;
     S.pBusy = true; toast('연습 문제를 불러오는 중…');
-    var tried = 0;
-    (function next() {
-      api('semPractice', [token(), 1 + Math.floor(Math.random() * 30)]).then(function (r) {
-        if (!r || !r.ready || (S.pDone.indexOf(r.day) >= 0 && tried < 5)) { if (++tried < 6) return next(); throw new Error('연습할 문제를 찾지 못했어요'); }
-        var td = S.ctx === 'td' ? snap() : S.hold.td;   // 오늘 판 상태는 그대로 보관
-        if (td.srv.vh && r.vh && td.srv.vh !== r.vh) throw new Error('단어 목록이 달라서 연습할 수 없어요');
-        if (S.ctx === 'pz') load(td);
-        prepareTable(r); S.srv = r; S.L = freshPrac(r); S.lastW = ''; S.fb = null; S.focused = false; S.scrollNew = false; S.scrollRes = false;
-        S.hold.td = td; S.hold.pz = snap(); S.ctx = 'pz'; S.pDone.push(r.day); S.pBusy = false; S.view = 'prac';
-        render(); updateTop();
-      }).catch(function (e) { S.pBusy = false; toast(e.message || '연습 문제를 불러오지 못했어요', true); });
-    })();
+    // (1.8.1) 서버가 사전에 실제로 있는 지난 날짜 중에서 k번째를 골라 줌 (예전에는 1~30일 전을 무작위로 물어 대부분 '없음'이라 실패했음)
+    if (S.pK == null) S.pK = Math.floor(Math.random() * 1000);
+    api('semPractice', [token(), S.pK++]).then(function (r) {
+      if (!r || !r.ready) throw new Error('아직 연습할 지난 문제가 없어요. 내일부터 하루에 하나씩 늘어나요');
+      var td = S.ctx === 'td' ? snap() : S.hold.td;   // 오늘 판 상태는 그대로 보관
+      if (td.srv.vh && r.vh && td.srv.vh !== r.vh) throw new Error('단어 목록이 달라서 연습할 수 없어요');
+      if (S.ctx === 'pz') load(td);
+      prepareTable(r); S.srv = r; S.L = freshPrac(r); S.lastW = ''; S.fb = null; S.focused = false; S.scrollNew = false; S.scrollRes = false;
+      S.hold.td = td; S.hold.pz = snap(); S.ctx = 'pz'; S.pBusy = false; S.view = 'prac';
+      render(); updateTop();
+      if (r.count === 1) toast('지금은 연습 문제가 1개예요. 하루에 하나씩 늘어나요');
+    }).catch(function (e) { S.pBusy = false; toast(e.message || '연습 문제를 불러오지 못했어요', true); });
   }
 
   /* ---------- 순위 ---------- */
@@ -782,6 +801,10 @@
     $('tabs').hidden = false; updateTop();
     $('view').innerHTML = '<div class="empty">⏳ 오늘 문제를 불러오는 중…<br><small>처음엔 단어 목록(약 450KB)을 받느라 조금 걸려요</small></div>';
     Promise.all([loadVocab(), api('semToday', [token()])]).then(function (res) {
+      // 기기에 저장해 둔 목록이 서버의 것과 다르면(목록이 새로 바뀜) 한 번 새로 받아 씀
+      if (res[0].fromCache && res[1] && res[1].vh && res[0].hash !== res[1].vh) return loadVocab(true).then(function (v) { return [v, res[1]]; });
+      return res;
+    }).then(function (res) {
       var vocab = res[0], srv = res[1];
       S.srv = srv; S.nick = srv.me || '';
       if (srv.loginRequired || !S.nick) { renderGate(!!session()); return; }   // 토큰이 만료됐거나 닉네임이 연결되지 않음

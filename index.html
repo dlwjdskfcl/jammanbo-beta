@@ -90,9 +90,23 @@ window.JMB_GETDATA = function (pw, fresh, ver) {
 };
 
 /* ① 가장 먼저: 데이터 요청 시작 (화면 코드를 기다리지 않음) */
-if (API && !window.JMB_RESETTING) (function () {
-  var c = lsGetJSON(DATA_KEY);
-  window.JMB_EARLY = window.JMB_GETDATA('', HARD, c && c.v ? c.v : '');
+/* 카카오 로그인에서 막 돌아온 주소(?code=)이고 미니게임으로 곧바로 넘어갈 예정이면 데이터 요청은 건너뜀 —
+ * 같은 Apps Script 에서 로그인 확인(kakaoLogin)과 겹쳐 서로 느려지고, 어차피 이 화면은 곧 떠남 */
+var LEAVING = false;
+try { LEAVING = /[?&]code=/.test(location.search) && !!sessionStorage.getItem('jmb_after_login'); } catch (e) {}
+/* 카카오 운영진 계정이면 처음부터 운영진 데이터를 요청 (일반 데이터로 그린 뒤 로그인 확인이 끝나야 다시 받던 두 번 로딩을 없앰).
+ * 기기에 저장된 로그인 정보(user.admin)로 미리 알 수 있고, 권한은 서버가 요청마다 토큰으로 다시 확인함 */
+function kkAdminHint() {
+  try {
+    var s = lsGetJSON(AUTH_STORE);
+    if (!s || !s.token || !s.user || !s.user.admin || sessionStorage.getItem('jmb_kk_off') === '1') return '';
+    return 'kk.' + s.token;
+  } catch (e) { return ''; }
+}
+if (API && !window.JMB_RESETTING && !LEAVING) (function () {
+  var c = lsGetJSON(DATA_KEY), pw = kkAdminHint();
+  window.JMB_EARLY_ADMIN = pw;   // 화면 코드(Index.html)가 읽음 — 이 요청이 운영진 데이터임을 알려 줌
+  window.JMB_EARLY = window.JMB_GETDATA(pw, HARD, !pw && c && c.v ? c.v : '');   // 운영진 데이터는 기기 저장본(일반 데이터)과 다르므로 버전을 안 보냄
   window.JMB_EARLY.catch(function () {});   // 처리되지 않은 오류 경고 방지 (실제 처리는 화면 코드에서)
 })();
 </script>
@@ -217,6 +231,8 @@ function handleKakaoRedirect() {
   function msg(t) { try { localStorage.setItem(AUTH_MSG, t); } catch (e) {} }
   try { var back = sessionStorage.getItem('jmb_route'); if (back && back.indexOf(window.JMB_ROOT) === 0) history.replaceState(null, '', back); } catch (e) {}   // 로그인 전에 보던 탭으로
   if (err) { msg('카카오 로그인이 취소됐어요'); return Promise.resolve(); }
+  // 꼬맨틀로 돌아갈 예정이면 로그인 확인을 기다리는 동안 단어 목록(약 410KB)을 미리 받아 둠 — 도착하자마자 바로 쓰도록 (꼬맨틀 app.js 의 VOCAB_URL 과 같은 주소)
+  try { var ret = sessionStorage.getItem('jmb_after_login') || ''; if (/\/semantle\//.test(ret)) fetch(window.JMB_ROOT + 'semantle/vocab.txt?v=1').catch(function () {}); } catch (e) {}
   var saved = lsGetJSON(AUTH_STATE);
   try { localStorage.removeItem(AUTH_STATE); } catch (e) {}
   if (!saved || saved.s !== p.get('state') || Date.now() - saved.t > 10 * 60 * 1000) { msg('로그인 요청이 올바르지 않아요. 다시 시도해 주세요.'); return Promise.resolve(); }
@@ -248,8 +264,17 @@ function start() {
     var go = function () {
       // 뒤에서 화면 코드 버전 확인 → 바뀌었으면 받아 두었다가 다음에 열 때 적용 (데이터 요청이 먼저 끝나도록 조금 늦게)
       if (!HARD) setTimeout(function () {
-        fetchShell(cached.v).then(function (s) { if (s) lsPutJSON(SHELL_KEY, s); }).catch(function () {});
-      }, 4000);
+        fetchShell(cached.v).then(function (s) {
+          if (!s) return;
+          lsPutJSON(SHELL_KEY, s);
+          // 새 화면 코드가 나왔으면 곧바로 한 번 다시 열어 적용 (예전에는 '다음에 열 때' 적용돼서 업데이트 뒤 새로고침을 두 번 해야 했음).
+          // 같은 버전으로는 한 번만(무한 반복 방지), 입력 중이면 건드리지 않고 다음에 열 때 적용
+          var ae = document.activeElement;
+          if (ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
+          try { if (sessionStorage.getItem('jmb_shell_applied') === String(s.v)) return; sessionStorage.setItem('jmb_shell_applied', String(s.v)); } catch (e) { return; }
+          location.reload();
+        }).catch(function () {});
+      }, 1500);
       try { boot(cached); }
       catch (e) { try { localStorage.removeItem(SHELL_KEY); } catch (x) {} location.reload(); }   // 저장된 화면이 깨졌으면 지우고 새로 받기
     };
@@ -272,6 +297,16 @@ function start() {
 
 if (!window.JMB_RESETTING) handleKakaoRedirect().then(start, start); // 로그인 복귀 처리 → 화면 시작
 
+/* 서비스 워커가 '시작 페이지 · config.js 가 실제로 바뀌었다' 고 알리면 한 번 다시 열어 바로 적용 (예전에는 다음에 열 때 적용 → 업데이트 뒤 새로고침 두 번).
+ * 60초 안에 두 번은 안 함(반복 방지), 입력 중이면 건드리지 않음. navigator.serviceWorker 에 붙이므로 document.write 로 화면이 바뀌어도 유지됨 */
+if (!window.JMB_RESETTING && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', function (e) {
+    if (!e.data || e.data.type !== 'jmb-static-updated') return;
+    var ae = document.activeElement; if (ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
+    try { var t = +sessionStorage.getItem('jmb_sw_reload_at') || 0; if (Date.now() - t < 60000) return; sessionStorage.setItem('jmb_sw_reload_at', String(Date.now())); } catch (x) { return; }
+    location.reload();
+  });
+}
 if (!window.JMB_RESETTING && 'serviceWorker' in navigator && location.protocol === 'https:') { // 정적 파일 캐시 (재방문 속도)
   window.addEventListener('load', function () { navigator.serviceWorker.register(window.JMB_ROOT + 'sw.js', { scope: window.JMB_ROOT }).catch(function () {}); });
 }

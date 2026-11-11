@@ -1,4 +1,5 @@
-/* 잠만보 서비스 워커 v3.2 — 재방문을 빠르게 (안전하게)
+/* 잠만보 서비스 워커 v3.3 — 재방문을 빠르게 (안전하게)
+ * - v3.3: 시작 페이지 · config.js 가 실제로 바뀌면 열려 있는 화면에 알려 한 번 다시 열게 함 (업데이트 뒤 새로고침 두 번 문제)
  * - v3.2: 오락실(arcade/) · 마이티(mighty/) · 빙고(bingo/) · 단체 줄넘기(jumprope/) · 잠만보 던전(rogue/) · 파티 게임(party/) 추가 → SKIP_DIRS
  * - v3.1: 꼬맨틀(semantle/) 추가 → SKIP_DIRS
  * - v3.0: 에이징 커브 검사(aging/) 추가 → SKIP_DIRS
@@ -18,7 +19,7 @@
  * - Apps Script·카카오(다른 출처)와 로그인 복귀(?code=…)·초기화(?reset)는 건드리지 않음
  */
 var SCOPE = new URL(self.registration.scope).pathname;   // '/jammanbo/' 또는 '/jammanbo-beta/'
-var CACHE = 'jmb-static-v3.2:' + SCOPE;
+var CACHE = 'jmb-static-v3.3:' + SCOPE;
 // 미니게임 등 따로 동작하는 하위 폴더 (앱 첫 화면으로 바꿔치기하지 않음). 새 게임을 만들면 여기에 '폴더이름/' 추가
 var SKIP_DIRS = ['tichu/', 'roulette/', 'map/', 'timer/', 'sound/', 'escape/', 'aging/', 'semantle/', 'arcade/', 'mighty/', 'bingo/', 'jumprope/', 'rogue/', 'party/', 'toolbox/'];
 // 이 범위의 옛 캐시인지: 'jmb-static-…:범위' 형식이거나, 범위 표시가 없던 예전 이름(운영에서만 쓰던 것)
@@ -26,6 +27,10 @@ function isMineOld(k) {
   if (k === CACHE || k.indexOf('jmb-static-') !== 0) return false;
   var i = k.indexOf(':');
   return i < 0 ? SCOPE === '/jammanbo/' : k.slice(i + 1) === SCOPE;
+}
+function sigOf(r) { return (r.headers.get('etag') || r.headers.get('last-modified') || ''); }
+function tellClients() {
+  self.clients.matchAll({ type: 'window' }).then(function (cs) { cs.forEach(function (c) { try { c.postMessage({ type: 'jmb-static-updated' }); } catch (e) {} }); });
 }
 var PRECACHE = ['./', 'config.js', 'router.js', 'icon-192.png', 'apple-touch-icon.png', 'manifest.webmanifest'];
 
@@ -58,7 +63,14 @@ self.addEventListener('fetch', function (e) {
   var net = fetch(nav ? key : req).then(function (res) {
     if (res && res.ok && res.type === 'basic' && !res.redirected) {
       var copy = res.clone();
-      caches.open(CACHE).then(function (c) { return c.put(key, copy); }).catch(function () {});
+      caches.open(CACHE).then(function (c) {
+        // (v3.3) 시작 페이지 · config.js 가 실제로 바뀌었으면(ETag · 수정 시각이 다름) 열려 있는 화면에 알림 → 화면이 한 번 다시 열어 바로 적용
+        //        (예전에는 '다음 번' 열 때 적용돼서 업데이트 뒤 새로고침을 두 번 해야 했음)
+        return c.match(key, { ignoreSearch: nav }).then(function (old) {
+          var changed = !!old && (nav || /(^|\/)config\.js$/.test(rel)) && sigOf(old) !== sigOf(res) && !!sigOf(res);
+          return c.put(key, copy).then(function () { if (changed) tellClients(); });
+        });
+      }).catch(function () {});
     }
     return res;
   });
