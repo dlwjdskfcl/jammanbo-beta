@@ -91,7 +91,8 @@ window.JMB_GETDATA = function (pw, fresh, ver) {
             function (e) { throw (e instanceof TypeError) ? new Error('인터넷 연결을 확인해 주세요') : e; });
   };
   // 엣지: ↻(fresh)와 비밀번호 방식 운영진은 늘 Apps Script 로 (방금 저장한 내용을 바로 봐야 해서). 엣지가 실패하면 Apps Script 로 폴백
-  if (!DATA_EDGE || fresh || (pw && String(pw).indexOf('kk.') !== 0)) return viaGas();
+  var off = 0; try { off = +localStorage.getItem('jmb_edge_off_until') || 0; } catch (x) {}   // 이 기기에서 방금 저장했으면(6분) 엣지를 건너뜀 — 엣지는 최대 5분 늦어 방금 한 저장이 안 보일 수 있어서
+  if (!DATA_EDGE || fresh || off > Date.now() || (pw && String(pw).indexOf('kk.') !== 0)) return viaGas();
   var la = '';   // 기기에 저장된 데이터의 시각 — 엣지가 이보다 오래된 데이터를 주지 않게(방금 저장한 사람이 되돌아가 보이는 일 방지)
   try { var cc = JSON.parse(localStorage.getItem('jmb_data_v2') || 'null'); if (cc && ver && cc.v === ver && cc.d && cc.d.loadedAt) la = String(cc.d.loadedAt); } catch (x) {}
   var ctl = typeof AbortController === 'function' ? new AbortController() : null, timer = ctl ? setTimeout(function () { ctl.abort(); }, 5000) : 0;
@@ -164,7 +165,7 @@ function shim(API, STORE, ENV) {
   function call(fn, args) {
     var stop = prepare(fn, args);
     if (stop) return Promise.reject(new Error(stop));
-    return fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: fn, args: args, env: ENV || undefined }) })
+    return fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: fn, args: args, env: ENV || undefined, slim: (window.JMB_SLIM_OK && (fn === 'addPost' || fn === 'addPlays')) ? 1 : undefined }) })
       .then(function (r) { if (!r.ok) throw new Error('서버 응답 오류 (' + r.status + ')'); return r.json(); })
       .then(function (j) { if (!j || !j.ok) throw new Error((j && j.e) || '알 수 없는 오류'); return j.r; },
             function (e) { throw (e instanceof TypeError) ? new Error('인터넷 연결을 확인해 주세요') : e; });
