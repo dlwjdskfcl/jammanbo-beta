@@ -1,9 +1,10 @@
-/* 잠만보 꼬들 1.4.0 — 원작 꼬들 규칙: 정답은 기본 자모 24개(자음 14 · 모음 10)로 풀어 쓴 6칸짜리 단어, 6번 안에 자모 키보드로 입력.
+/* 잠만보 꼬들 1.5.0 — 원작 꼬들 규칙: 정답은 기본 자모 24개(자음 14 · 모음 10)로 풀어 쓴 6칸짜리 단어, 6번 안에 자모 키보드로 입력.
  * ㄲ→ㄱㄱ · ㅐ→ㅏㅣ · ㅘ→ㅗㅏ · 겹받침→둘 처럼 기본 자모로 풀어서 셈. 화면은 꼬맨틀과 같은 머리줄 · 탭 · 카드.
+ * 이 파일은 모듈: window.JMB_KODLE.mount(요소, 옵션) — 꼬들 자체 페이지(kodle/)와 꼬맨틀 페이지의 '🟩 꼬들' 탭에서 같이 씀.
  * 오늘 문제는 카카오 로그인한 회원이면 서버(Kodle.js)에 기록돼 점수가 꼬맨틀 주간 · 시즌 · 누적 점수에 더해짐 (정답은 서버가 확인). 연습 판 · 로그인 안 한 판은 이 기기에만 저장. */
 (function () {
   'use strict';
-  var VER = '1.4.0', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 11), LOGMAX = 400;
+  var VER = '1.5.0', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 11), LOGMAX = 400;
   var CFG = window.JMB_CONFIG || {}, ENV = CFG.env || 'prod', SFX = ENV !== 'prod' ? '_' + ENV : '';
   var KEY = 'jmb_kodle_v1' + SFX, KLOG = 'jmb_kodle_log' + SFX, KST = 'jmb_kodle_st' + SFX, KHELP = 'jmb_kodle_help', KAUTH = 'jmb_kakao_v2' + SFX;
   var CH = ['ㄱ', 'ㄱㄱ', 'ㄴ', 'ㄷ', 'ㄷㄷ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅂㅂ', 'ㅅ', 'ㅅㅅ', 'ㅇ', 'ㅈ', 'ㅈㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
@@ -12,7 +13,9 @@
   var ROWS = ['ㄲㄸㅃㅆㅉㅒㅖ', 'ㅂㅈㄷㄱㅅㅛㅕㅑㅐㅔ', 'ㅁㄴㅇㄹㅎㅗㅓㅏㅣ', 'ㅋㅌㅊㅍㅠㅜㅡ'];   // 두벌식 배열 모양. 쌍자음 · ㅐ ㅒ ㅔ ㅖ 키는 기본 자모 둘로 풀려서 들어감
   var EXP = { 'ㄲ': 'ㄱㄱ', 'ㄸ': 'ㄷㄷ', 'ㅃ': 'ㅂㅂ', 'ㅆ': 'ㅅㅅ', 'ㅉ': 'ㅈㅈ', 'ㅐ': 'ㅏㅣ', 'ㅒ': 'ㅑㅣ', 'ㅔ': 'ㅓㅣ', 'ㅖ': 'ㅕㅣ' };
   var PHYS = { KeyQ: 'ㅂ', KeyW: 'ㅈ', KeyE: 'ㄷ', KeyR: 'ㄱ', KeyT: 'ㅅ', KeyY: 'ㅛ', KeyU: 'ㅕ', KeyI: 'ㅑ', KeyA: 'ㅁ', KeyS: 'ㄴ', KeyD: 'ㅇ', KeyF: 'ㄹ', KeyG: 'ㅎ', KeyH: 'ㅗ', KeyJ: 'ㅓ', KeyK: 'ㅏ', KeyL: 'ㅣ', KeyZ: 'ㅋ', KeyX: 'ㅌ', KeyC: 'ㅊ', KeyV: 'ㅍ', KeyB: 'ㅠ', KeyN: 'ㅜ', KeyM: 'ㅡ' };
-  var $ = function (id) { return document.getElementById(id); };
+  var BASE = (document.currentScript && document.currentScript.src ? document.currentScript.src : location.href).replace(/[?#].*$/, '').replace(/[^\/]*$/, '');
+  var host = null, opt = {}, loading = false, kbound = false;
+  var $ = function (id) { return host ? host.querySelector('#' + id) : null; };   // 꼬들 칸 안의 요소만 (머리줄 · 탭은 쓰는 페이지 몫)
   var API = CFG.api || '', ROOT = (function () { var seg = location.pathname.split('/')[1] || ''; return /\.github\.io$/.test(location.hostname) && seg ? '/' + seg + '/' : '/'; })();
   var A = [], G = {}, ready = false, view = 'play', modalOpen = false;
   var SV = { today: null, ok: false, nonce: '', starting: null, sending: false, res: null, err: '' };   // 서버 상태: today = kodleToday 응답 · ok = 정답 목록이 서버와 같음 · res = 방금 낸 결과(서버 확정값)
@@ -53,7 +56,10 @@
   }
   function listKey() { return A.length + ':' + A.slice(0, 3).join(''); }
   var toastT = 0;
-  function toast(t, bad) { var e = $('toast'); e.textContent = t; e.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(function () { e.classList.remove('on'); }, bad ? 2600 : 1800); }
+  function toast(t, bad) {
+    if (opt.toast) return opt.toast(t, bad);
+    var e = document.getElementById('toast'); if (!e) { e = document.createElement('div'); e.id = 'toast'; e.className = 'toast'; document.body.appendChild(e); }
+    e.textContent = t; e.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(function () { e.classList.remove('on'); }, bad ? 2600 : 1800); }
 
   /** 초록 = 자리까지 맞음 · 노랑 = 다른 자리에 있음 · 회색 = 없음 (같은 자모가 둘일 때는 정답에 있는 개수만큼만) */
   function score(guess, ans) {
@@ -205,12 +211,13 @@
     }).join('') : '<div class="empty">아직 기록이 없어요. 오늘 문제부터 풀어 보세요!</div>') + '</div>';
     return h;
   }
+  function subText() { return view === 'play' ? '오늘 #' + (GM.play ? GM.play.no + 1 : '') : view === 'prac' ? '기록 없는 연습 판' : '지난 판 · 연속'; }
   function render(pop) {
-    $('acct').textContent = nick() || '로그인'; $('acct').classList.toggle('on', !!nick());
-    [].forEach.call($('tabs').querySelectorAll('button'), function (b) { b.classList.toggle('on', b.getAttribute('data-v') === view); });
-    if (!ready) { $('view').innerHTML = '<div class="card"><div class="empty">⏳ 단어를 불러오는 중…</div></div>'; return; }
-    $('view').innerHTML = view === 'hist' ? histHTML() : gameHTML(view);
-    $('sub').textContent = view === 'play' ? '오늘 #' + (GM.play.no + 1) : view === 'prac' ? '기록 없는 연습 판' : '지난 판 · 연속';
+    if (!host) return;
+    if (opt.onHead) opt.onHead(nick(), ready ? subText() : '');
+    var tabs = '<nav class="seg kdtabs" id="kdtabs">' + [['play', '🎯 오늘 꼬들'], ['prac', '🌱 연습'], ['hist', '📜 꼬들 기록']].map(function (t) { return '<button type="button" data-kv="' + t[0] + '"' + (t[0] === view ? ' class="on"' : '') + '>' + t[1] + '</button>'; }).join('') + '</nav>';
+    if (!ready) { host.innerHTML = tabs + '<div class="card"><div class="empty">' + (loadErr ? '단어 목록을 불러오지 못했어요. 새로고침해 주세요' : '⏳ 단어를 불러오는 중…') + '</div></div>'; return; }
+    host.innerHTML = tabs + (view === 'hist' ? histHTML() : gameHTML(view));
     wire();
   }
   function msg(t, bad) { var e = $('msg'); if (e) { e.textContent = t || ''; e.className = 'kmsg' + (bad ? ' bad' : ''); } }
@@ -221,7 +228,7 @@
     var g = $('goPrac'); if (g) g.onclick = function () { go('prac'); };
     ['bnLogin', 'resLogin'].forEach(function (id) { var b = $(id); if (b) b.onclick = function (e) { e.preventDefault(); startLogin(); }; });
   }
-  function go(v) { view = v; try { history.replaceState(null, '', '#' + v); } catch (e) {} render(); }
+  function go(v) { view = v; if (opt.standalone) { try { history.replaceState(null, '', '#' + v); } catch (e) {} } render(); }
 
   /* ── 입력 ── */
   function press(k) {
@@ -245,10 +252,13 @@
 
   /* ── 창 ── */
   function openModal(html) {
-    $('modal').innerHTML = '<div class="mbg" id="mbg"><div class="sheet" role="dialog" aria-modal="true" tabindex="-1"><button type="button" class="x" data-x aria-label="닫기">✕</button>' + html + '</div></div>';
-    modalOpen = true; var m = $('mbg'); m.addEventListener('click', function (e) { if (e.target === m || e.target.closest('[data-x]')) closeModal(); });
+    closeModal();
+    var d = document.createElement('div'); d.id = 'kdModal';
+    d.innerHTML = '<div class="mbg" id="kdMbg"><div class="sheet" role="dialog" aria-modal="true" tabindex="-1"><button type="button" class="x" data-x aria-label="닫기">✕</button>' + html + '</div></div>';
+    document.body.appendChild(d); modalOpen = true;
+    d.addEventListener('click', function (e) { if (e.target.id === 'kdMbg' || e.target.closest('[data-x]')) closeModal(); });
   }
-  function closeModal() { $('modal').innerHTML = ''; modalOpen = false; }
+  function closeModal() { var d = document.getElementById('kdModal'); if (d && d.parentNode) d.parentNode.removeChild(d); modalOpen = false; }
   function help() {
     openModal('<h2>🟩 꼬들 하는 법</h2><p>정답은 <b>자모 6개</b>로 이루어진 단어예요. <b>6번 안에</b> 맞혀 보세요. 자모 키보드로 6칸을 채우고 <b>입력</b>을 누르면 색깔로 알려 줘요.</p>' +
       '<p>🟩 자모와 자리가 모두 맞음<br>🟨 자모는 있지만 다른 자리<br>⬛ 정답에 없음</p>' +
@@ -258,22 +268,44 @@
   }
 
   /* ── 시작 ── */
-  $('tabs').addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) go(b.getAttribute('data-v')); });
-  $('view').addEventListener('click', function (e) { var b = e.target.closest('[data-k]'); if (b) press(b.getAttribute('data-k')); });
-  $('helpBtn').onclick = help;
-  $('back').onclick = function () { location.href = '../'; };
-  $('acct').onclick = function () { if (!session()) startLogin(); else toast((nick() || '로그인됨') + ' 님'); };
-  document.addEventListener('keydown', function (e) {
-    if (e.ctrlKey || e.metaKey || e.altKey) return;
-    if (e.key === 'Enter') { e.preventDefault(); press('Enter'); } else if (e.key === 'Backspace') { e.preventDefault(); press('Back'); } else if (PHYS[e.code]) { e.preventDefault(); press(PHYS[e.code]); }
-  });
-  var h0 = (location.hash || '').slice(1); if (h0 === 'prac' || h0 === 'hist') view = h0;
-  render();
-  fetch('words.txt?v=' + VER).then(function (r) { return r.text(); }).then(function (t) {
-    var L = t.split('\n'); A = L[0].trim().split(' ').filter(Boolean);
-    L[1].trim().split(' ').forEach(function (w) { var j = w && jamo(w); if (j && j.length === LEN) G[j] = 1; });
-    GM.play = newGame(false); GM.prac = newGame(true); ready = true; render();
-    if (!load(KHELP)) help();
-    srvToday().then(function () { render(); });
-  }).catch(function () { $('view').innerHTML = '<div class="card"><div class="empty">단어 목록을 불러오지 못했어요. 새로고침해 주세요</div></div>'; });
+  var loadErr = false;
+  function onHostClick(e) {
+    var k = e.target.closest('[data-k]'); if (k) return press(k.getAttribute('data-k'));
+    var v = e.target.closest('[data-kv]'); if (v) go(v.getAttribute('data-kv'));
+  }
+  function loadWords() {
+    if (loading || ready) return; loading = true;
+    fetch(BASE + 'words.txt?v=' + VER).then(function (r) { return r.text(); }).then(function (t) {
+      var L = t.split('\n'); A = L[0].trim().split(' ').filter(Boolean);
+      L[1].trim().split(' ').forEach(function (w) { var j = w && jamo(w); if (j && j.length === LEN) G[j] = 1; });
+      GM.play = newGame(false); GM.prac = newGame(true); ready = true; loading = false; render();
+      if (!load(KHELP)) help();
+      srvToday().then(function () { render(); });
+    }).catch(function () { loading = false; loadErr = true; render(); });
+  }
+  if (!kbound) {
+    kbound = true;
+    document.addEventListener('keydown', function (e) {
+      if (!host || !host.isConnected || e.ctrlKey || e.metaKey || e.altKey) return;
+      var t = e.target; if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+      if (e.key === 'Enter') { e.preventDefault(); press('Enter'); } else if (e.key === 'Backspace') { e.preventDefault(); press('Back'); } else if (PHYS[e.code]) { e.preventDefault(); press(PHYS[e.code]); }
+    });
+  }
+  /** 칸(host)에 꼬들을 그림. opt: standalone(자기 페이지) · onHead(닉네임, 부제) · toast(글, 오류?) · view('play' | 'prac' | 'hist') */
+  function mount(h, o) {
+    host = h; opt = o || {}; modalOpen = false; closeModal();
+    if (opt.view) view = opt.view;
+    host.addEventListener('click', onHostClick);
+    render(); loadWords();
+    if (ready && token()) srvToday().then(function () { render(); });
+  }
+  window.JMB_KODLE = { mount: mount, help: help, go: go, version: VER };
+  var own = document.getElementById('kodleHost');
+  if (own) {   // 꼬들 자기 페이지: 머리줄 버튼을 여기서 연결
+    var h0 = (location.hash || '').slice(1);
+    mount(own, { standalone: true, view: h0 === 'prac' || h0 === 'hist' ? h0 : 'play', onHead: function (nk, sub) { var a = document.getElementById('acct'), b = document.getElementById('sub'); if (a) { a.textContent = nk || '로그인'; a.classList.toggle('on', !!nk); } if (b && sub) b.textContent = sub; } });
+    document.getElementById('helpBtn').onclick = help;
+    document.getElementById('back').onclick = function () { location.href = '../'; };
+    document.getElementById('acct').onclick = function () { if (!session()) startLogin(); else toast((nick() || '로그인됨') + ' 님'); };
+  }
 })();
