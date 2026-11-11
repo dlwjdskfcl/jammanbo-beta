@@ -6,11 +6,11 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; base-uri 'self'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>잠만보 꼬들</title>
-<meta name="description" content="매일 하나, 두 글자 단어를 자모 색깔로 맞히는 단어 게임">
+<meta name="description" content="매일 하나, 6개 자모로 이루어진 단어를 색깔로 맞히는 단어 게임">
 <meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0e1014" media="(prefers-color-scheme: dark)">
 <link rel="icon" type="image/png" href="../icon-192.png">
-<link rel="stylesheet" href="style.css?v=1.0.0">
+<link rel="stylesheet" href="style.css?v=1.1.0">
 </head>
 <body>
 <div id="app">
@@ -22,11 +22,7 @@
   <main>
     <div id="board" aria-live="polite"></div>
     <div id="msg" class="msg"></div>
-    <form id="form" autocomplete="off">
-      <input id="inp" type="text" inputmode="text" lang="ko" maxlength="2" placeholder="두 글자 단어" aria-label="두 글자 단어 입력" autocapitalize="off" autocorrect="off" spellcheck="false">
-      <button type="submit" class="btn pri" id="go">입력</button>
-    </form>
-    <div id="keys" aria-hidden="true"></div>
+    <div id="keys"></div>
     <div id="end" class="end"></div>
     <div class="links">
       <button type="button" class="btn" id="practice">🎲 연습 한 판</button>
@@ -35,6 +31,6 @@
   </main>
 </div>
 <div id="modal" class="modal"><div class="box" id="box"></div></div>
-<script src="app.js?v=1.0.0"></script>
+<script src="app.js?v=1.1.0"></script>
 </body>
 </html>
