@@ -1,9 +1,9 @@
-/* 잠만보 꼬들 1.3.0 — 원작 꼬들 규칙: 정답은 기본 자모 24개(자음 14 · 모음 10)로 풀어 쓴 6칸짜리 단어, 6번 안에 자모 키보드로 입력.
+/* 잠만보 꼬들 1.4.0 — 원작 꼬들 규칙: 정답은 기본 자모 24개(자음 14 · 모음 10)로 풀어 쓴 6칸짜리 단어, 6번 안에 자모 키보드로 입력.
  * ㄲ→ㄱㄱ · ㅐ→ㅏㅣ · ㅘ→ㅗㅏ · 겹받침→둘 처럼 기본 자모로 풀어서 셈. 화면은 꼬맨틀과 같은 머리줄 · 탭 · 카드.
- * 지금은 서버 없이 이 기기에서만 돌아감 — 기록 · 연속 · 지난 판 로그는 기기에 저장 (꼬맨틀 점수 연동은 별도 협의). */
+ * 오늘 문제는 카카오 로그인한 회원이면 서버(Kodle.js)에 기록돼 점수가 꼬맨틀 주간 · 시즌 · 누적 점수에 더해짐 (정답은 서버가 확인). 연습 판 · 로그인 안 한 판은 이 기기에만 저장. */
 (function () {
   'use strict';
-  var VER = '1.3.0', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 11), LOGMAX = 400;
+  var VER = '1.4.0', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 11), LOGMAX = 400;
   var CFG = window.JMB_CONFIG || {}, ENV = CFG.env || 'prod', SFX = ENV !== 'prod' ? '_' + ENV : '';
   var KEY = 'jmb_kodle_v1' + SFX, KLOG = 'jmb_kodle_log' + SFX, KST = 'jmb_kodle_st' + SFX, KHELP = 'jmb_kodle_help', KAUTH = 'jmb_kakao_v2' + SFX;
   var CH = ['ㄱ', 'ㄱㄱ', 'ㄴ', 'ㄷ', 'ㄷㄷ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅂㅂ', 'ㅅ', 'ㅅㅅ', 'ㅇ', 'ㅈ', 'ㅈㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
@@ -13,7 +13,9 @@
   var EXP = { 'ㄲ': 'ㄱㄱ', 'ㄸ': 'ㄷㄷ', 'ㅃ': 'ㅂㅂ', 'ㅆ': 'ㅅㅅ', 'ㅉ': 'ㅈㅈ', 'ㅐ': 'ㅏㅣ', 'ㅒ': 'ㅑㅣ', 'ㅔ': 'ㅓㅣ', 'ㅖ': 'ㅕㅣ' };
   var PHYS = { KeyQ: 'ㅂ', KeyW: 'ㅈ', KeyE: 'ㄷ', KeyR: 'ㄱ', KeyT: 'ㅅ', KeyY: 'ㅛ', KeyU: 'ㅕ', KeyI: 'ㅑ', KeyA: 'ㅁ', KeyS: 'ㄴ', KeyD: 'ㅇ', KeyF: 'ㄹ', KeyG: 'ㅎ', KeyH: 'ㅗ', KeyJ: 'ㅓ', KeyK: 'ㅏ', KeyL: 'ㅣ', KeyZ: 'ㅋ', KeyX: 'ㅌ', KeyC: 'ㅊ', KeyV: 'ㅍ', KeyB: 'ㅠ', KeyN: 'ㅜ', KeyM: 'ㅡ' };
   var $ = function (id) { return document.getElementById(id); };
+  var API = CFG.api || '', ROOT = (function () { var seg = location.pathname.split('/')[1] || ''; return /\.github\.io$/.test(location.hostname) && seg ? '/' + seg + '/' : '/'; })();
   var A = [], G = {}, ready = false, view = 'play', modalOpen = false;
+  var SV = { today: null, ok: false, nonce: '', starting: null, sending: false, res: null, err: '' };   // 서버 상태: today = kodleToday 응답 · ok = 정답 목록이 서버와 같음 · res = 방금 낸 결과(서버 확정값)
   var GM = { play: null, prac: null };   // 오늘 판 · 연습 판 (탭을 오가도 유지)
   var CUR = { play: '', prac: '' };       // 입력 중인 자모
 
@@ -33,7 +35,23 @@
   function load(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } }
   function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
   function stats() { return load(KST) || { played: 0, wins: 0, streak: 0, best: 0, dist: [0, 0, 0, 0, 0, 0], last: '' }; }
+  function session() { var s = load(KAUTH); return s && s.token ? s : null; }
+  function token() { var s = session(); return s ? s.token : ''; }
   function nick() { var a = load(KAUTH); return a && a.user && a.user.nickname ? String(a.user.nickname) : ''; }
+  function api(fn, args) {
+    if (!API) return Promise.reject(new Error('설정 파일(config.js)을 읽지 못했어요'));
+    var ctl = typeof AbortController === 'function' ? new AbortController() : null, timer = ctl ? setTimeout(function () { ctl.abort(); }, 25000) : 0;
+    return fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, cache: 'no-store', signal: ctl ? ctl.signal : undefined, body: JSON.stringify({ fn: fn, args: args || [], env: ENV !== 'prod' ? 'beta' : undefined }) })
+      .then(function (r) { if (!r.ok) throw new Error('서버 응답 오류 (' + r.status + ')'); return r.json(); })
+      .then(function (j) { clearTimeout(timer); if (!j || !j.ok) { var er = new Error((j && j.e) || '알 수 없는 오류'); er.server = true; throw er; } return j.r; }, function (e) { clearTimeout(timer); throw e; });
+  }
+  function startLogin() {
+    if (!CFG.kakaoRestKey) return toast('카카오 로그인 설정을 찾지 못했어요', true);
+    var st; try { st = [].slice.call(crypto.getRandomValues(new Uint32Array(4))).join(''); } catch (e) { st = String(Math.random()).slice(2) + Date.now(); }
+    try { localStorage.setItem('jmb_kakao_state' + SFX, JSON.stringify({ s: st, t: Date.now() })); sessionStorage.setItem('jmb_after_login', location.pathname); } catch (e) {}
+    location.href = 'https://kauth.kakao.com/oauth/authorize?client_id=' + encodeURIComponent(CFG.kakaoRestKey) + '&redirect_uri=' + encodeURIComponent(location.origin + ROOT) + '&response_type=code&state=' + encodeURIComponent(st);
+  }
+  function listKey() { return A.length + ':' + A.slice(0, 3).join(''); }
   var toastT = 0;
   function toast(t, bad) { var e = $('toast'); e.textContent = t; e.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(function () { e.classList.remove('on'); }, bad ? 2600 : 1800); }
 
@@ -66,9 +84,46 @@
   function finish(m, win) {
     m.done = true; m.win = win; logPlay(m);
     if (m.prac) return;
+    persist(m); srvSubmit(m);
     var st = stats(); st.played++;
     if (win) { st.wins++; st.dist[m.guesses.length - 1]++; st.streak = st.last === dayOf(-1) ? st.streak + 1 : 1; st.best = Math.max(st.best, st.streak); st.last = m.day; } else st.streak = 0;
     save(KST, st);
+  }
+
+  /* ── 서버 연동 (로그인한 회원 · 오늘 문제만) ── */
+  function srvOn() { return !!token() && SV.ok !== false; }
+  function srvToday() {
+    if (!token()) return Promise.resolve();
+    return api('kodleToday', [token()]).then(function (r) {
+      if (r.loginRequired) { SV.today = null; return; }
+      SV.today = r; SV.ok = r.ak === listKey(); SV.err = SV.ok ? '' : 'list';
+      if (SV.ok && ready) reconcile(r);
+    }).catch(function (e) { SV.err = e.message; });
+  }
+  /** 서버에 있는 오늘 판과 이 기기의 판을 맞춤: 다른 기기에서 끝냈거나 더 진행했으면 그쪽을 따름, 이 기기에서 끝났는데 서버에 없으면 보냄 */
+  function reconcile(r) {
+    var m = GM.play, my = r.my || {}, g = my.g ? my.g.split('|').filter(Boolean) : [];
+    if (my.state === '완료') {
+      if (!m.done || m.guesses.length !== g.length) { m.guesses = g; m.done = true; m.win = my.result === '정답'; persist(m); }
+      SV.res = { win: m.win, guesses: my.guesses, points: my.points, streak: my.streak, parts: my.parts, final: true };
+    } else if (m.done && my.state === '진행중' && !SV.sending && !SV.res) srvSubmit(m);   // 이 기기에서 끝났는데 서버에는 진행 중으로 남아 있으면 다시 보냄
+    else if (m.done && my.state === 'ready' && !SV.res) SV.res = { failed: true, msg: '로그인하기 전에 푼 판이라 점수에는 안 들어가요' };
+    else if (my.state === '진행중' && !m.done && g.length > m.guesses.length) { m.guesses = g; persist(m); }
+    render();
+  }
+  function ensureStarted() {
+    if (SV.nonce) return Promise.resolve(SV.nonce);
+    if (!SV.starting) SV.starting = api('kodleStart', [token()]).then(function (r) { SV.nonce = r.nonce; return r.nonce; }, function (e) { SV.starting = null; throw e; });
+    return SV.starting;
+  }
+  function srvSave(m) { if (m.prac || !srvOn()) return; ensureStarted().then(function (n) { return api('kodleSave', [token(), n, m.guesses.join('|')]); }).catch(function () {}); }
+  function srvSubmit(m) {
+    if (m.prac || !srvOn()) return;
+    SV.sending = true; render();
+    ensureStarted().then(function (n) { return api('kodleSubmit', [token(), n, { win: m.win, g: m.guesses }]); }).then(function (r) {
+      SV.sending = false; SV.res = { win: r.win, guesses: r.guesses, points: r.points, streak: r.streak, parts: r.parts, final: true }; SV.err = '';
+      srvToday().then(function () { render(); }); render();
+    }, function (e) { SV.sending = false; SV.res = { failed: true, msg: e.message }; render(); });
   }
 
   /* ── 화면 ── */
@@ -95,26 +150,58 @@
       return '<div class="kr">' + (i === 3 ? '<button type="button" class="w pri" data-k="Enter">입력</button>' : '') + row.split('').map(function (c) { return '<button type="button" class="' + (keySt(c, st) || '') + '" data-k="' + c + '">' + c + '</button>'; }).join('') + (i === 3 ? '<button type="button" class="w" data-k="Back">⌫</button>' : '') + '</div>';
     }).join('') + '</div>';
   }
+  /** 오늘 판 점수 칸: 서버가 확정한 값 · 확정 전에는 잠정(기본 점수만) · 로그인 안 했으면 안내 */
+  function scoreHTML(m) {
+    if (!token()) return '<p class="hint">로그인하면 이 결과가 꼬맨틀 순위 점수에 합산돼요. <a href="#" id="resLogin">카카오 로그인</a></p>';
+    if (SV.err === 'list') return '<p class="hint">⚠️ 점수 연동 점검 중이라 이번 판은 이 기기에만 기록돼요.</p>';
+    var r = SV.res;
+    if (r && r.failed) return '<p class="hint">⚠️ 점수 저장에 실패했어요 (' + esc(r.msg) + '). 이 기기에는 기록돼 있어요.</p>';
+    if (r && r.final) {
+      if (!r.win) return '<p class="hint">0점 — 내일 다시 도전! (기록은 서버에 저장됐어요)</p>';
+      var p = r.parts || {};
+      return '<div class="pts">+' + r.points + '점</div><div class="parts"><span class="chip">기본 <b>' + (p.base != null ? p.base : r.points) + '</b></span>' + (p.streak ? '<span class="chip">🔥 ' + r.streak + '일 연속 <b>+' + p.streak + '</b></span>' : '') + '</div><p class="hint">꼬맨틀 주간 · 시즌 점수에 합산돼요</p>';
+    }
+    var base = m.win ? Math.max(40, 100 - 10 * (m.guesses.length - 1)) : 0;
+    return m.win ? '<div class="pts">+' + base + '점 <small>(잠정)</small></div><div class="parts"><span class="chip">기록 확인 중…</span></div>' : '<p class="hint">기록 확인 중…</p>';
+  }
+  function bannerHTML() {
+    if (!token()) return '<div class="note">🔑 로그인하면 꼬들 점수가 <b>꼬맨틀 순위</b>에 합산돼요. <button type="button" class="btn sm pri" id="bnLogin">카카오 로그인</button></div>';
+    if (SV.err === 'list') return '<div class="note warn">⚠️ 점수 연동을 점검 중이에요. 풀 수는 있지만 이번 판은 기록되지 않아요.</div>';
+    if (SV.today && SV.today.semDone === false && !GM.play.done) return '<div class="note">🔤 코스: <b>오늘 꼬맨틀 → 꼬들</b>. 꼬들 점수도 꼬맨틀 점수에 더해져요. <a class="btn sm" href="../semantle/">꼬맨틀 하러 가기</a></div>';
+    return '';
+  }
   function resultHTML(m) {
     if (!m.done) return '';
     return '<div class="card kres"><div class="em">' + (m.win ? '🎉' : '😵') + '</div><h2>' + (m.win ? '정답이에요!' : '아쉬워요') + '</h2>' +
       '<p class="ans">' + (m.win ? '<b>' + esc(m.aw) + '</b> — ' + m.guesses.length + '번 만에 맞혔어요' : '정답은 <b>' + esc(m.aw) + '</b> 였어요') + ' <small>(' + m.ans.split('').join(' ') + ')</small>' + (m.prac ? ' <small>· 연습(기록 없음)</small>' : '') + '</p>' +
-      '<pre>' + grid(m) + '</pre><div class="btns"><button type="button" class="btn pri" id="share">결과 복사</button>' +
+      (m.prac ? '' : scoreHTML(m)) + '<pre>' + grid(m) + '</pre><div class="btns"><button type="button" class="btn pri" id="share">결과 복사</button>' +
       (m.prac ? '<button type="button" class="btn" id="pracNext">🔁 다른 문제로 연습</button>' : '<button type="button" class="btn" id="goPrac">🌱 연습 한 판</button><a class="btn" href="../semantle/">🔤 꼬맨틀 하러 가기</a>') + '</div>' +
       (m.prac ? '' : '<p class="hint" style="text-align:center">다음 문제는 내일 00:00에 열려요</p>') + '</div>';
   }
   function gameHTML(which) {
     var m = GM[which];
-    return '<div class="card kd"><h3>' + (which === 'play' ? '오늘의 꼬들 <span class="tag">#' + (m.no + 1) + '</span>' : '연습 문제 <span class="tag">기록 없음</span>') + '<span class="sp"></span><small>' + m.guesses.length + '/' + TRIES + '</small></h3>' +
+    return (which === 'play' ? bannerHTML() : '') + '<div class="card kd"><h3>' + (which === 'play' ? '오늘의 꼬들 <span class="tag">#' + (m.no + 1) + '</span>' : '연습 문제 <span class="tag">기록 없음</span>') + '<span class="sp"></span><small>' + m.guesses.length + '/' + TRIES + '</small></h3>' +
       boardHTML(m, CUR[which], false) + '<div class="kmsg" id="msg"></div>' + keysHTML(m) + '</div>' + resultHTML(m);
   }
+  /** 지난 판 목록: 서버(오늘 문제 기록) + 이 기기 로그(연습 포함)를 합쳐 최근순 */
+  function rowsAll() {
+    var L = (load(KLOG) || []).map(function (x) { return { day: x.day, no: x.no, prac: x.prac, win: x.win, n: x.n, sec: x.sec, aw: x.aw, g: x.g, pts: null, at: x.at }; });
+    var H = SV.today && SV.today.history ? SV.today.history : null;
+    if (!H) return L;
+    var have = {}; H.forEach(function (x) { have[x.day] = 1; });
+    var out = H.map(function (x) { return { day: x.day, no: x.no, prac: 0, win: x.win, n: x.n, sec: x.sec, aw: x.aw, g: x.g, pts: x.points, at: 0 }; });
+    L.forEach(function (x) { if (x.prac || !have[x.day]) out.push(x); });
+    return out.sort(function (a, b) { return a.day < b.day ? 1 : a.day > b.day ? -1 : (b.at || 0) - (a.at || 0); });
+  }
   function histHTML() {
-    var st = stats(), mx = Math.max.apply(null, st.dist.concat(1)), L = load(KLOG) || [];
-    var h = '<div class="card"><h3>📊 내 꼬들 기록 <small>이 기기 기준</small></h3><div class="stats4"><div><b>' + st.played + '</b><span>플레이</span></div><div><b>' + (st.played ? Math.round(st.wins / st.played * 100) : 0) + '%</b><span>정답률</span></div><div><b>' + st.streak + '</b><span>연속</span></div><div><b>' + st.best + '</b><span>최고 연속</span></div></div>' +
+    var sv = SV.today && SV.today.stats, st = sv ? { played: sv.plays, wins: sv.wins, streak: sv.streak, best: sv.best, dist: sv.dist } : stats(), mx = Math.max.apply(null, st.dist.concat(1)), RA = rowsAll(), h = '';
+    if (sv) h += '<div class="card"><h3>🏆 꼬들 점수 <small>꼬맨틀 순위에 합산</small></h3><div class="stats4"><div><b>' + sv.points + '</b><span>누적</span></div><div><b>' + sv.week + '</b><span>이번 주</span></div><div><b>' + sv.season + '</b><span>이번 시즌</span></div><div><b>' + sv.avg + '</b><span>평균 추측</span></div></div></div>';
+    else if (!token()) h += '<div class="note">🔑 로그인하면 점수 · 기록이 서버에 저장돼 기기를 바꿔도 이어져요. <button type="button" class="btn sm pri" id="bnLogin">카카오 로그인</button></div>';
+    h += '<div class="card"><h3>📊 내 꼬들 기록 <small>' + (sv ? '서버 기준' : '이 기기 기준') + '</small></h3><div class="stats4"><div><b>' + st.played + '</b><span>플레이</span></div><div><b>' + (st.played ? Math.round(st.wins / st.played * 100) : 0) + '%</b><span>정답률</span></div><div><b>' + st.streak + '</b><span>연속</span></div><div><b>' + st.best + '</b><span>최고 연속</span></div></div>' +
       '<div class="dist">' + st.dist.map(function (n, i) { return '<div><span style="width:14px">' + (i + 1) + '</span><i style="width:' + Math.max(8, n / mx * 100) + '%">' + n + '</i></div>'; }).join('') + '</div></div>';
-    h += '<div class="card"><h3>📜 지난 판 <small>최근 ' + Math.min(L.length, 50) + '개</small></h3>' + (L.length ? L.slice(0, 50).map(function (x) {
-      var pre = (x.g || []).map(function (w) { var a = jamo(x.aw); return a ? score(w, a).map(function (c) { return c === 'g' ? '🟩' : c === 'y' ? '🟨' : '⬛'; }).join('') : ''; }).join('\n');
-      return '<details class="hc"><summary><span>' + (x.win ? '🎉' : '😵') + '</span><span>' + esc(x.day.slice(5)) + (x.prac ? ' 연습' : ' #' + (x.no + 1)) + '</span><b>' + esc(x.aw) + '</b><small>' + (x.win ? x.n + '번' : '실패') + (x.sec ? ' · ' + x.sec + '초' : '') + '</small></summary><pre>' + pre + '</pre></details>';
+    h += '<div class="card"><h3>📜 지난 판 <small>최근 ' + Math.min(RA.length, 50) + '개</small></h3>' + (RA.length ? RA.slice(0, 50).map(function (x) {
+      var pre = (typeof x.g === 'string' ? x.g.split('|').filter(Boolean) : x.g || []).map(function (w) { var a = jamo(x.aw); return a ? score(w, a).map(function (c) { return c === 'g' ? '🟩' : c === 'y' ? '🟨' : '⬛'; }).join('') : ''; }).join('\n');
+      return '<details class="hc"><summary><span>' + (x.win ? '🎉' : '😵') + '</span><span>' + esc(x.day.slice(5)) + (x.prac ? ' 연습' : ' #' + (x.no + 1)) + '</span><b>' + esc(x.aw) + '</b><small>' + (x.win ? x.n + '번' : '실패') + (x.win && x.pts != null ? ' · +' + x.pts + '점' : '') + (x.sec ? ' · ' + x.sec + '초' : '') + '</small></summary><pre>' + pre + '</pre></details>';
     }).join('') : '<div class="empty">아직 기록이 없어요. 오늘 문제부터 풀어 보세요!</div>') + '</div>';
     return h;
   }
@@ -132,6 +219,7 @@
     var s = $('share'); if (s) s.onclick = function () { var t = shareText(GM[view]); (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(function () { toast('결과를 복사했어요'); }, function () { toast('복사하지 못했어요', true); }); };
     var p = $('pracNext'); if (p) p.onclick = function () { GM.prac = newGame(true); CUR.prac = ''; render(); };
     var g = $('goPrac'); if (g) g.onclick = function () { go('prac'); };
+    ['bnLogin', 'resLogin'].forEach(function (id) { var b = $(id); if (b) b.onclick = function (e) { e.preventDefault(); startLogin(); }; });
   }
   function go(v) { view = v; try { history.replaceState(null, '', '#' + v); } catch (e) {} render(); }
 
@@ -147,7 +235,8 @@
       if (m.guesses.indexOf(cur) >= 0) { msg('이미 쓴 단어예요', true); return shake(m); }
       if (!m.t0) m.t0 = Date.now();
       m.guesses.push(cur); CUR[view] = '';
-      if (cur === m.ans) finish(m, true); else if (m.guesses.length >= TRIES) finish(m, false);
+      if (!m.prac && srvOn()) ensureStarted().catch(function () {});   // 첫 추측 때 서버 기록을 시작 (시작 시각 = 첫 추측)
+      if (cur === m.ans) finish(m, true); else if (m.guesses.length >= TRIES) finish(m, false); else srvSave(m);
       persist(m); return render(true);
     }
     var add = EXP[k] || k;
@@ -173,7 +262,7 @@
   $('view').addEventListener('click', function (e) { var b = e.target.closest('[data-k]'); if (b) press(b.getAttribute('data-k')); });
   $('helpBtn').onclick = help;
   $('back').onclick = function () { location.href = '../'; };
-  $('acct').onclick = function () { if (!nick()) location.href = '../semantle/'; else toast(nick() + ' 님'); };
+  $('acct').onclick = function () { if (!session()) startLogin(); else toast((nick() || '로그인됨') + ' 님'); };
   document.addEventListener('keydown', function (e) {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key === 'Enter') { e.preventDefault(); press('Enter'); } else if (e.key === 'Backspace') { e.preventDefault(); press('Back'); } else if (PHYS[e.code]) { e.preventDefault(); press(PHYS[e.code]); }
@@ -185,5 +274,6 @@
     L[1].trim().split(' ').forEach(function (w) { var j = w && jamo(w); if (j && j.length === LEN) G[j] = 1; });
     GM.play = newGame(false); GM.prac = newGame(true); ready = true; render();
     if (!load(KHELP)) help();
+    srvToday().then(function () { render(); });
   }).catch(function () { $('view').innerHTML = '<div class="card"><div class="empty">단어 목록을 불러오지 못했어요. 새로고침해 주세요</div></div>'; });
 })();
