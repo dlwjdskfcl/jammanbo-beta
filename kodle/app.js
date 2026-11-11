@@ -4,7 +4,7 @@
  * 오늘 문제는 카카오 로그인한 회원이면 서버(Kodle.js)에 기록돼 점수가 꼬맨틀 주간 · 시즌 · 누적 점수에 더해짐 (정답은 서버가 확인). 연습 판 · 로그인 안 한 판은 이 기기에만 저장. */
 (function () {
   'use strict';
-  var VER = '1.9.0', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 12), LOGMAX = 400;
+  var VER = '1.10.0', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 12), LOGMAX = 400;
   var CFG = window.JMB_CONFIG || {}, ENV = CFG.env || 'prod', SFX = ENV !== 'prod' ? '_' + ENV : '';
   var KEY = 'jmb_kodle_v1' + SFX, KLOG = 'jmb_kodle_log' + SFX, KST = 'jmb_kodle_st' + SFX, KHELP = 'jmb_kodle_help', KAUTH = 'jmb_kakao_v2' + SFX;
   var CH = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
@@ -260,14 +260,22 @@
   function go(v) { view = v; if (opt.standalone) { try { history.replaceState(null, '', '#' + v); } catch (e) {} } render(); }
 
   /* ── 입력 ── */
+  /** 입력 중인 줄의 칸만 갱신 (카드 전체를 다시 그리지 않음 — 키를 누를 때마다 가장 자주 도는 길이라 가볍게) */
+  function paintCur(m) {
+    var r = $('r' + m.guesses.length); if (!r) return render();
+    var cur = CUR[view], cs = r.children;
+    for (var i = 0; i < LEN; i++) { var ch = cur.charAt(i); if (cs[i].textContent !== ch) { cs[i].textContent = ch; cs[i].className = 'c' + (ch ? ' f' : ''); } }
+    msg('');
+  }
   function press(k) {
     if (!ready || modalOpen || (view !== 'play' && view !== 'prac')) return;
     var m = GM[view]; if (m.done) return;
     var cur = CUR[view];
     if (k === 'Shift') { shift = !shift; return render(); }
-    if (k === 'Back') { CUR[view] = cur.slice(0, -1); return render(); }
+    if (k === 'Back') { CUR[view] = cur.slice(0, -1); return paintCur(m); }
     if (k === 'Enter') {
       if (cur.length < LEN) { msg('자모 6개를 모두 넣어 주세요', true); return shake(m); }
+      ensureG();
       if (!G[cur]) { msg('목록에 없는 단어예요', true); return shake(m); }
       if (m.guesses.indexOf(cur) >= 0) { msg('이미 쓴 단어예요', true); return shake(m); }
       if (!m.t0) m.t0 = Date.now();
@@ -277,7 +285,7 @@
       persist(m); return render(true);
     }
     var add = k; shift = false;
-    if (cur.length + add.length <= LEN) { if (!m.t0 && !m.guesses.length) m.t0 = Date.now(); CUR[view] = cur + add; render(); } else render();
+    if (cur.length + add.length <= LEN) { if (!m.t0 && !m.guesses.length) m.t0 = Date.now(); CUR[view] = cur + add; paintCur(m); }
   }
 
   /* ── 창 ── */
@@ -298,7 +306,14 @@
   }
 
   /* ── 시작 ── */
-  var loadErr = false;
+  var RAW = [], GI = 0, loadErr = false;
+  function buildSome(n) { var end = Math.min(RAW.length, GI + n); for (; GI < end; GI++) { var w = RAW[GI], j = w && jamo(w); if (j && j.length === LEN) G[j] = 1; } return GI >= RAW.length; }
+  function idleBuild() {
+    if (GI >= RAW.length) return;
+    var go = function () { buildSome(1500); if (GI < RAW.length) idleBuild(); };
+    if (window.requestIdleCallback) requestIdleCallback(go, { timeout: 800 }); else setTimeout(go, 30);
+  }
+  function ensureG() { if (GI < RAW.length) buildSome(RAW.length); }   // 입력 확인 때 아직이면 그 자리에서 마저
   function onHostClick(e) {
     var k = e.target.closest('[data-k]'); if (k) return press(k.getAttribute('data-k'));
     var v = e.target.closest('[data-kv]'); if (v) go(v.getAttribute('data-kv'));
@@ -307,7 +322,7 @@
     if (loading || ready) return; loading = true;
     fetch(BASE + 'words.txt?v=' + VER).then(function (r) { return r.text(); }).then(function (t) {
       var L = t.split('\n'); A = L[0].trim().split(' ').filter(Boolean);
-      L[1].trim().split(' ').forEach(function (w) { var j = w && jamo(w); if (j && j.length === LEN) G[j] = 1; });
+      RAW = L[1].trim().split(' '); GI = 0; idleBuild();   // 입력 가능 단어 집합은 한가할 때 조금씩 만듦 (처음 열 때 멈칫하지 않게)
       GM.play = newGame(false); GM.prac = newGame(true); ready = true; loading = false; render();
       if (!load(KHELP)) help();
       srvToday().then(function () { render(); });

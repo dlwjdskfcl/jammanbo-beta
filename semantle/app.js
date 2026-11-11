@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.17.0';
+  var VER = '1.17.1';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   function kstDay() { return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); }
@@ -583,7 +583,7 @@
   var kodleP = null;
   function loadKodle() {
     if (window.JMB_KODLE) return Promise.resolve();
-    if (!kodleP) kodleP = new Promise(function (res, rej) { var s = document.createElement('script'); s.src = '../kodle/app.js?v=1.9.0'; s.onload = res; s.onerror = function () { kodleP = null; rej(new Error('꼬들 파일을 못 받았어요')); }; document.head.appendChild(s); });
+    if (!kodleP) kodleP = new Promise(function (res, rej) { var s = document.createElement('script'); s.src = '../kodle/app.js?v=1.10.0'; s.onload = res; s.onerror = function () { kodleP = null; rej(new Error('꼬들 파일을 못 받았어요')); }; document.head.appendChild(s); });
     return kodleP;
   }
   /** 꼬들이 보이는 화면인가: 🟩 꼬들 탭, 또는 연습 · 내 기록 탭에서 '꼬들' 을 고른 경우 */
@@ -945,6 +945,7 @@
   /* (1.16.0) 꼬들: 위 탭 = 꼬맨틀 · 꼬들 · 연습 · 순위 · 내 기록. 연습 · 내 기록은 안에서 '꼬맨틀 | 꼬들' 을 고름 (꼬들은 한 화면에 다 들어오게) */
   if (KODLE_ON) {
     $('tabKodle').hidden = false; $('tabs').children[0].textContent = '🔤 꼬맨틀';
+    setTimeout(function () { (window.requestIdleCallback || setTimeout)(function () { loadKodle().catch(function () {}); }); }, 3000);   // 한가할 때 꼬들 코드를 미리 받아 둠 → 탭을 누르면 바로 열림
     var _rp = renderPrac, _rh = renderHist;
     renderPrac = function () { if (S.kSub.prac === 'kodle') renderKodle('prac'); else { _rp(); $('view').insertAdjacentHTML('afterbegin', segHTML('prac')); } };
     renderHist = function () { if (S.kSub.hist === 'kodle') renderKodle('hist'); else { _rh(); $('view').insertAdjacentHTML('afterbegin', segHTML('hist')); } };
