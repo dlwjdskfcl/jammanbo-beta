@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.21.0';
+  var VER = '1.21.1';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   function kstDay() { return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); }
@@ -138,7 +138,7 @@
     var h = '<table class="gt xlg"><thead><tr><th class="corner"></th>' + XCOL.map(function (c, i) { return '<th class="c' + i + (i === sel.c ? ' hl' : '') + '">' + c + '</th>'; }).join('') + '</tr></thead><tbody>';
     for (var r = 1; r <= NR; r++) {
       var o = r >= 2 ? sorted[r - 2] : null, cls = r === 1 ? 'xlt' : o ? (o.win ? 'win ' : '') + 't' + o.t + (o.h ? ' hintw' : '') : '';
-      var v = r === 1 ? ['#', '단어', '유사도', '순위'] : o ? [o.n, esc(o.w), f2(o.s), o.win ? '정답' : o.r ? o.r : ''] : ['', '', '', ''];
+      var v = r === 1 ? ['#', '단어', '유사도', '순위'] : o ? [o.n, esc(o.w), f2(o.s), o.win ? '정답' : o.r ? o.r : o.fr ? '≈' + fmtN(o.fr) : ''] : ['', '', '', ''];
       h += '<tr' + (o && lastO && o.w === lastO.w ? ' id="lastRow"' : '') + (cls ? ' class="' + cls + '"' : '') + '><td class="rn' + (sel.r === r ? ' hl' : '') + '">' + r + '</td>' +
         td(r, 0, 'n', v[0]) + td(r, 1, 'w', v[1]) + td(r, 2, 's', v[2]) + td(r, 3, 'r', v[3]) + td(r, 4, 'xe', '') + td(r, 5, 'xe', '') + '</tr>';
     }
@@ -284,6 +284,15 @@
   function guessWords() { return S.L.g.map(function (x) { return x.w; }); }
   function realCount() { return S.L.g.filter(function (x) { return !x.h; }).length; }
   function simOf(w) { return S.sims[S.idx.get(w)]; }
+  /** (1.21.1) 1000위 밖 단어의 대략적인 순위 — 정답과의 유사도가 이 단어보다 높은 단어 수 + 1 (표에 모든 단어 값이 있어 바로 셈. 값이 0.25 단위로 뭉쳐 있어 '약') */
+  var farMemo = {};
+  function farRank(w) {
+    var i = S.idx.get(w), sims = S.sims; if (i == null || !sims) return 0;
+    var key = S.ans + ':' + i; if (farMemo[key]) return farMemo[key];
+    var sv = sims[i], c = 0; for (var k = 0, n = sims.length; k < n; k++) if (sims[k] > sv) c++;
+    return (farMemo[key] = c + 1);
+  }
+  function fmtN(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
   function rankIn(w) { return S.rankOf.get(S.idx.get(w)) || 0; }
   function tier(w) {   // 0 얼음 · 1 차가움 · 2 미지근 · 3 따뜻 · 4 뜨거움 · 5 코앞 · 6 정답
     var i = S.idx.get(w); if (i === S.ans) return 6;
@@ -699,12 +708,12 @@
     return h;
   }
   function rows() {
-    var L = S.L, list = L.g.map(function (x, i) { return { w: x.w, n: i + 1, s: simOf(x.w), r: rankIn(x.w), h: x.h, t: tier(x.w), win: S.idx.get(x.w) === S.ans }; });
+    var L = S.L, list = L.g.map(function (x, i) { return { w: x.w, n: i + 1, s: simOf(x.w), r: rankIn(x.w), fr: rankIn(x.w) ? 0 : farRank(x.w), h: x.h, t: tier(x.w), win: S.idx.get(x.w) === S.ans }; });
     if (S.xl) return xlGrid(list);   // (1.10.0) 엑셀 모드는 진짜 격자
     var last = S.lastW ? list.filter(function (o) { return o.w === S.lastW; })[0] : null, rn = 1;
     function tr(o, cls) {
       var pct = Math.max(0, Math.min(100, o.s / (S.scale.r1 || 1) * 100));
-      var rk = o.win ? '정답!' : o.r ? '<div class="rbar"><em>' + o.r + '</em><i><b style="width:' + Math.max(4, (TOPN - o.r + 1) / TOPN * 100) + '%"></b></i></div>' : '<span class="sub">' + (S.xl ? '-' : '1000위 밖') + '</span>';
+      var rk = o.win ? '정답!' : o.r ? '<div class="rbar"><em>' + o.r + '</em><i><b style="width:' + Math.max(4, (TOPN - o.r + 1) / TOPN * 100) + '%"></b></i></div>' : '<span class="sub">' + (o.fr ? '약 ' + fmtN(o.fr) + '위' : S.xl ? '-' : '1000위 밖') + '</span>';
       return '<tr' + (cls.indexOf('last') >= 0 ? ' id="lastRow"' : '') + ' class="' + cls + ' t' + o.t + (o.h ? ' hintw' : '') + '">' + (S.xl ? '<td class="rn">' + (++rn) + '</td>' : '') + '<td class="n">' + o.n + '</td><td class="w">' + (S.xl ? '' : '<span class="te">' + TIER[o.t].e + '</span>') + esc(o.w) + '</td><td class="s">' + f2(o.s) + '<div class="bar2" style="width:' + (o.win ? 100 : pct) + '%"></div></td><td class="r">' + rk + '</td></tr>';
     }
     var h = '<div class="seg sm srt" id="sortSeg"><button type="button" data-sort="sim" class="' + (S.sort === 'sim' ? 'on' : '') + '">유사도 순</button><button type="button" data-sort="order" class="' + (S.sort === 'order' ? 'on' : '') + '">입력 순서</button></div>' +
