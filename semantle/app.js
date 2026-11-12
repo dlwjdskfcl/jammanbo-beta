@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.21.1';
+  var VER = '1.22.0';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   function kstDay() { return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); }
@@ -504,10 +504,27 @@
     if (L.res && L.res.points) line += ' · ⭐' + L.res.points + '점';
     return head + '\n' + line;
   }
-  function share() {
+  /** (1.22.0) 자랑하기: 몇 번 만에 풀었는지까지 넣은 글 — 평소 '공유'(횟수 비공개)와 따로, 자랑하고 싶은 사람이 직접 누를 때만 */
+  function bragText() {
+    var L = S.L, n = L.n || (L.res && L.res.guesses) || 0, line = '🏅 ' + n + '번 만에 성공 · 힌트 ' + (L.hints ? L.hints + '개' : '없이');
+    if (L.res && L.res.points) line += ' · ⭐' + L.res.points + '점';
+    var out = '🔤 꼬맨틀 #' + S.srv.no + ' 🎉\n' + line;
+    if (L.res && L.res.streak > 1) out += '\n🔥 ' + L.res.streak + '일 연속 정답';
+    return out;
+  }
+  /** 오늘의 챌린지 자랑 글: 꼬맨틀 · 꼬들 몇 번 + 연속 챌린지 */
+  function chalBrag() {
+    var td = S.ctx === 'td' ? S : S.hold.td, my = td && td.srv && td.srv.my, L = td && td.L, ch = td && td.srv && td.srv.ch, kv = null;
+    try { kv = JSON.parse(localStorage.getItem('jmb_kodle_v1' + ENV_SFX) || 'null'); } catch (e) {}
+    var sn = my && my.guesses ? my.guesses : L && L.n ? L.n : 0, kn = kv && kv.guesses ? kv.guesses.length : 0, sw = (my && my.result === '정답') || (L && L.win), kw = kv && kv.win;
+    var out = '🏁 오늘의 챌린지 완료! 🏆\n🔤 꼬맨틀 ' + (sw ? sn + '번' : '도전') + ' · 🟩 꼬들 ' + (kw ? kn + '번' : '도전');
+    if (ch && ch.st > 1) out += '\n🔥 연속 챌린지 ' + ch.st + '일';
+    return out;
+  }
+  function share(custom) {
     if (S.sharing) return;   // 공유창이 떠 있는 동안 또 누르면 오류가 나서 막음
     S.sharing = true;
-    var text = shareText(), done = function () { S.sharing = false; };
+    var text = typeof custom === 'string' ? custom : shareText(), done = function () { S.sharing = false; };
     var copy = function () {
       (navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(text) : Promise.reject()).then(function () { done(); toast('복사했어요. 단톡방에 붙여넣어 주세요'); }, function () { done(); copyBox(text); });
     };
@@ -596,7 +613,7 @@
   var kodleP = null;
   function loadKodle() {
     if (window.JMB_KODLE) return Promise.resolve();
-    if (!kodleP) kodleP = new Promise(function (res, rej) { var s = document.createElement('script'); s.src = '../kodle/app.js?v=1.15.2'; s.onload = res; s.onerror = function () { kodleP = null; rej(new Error('꼬들 파일을 못 받았어요')); }; document.head.appendChild(s); });
+    if (!kodleP) kodleP = new Promise(function (res, rej) { var s = document.createElement('script'); s.src = '../kodle/app.js?v=1.16.0'; s.onload = res; s.onerror = function () { kodleP = null; rej(new Error('꼬들 파일을 못 받았어요')); }; document.head.appendChild(s); });
     return kodleP;
   }
   /** 꼬들이 보이는 화면인가: 🟩 꼬들 탭, 또는 연습 · 내 기록 탭에서 '꼬들' 을 고른 경우 */
@@ -660,7 +677,7 @@
     if (ch) h += '<div class="cstat"><div><b>🔥 ' + ch.st + '일</b><small>연속 챌린지' + (ch.bs > ch.st ? ' · 최고 ' + ch.bs + '일' : '') + '</small></div><div><b>' + ch.cd + '명</b><small>오늘 완료' + (ch.cp ? ' · 참여 ' + ch.cp + '명' : '') + '</small></div></div>' +
       (ch.cp ? '<div class="pbar sm" title="오늘 참여한 사람 중 챌린지를 완료한 비율"><i style="width:' + Math.round(ch.cd / ch.cp * 100) + '%"></i></div>' : '');
     var next = !c.s.done ? ['play', (c.s.started ? '이어서 하기' : '시작하기') + ' · 꼬맨틀'] : !c.k.done ? ['kodle', '다음 게임으로 · 꼬들 →'] : ['rank', '🏆 순위 보기'];
-    h += '<div class="btns"><button type="button" class="btn pri" data-go="' + next[0] + '">' + xe(next[1]) + '</button></div></div>';
+    h += '<div class="btns"><button type="button" class="btn pri" data-go="' + next[0] + '">' + xe(next[1]) + '</button>' + (all ? '<button type="button" class="btn" data-brag="chal" title="몇 번 만에 풀었는지도 함께 공개돼요">' + xe('🏅 챌린지 자랑하기') + '</button>' : '') + '</div></div>';
     $('view').innerHTML = h;
   }
   /** 오늘 꼬들을 이 기기에서 끝냈는지 (꼬들 모듈이 저장해 둔 값) */
@@ -703,7 +720,7 @@
     else if (L.pend) h += '<div class="note warn" style="margin-top:10px">기록을 아직 못 보냈어요. <button type="button" class="btn sm" id="retry">다시 보내기</button></div>';
     else if (!L.rec) h += '<p class="hint">연습이라 기록은 없어요.</p>';
     h += '<div class="heat">' + L.g.slice(0, L.cnt).map(function (x) { return HEAT[tier(x.w)]; }).join('') + '</div>' +
-      '<div class="btns"><button type="button" class="btn pri" id="share">' + xe('📤 카톡으로 공유') + '</button><button type="button" class="btn" id="topbtn">가까운 단어 1000개 보기</button>' +
+      '<div class="btns"><button type="button" class="btn pri" id="share">' + xe('📤 카톡으로 공유') + '</button>' + (L.win ? '<button type="button" class="btn" id="brag" title="몇 번 만에 풀었는지도 함께 공개돼요">' + xe('🏅 자랑하기') + '</button>' : '') + '<button type="button" class="btn" id="topbtn">가까운 단어 1000개 보기</button>' +
       (S.nick ? '<button type="button" class="btn" id="goRank">' + xe('🏆 순위 보기') + '</button>' : '') + '</div></div>';
     return h;
   }
@@ -989,6 +1006,7 @@
       case 'hintBtn': return hint();
       case 'giveBtn': return giveUp();
       case 'share': return share();
+      case 'brag': return share(bragText());
       case 'topbtn': return topList();
       case 'retry': return retryPending();
       case 'goRank': return go('rank');
@@ -1006,6 +1024,7 @@
   $('view').addEventListener('click', function (e) {
     var k = e.target.closest('[data-ks]');   // 연습 · 내 기록의 '꼬맨틀 | 꼬들' 선택, 또는 '꼬들 연습' 으로 가는 버튼
     if (k) { var tv = k.hasAttribute('data-go') ? k.getAttribute('data-go') : S.view; S.kSub[tv] = k.getAttribute('data-ks'); if (tv !== S.view) return go(tv); S.xAddr = ''; render(); return; }
+    var br = e.target.closest('[data-brag]'); if (br) return share(chalBrag());   // 챌린지 자랑하기
     var b = e.target.closest('[data-go]'); if (b) go(b.getAttribute('data-go'));   // 결과 카드의 '꼬들 하러 가기' · '순위' 등
   });
   /* (1.16.0) 꼬들: 위 탭 = 꼬맨틀 · 꼬들 · 연습 · 순위 · 내 기록. 연습 · 내 기록은 안에서 '꼬맨틀 | 꼬들' 을 고름 (꼬들은 한 화면에 다 들어오게) */

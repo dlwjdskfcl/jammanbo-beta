@@ -4,7 +4,7 @@
  * 오늘 문제는 카카오 로그인한 회원이면 서버(Kodle.js)에 기록돼 점수가 꼬맨틀 주간 · 시즌 · 누적 점수에 더해짐 (정답은 서버가 확인). 연습 판 · 로그인 안 한 판은 이 기기에만 저장. */
 (function () {
   'use strict';
-  var VER = '1.15.2', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 12), LOGMAX = 400;
+  var VER = '1.16.0', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 12), LOGMAX = 400;
   var CFG = window.JMB_CONFIG || {}, ENV = CFG.env || 'prod', SFX = ENV !== 'prod' ? '_' + ENV : '';
   var KEY = 'jmb_kodle_v1' + SFX, KLOG = 'jmb_kodle_log' + SFX, KST = 'jmb_kodle_st' + SFX, KHELP = 'jmb_kodle_help', KAUTH = 'jmb_kakao_v2' + SFX;
   var CH = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
@@ -70,6 +70,11 @@
     return r;
   }
   function grid(m) { return m.guesses.map(function (w) { return score(w, m.ans).map(function (x) { return x === 'g' ? '🟩' : x === 'y' ? '🟨' : '⬛'; }).join(''); }).join('\n'); }
+  /** (1.16.0) 자랑하기: 몇 번 만에 성공했는지 + 칸 색 줄까지 — 평소 '공유'(횟수 비공개)와 따로, 자랑하고 싶은 사람이 직접 누를 때만 */
+  function bragText(m) {
+    var r = !m.prac && SV.res && SV.res.final && SV.res.win && SV.res.points != null ? SV.res.points : null;
+    return '🟩 꼬들 ' + (m.prac ? '연습' : '#' + (m.no + 1)) + ' 🎉\n🏅 ' + m.guesses.length + '/' + TRIES + '번 만에 성공' + (r != null ? ' · ⭐' + r + '점' : '') + '\n' + grid(m);
+  }
   /** 공유 글 (꼬맨틀과 같은 모양): 첫 줄 '🟩 꼬들 #N 🎉/😵', 둘째 줄 '⭐점수점'(맞혔고 서버가 확정했을 때) · 못 맞히면 '오늘은 아쉽게…'. 추측 횟수 · 칸 색은 넣지 않음 (단톡방에서 횟수가 드러나 부끄럽지 않게) */
   function shareText(m) {
     var head = '🟩 꼬들 ' + (m.prac ? '연습' : '#' + (m.no + 1)) + (m.win ? ' 🎉' : ' 😵');
@@ -245,7 +250,7 @@
       : '<button type="button" class="btn" id="kdGoPrac">🌱 연습</button><a class="btn" href="../semantle/">🔤 꼬맨틀</a>';
     return '<div class="kres"><div class="khead"><span class="em">' + (m.win ? '🎉' : '😵') + '</span><b>' + (m.win ? '정답이에요!' : '아쉬워요') + '</b></div>' +
       '<p class="ans">' + (m.win ? '<b>' + esc(m.aw) + '</b> — ' + m.guesses.length + '번 만에 맞혔어요' : '정답은 <b>' + esc(m.aw) + '</b> 였어요') + ' <small>(' + m.ans.split('').join(' ') + ')</small>' + (m.prac ? ' <small>· 연습(기록 없음)</small>' : '') + '</p>' +
-      (m.prac ? '' : scoreHTML(m) + courseHTML(m)) + '<div class="btns"><button type="button" class="btn pri" id="kdShare">📤 카톡으로 공유</button>' + more + '</div>' +
+      (m.prac ? '' : scoreHTML(m) + courseHTML(m)) + '<div class="btns"><button type="button" class="btn pri" id="kdShare">📤 카톡으로 공유</button>' + (m.win ? '<button type="button" class="btn" id="kdBrag" title="몇 번 만에 풀었는지도 함께 공개돼요">🏅 자랑하기</button>' : '') + '' + more + '</div>' +
       (m.prac ? '' : '<p class="hint" style="text-align:center;margin:4px 0 0">다음 문제는 내일 00:00에 열려요</p>') + '</div>';
   }
   /** (1.12.0) 순서 잠금: 서버가 locked 라고 하면(2026-11-13~, 오늘 꼬맨틀을 아직 안 끝냄) 게임 대신 안내 */
@@ -327,6 +332,7 @@
   }
   function wire() {
     var s = $('kdShare'); if (s) s.onclick = function () { shareResult(shareText(GM[view])); };
+    var br = $('kdBrag'); if (br) br.onclick = function () { shareResult(bragText(GM[view])); };
     var p = $('kdNext'); if (p) p.onclick = function () { GM.prac = newGame(true); CUR.prac = ''; render(); };
     var rt = $('kdRetry'); if (rt) rt.onclick = function () { SV.res = null; srvSubmit(GM[view]); };
     var g = $('kdGoPrac'); if (g) g.onclick = function () { go('prac'); };
