@@ -6,10 +6,11 @@
  */
 (function () {
   'use strict';
-  var VER = '1.18.0';
+  var VER = '1.19.0';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   function kstDay() { return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); }
+  var KODLE_LOCK_FROM = '2026-11-13';   // 이 날부터 꼬들은 그날 꼬맨틀을 끝낸 사람만 열림 (꼬맨틀 → 꼬들 순서). 서버 Kodle.js KODLE_CFG_.LOCK_FROM 과 같게
   var KODLE_FROM = '2026-11-12';   // 꼬들 공개일(KST) — 운영은 이 날부터 탭이 켜짐 (미리 올려 두면 자정에 자동으로 열림). 테스트 사이트는 늘 켜짐
   var KODLE_ON = /jammanbo-beta/.test(location.pathname) || ENV !== 'prod' || kstDay() >= KODLE_FROM;
   var ENV_SFX = ENV !== 'prod' ? '_' + ENV : '';
@@ -583,7 +584,7 @@
   var kodleP = null;
   function loadKodle() {
     if (window.JMB_KODLE) return Promise.resolve();
-    if (!kodleP) kodleP = new Promise(function (res, rej) { var s = document.createElement('script'); s.src = '../kodle/app.js?v=1.11.0'; s.onload = res; s.onerror = function () { kodleP = null; rej(new Error('꼬들 파일을 못 받았어요')); }; document.head.appendChild(s); });
+    if (!kodleP) kodleP = new Promise(function (res, rej) { var s = document.createElement('script'); s.src = '../kodle/app.js?v=1.12.0'; s.onload = res; s.onerror = function () { kodleP = null; rej(new Error('꼬들 파일을 못 받았어요')); }; document.head.appendChild(s); });
     return kodleP;
   }
   /** 꼬들이 보이는 화면인가: 🟩 꼬들 탭, 또는 연습 · 내 기록 탭에서 '꼬들' 을 고른 경우 */
@@ -596,6 +597,7 @@
   /** v = 'play'(🟩 꼬들 탭) · 'prac' · 'hist' — 꼬들 모듈을 이 화면 안에 그림 */
   function renderKodle(v) {
     v = v || 'play';
+    if (v === 'play' && kodleLocked()) { $('view').innerHTML = lockCard(); return; }   // 순서 잠금: 꼬맨틀을 끝내기 전엔 꼬들 오늘 판을 열지 않음
     var old = $('kdHost'); if (old && old.isConnected && old.getAttribute('data-m') === v && window.JMB_KODLE) return;   // 이미 그려져 있으면 다시 그리지 않음 (입력 중이던 칸 보존)
     var host = document.createElement('div'); host.id = 'kdHost'; host.setAttribute('data-m', v); host.style.display = 'contents';   // 엑셀 모드의 '.wrap > .card' 규칙이 그대로 먹도록
     $('view').innerHTML = v === 'play' ? '' : segHTML(v); $('view').appendChild(host);
@@ -628,8 +630,14 @@
     if (kodleDoneToday()) return '<div class="card next"><h3>🎉 오늘 코스 완주!</h3><p>꼬맨틀 + 꼬들을 모두 끝냈어요. 점수는 순위에서 확인해 보세요.</p><div class="btns"><button type="button" class="btn pri" data-go="rank">' + xe('🏆 순위 보기') + '</button></div></div>';
     return '<div class="card next"><h3>🟩 다음 코스 — 오늘의 꼬들</h3><p>두 글자 단어를 <b>자모 6칸</b>으로 맞히는 짧은 퍼즐이에요. 꼬들 점수도 꼬맨틀 순위에 더해져요.' + (n ? '<br>오늘 <b>' + n + '명</b>이 마쳤어요 — 몇 번 만에 풀었는지는 아무도 몰라요 🙂' : '') + '</p><div class="btns"><button type="button" class="btn pri" data-go="kodle">' + xe('🟩 이어서 꼬들 하러 가기 →') + '</button></div></div>';
   }
-  /** 꼬들 탭 표시: 오늘 아직이면 주황 점 */
-  function kodleTab() { if (!KODLE_ON) return; var b = $('tabKodle'); if (b) b.innerHTML = '🟩 꼬들' + (kodleDoneToday() ? '' : ' <span class="kdot" aria-label="오늘 아직">●</span>'); }
+  /** 오늘 꼬맨틀을 끝냈는지(맞힘 · 포기 모두) — 연습 중이어도 오늘 판 상태를 봄 */
+  function semDoneToday() { var td = S.ctx === 'td' ? S : S.hold.td; if (!td) return false; var my = td.srv && td.srv.my; return !!((my && my.state === '완료') || (td.L && td.L.done)); }
+  function kodleLocked() { return KODLE_ON && kstDay() >= KODLE_LOCK_FROM && !semDoneToday(); }
+  /** 꼬들 탭 표시: 잠겨 있으면 🔒 · 오늘 아직이면 주황 점 */
+  function kodleTab() { if (!KODLE_ON) return; var b = $('tabKodle'); if (b) b.innerHTML = kodleLocked() ? '🔒 꼬들' : '🟩 꼬들' + (kodleDoneToday() ? '' : ' <span class="kdot" aria-label="오늘 아직">●</span>'); }
+  function lockCard() {
+    return '<div class="card next"><h3>🔒 꼬들은 꼬맨틀을 마친 뒤에 열려요</h3><p>오늘 코스는 <b>꼬맨틀 → 꼬들</b> 순서예요. 꼬맨틀을 끝내면(맞히든 포기하든) 꼬들이 열려요. 꼬들 연습은 언제든 할 수 있어요.</p><div class="btns"><button type="button" class="btn pri" data-go="play">' + xe('🔤 꼬맨틀 하러 가기') + '</button><button type="button" class="btn" data-go="prac" data-ks="kodle">' + xe('🌱 꼬들 연습') + '</button></div></div>';
+  }
   function resultCard() {
     var L = S.L, r = L.res, n = L.n;
     if (L.prac) return '<div class="card res pop"><div class="em">' + (L.win ? '🎉' : '👀') + '</div><h2>' + (L.win ? '정답이에요!' : '정답은 이거였어요') + '</h2>' +

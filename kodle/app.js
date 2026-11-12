@@ -4,7 +4,7 @@
  * 오늘 문제는 카카오 로그인한 회원이면 서버(Kodle.js)에 기록돼 점수가 꼬맨틀 주간 · 시즌 · 누적 점수에 더해짐 (정답은 서버가 확인). 연습 판 · 로그인 안 한 판은 이 기기에만 저장. */
 (function () {
   'use strict';
-  var VER = '1.11.0', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 12), LOGMAX = 400;
+  var VER = '1.12.0', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 12), LOGMAX = 400;
   var CFG = window.JMB_CONFIG || {}, ENV = CFG.env || 'prod', SFX = ENV !== 'prod' ? '_' + ENV : '';
   var KEY = 'jmb_kodle_v1' + SFX, KLOG = 'jmb_kodle_log' + SFX, KST = 'jmb_kodle_st' + SFX, KHELP = 'jmb_kodle_help', KAUTH = 'jmb_kakao_v2' + SFX;
   var CH = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
@@ -215,8 +215,14 @@
       (m.prac ? '' : scoreHTML(m) + courseHTML(m)) + '<div class="btns"><button type="button" class="btn pri" id="share">결과 복사</button>' + more + '</div>' +
       (m.prac ? '' : '<p class="hint" style="text-align:center;margin:4px 0 0">다음 문제는 내일 00:00에 열려요</p>') + '</div>';
   }
+  /** (1.12.0) 순서 잠금: 서버가 locked 라고 하면(2026-11-13~, 오늘 꼬맨틀을 아직 안 끝냄) 게임 대신 안내 */
+  function lockHTML() {
+    return '<div class="card next"><h3>🔒 꼬들은 꼬맨틀을 마친 뒤에 열려요</h3><p>오늘 코스는 <b>꼬맨틀 → 꼬들</b> 순서예요. 꼬맨틀을 끝내면(맞히든 포기하든) 꼬들이 열려요. 연습은 언제든 할 수 있어요.</p><div class="btns">' +
+      (opt.embedded ? '<button type="button" class="btn pri" data-go="play">🔤 꼬맨틀 하러 가기</button><button type="button" class="btn" data-go="prac" data-ks="kodle">🌱 꼬들 연습</button>' : '<a class="btn pri" href="../semantle/">🔤 꼬맨틀 하러 가기</a>') + '</div></div>';
+  }
   function gameHTML(which) {
     var m = GM[which];
+    if (which === 'play' && SV.today && SV.today.locked) return lockHTML();
     return (which === 'play' ? bannerHTML() : '') + '<div class="card kd' + (opt.embedded ? ' kemb' : '') + (KX ? ' kx' : '') + '"><div class="kh"><b>' + (which === 'play' ? '오늘의 꼬들 <span class="tag">#' + (m.no + 1) + '</span>' : '연습 문제 <span class="tag">기록 없음</span>') + '</b><small>' + m.guesses.length + '/' + TRIES + '</small></div>' +
       boardHTML(m, CUR[which], false) + '<div class="kmsg" id="msg"></div>' + (m.done ? resultHTML(m) : keysHTML(m)) + '</div>';
   }
@@ -293,6 +299,7 @@
   function press(k) {
     if (!ready || modalOpen || (view !== 'play' && view !== 'prac')) return;
     var m = GM[view]; if (m.done) return;
+    if (view === 'play' && SV.today && SV.today.locked) return;
     var cur = CUR[view];
     if (k === 'Shift') { shift = !shift; return render(); }
     if (k === 'Back') { CUR[view] = cur.slice(0, -1); return paintCur(m); }
