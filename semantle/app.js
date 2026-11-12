@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.22.0';
+  var VER = '1.23.0';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   function kstDay() { return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); }
@@ -504,12 +504,24 @@
     if (L.res && L.res.points) line += ' · ⭐' + L.res.points + '점';
     return head + '\n' + line;
   }
+  /** (1.23.0) 오늘 결과에서 뽑는 '기록' 태그 — 결과 카드(나만 봄)와 자랑 글에 붙음. 개인 신기록 = 오늘을 뺀 내 최소 추측(서버 stats.pb)보다 적게 */
+  function semTags() {
+    var L = S.L; if (!L || !L.done || !L.win || L.prac) return [];
+    var st = S.srv && S.srv.stats, n = L.n || (L.res && L.res.guesses) || 0, t = [];
+    if (st && st.pb && st.solves >= 2) { if (n < st.pb) t.push('🆕 개인 신기록!'); else if (n === st.pb) t.push('🤝 개인 최고 기록 타이'); }
+    if (n && n <= 3) t.push('🍀 3번 안에 정답!'); else if (n && n <= 10) t.push('⚡ 10번 안에 정답');
+    if (!L.hints && n && n <= 30) t.push('🧠 힌트 없이 30번 안에');
+    if (L.res && L.res.order === 1) t.push('🥇 오늘 가장 먼저 맞힘');
+    return t;
+  }
+  function semTagsHTML() { var t = semTags(); return t.length ? '<p class="rtags">' + t.map(function (x) { return '<span>' + xe(x) + '</span>'; }).join('') + '</p>' : ''; }
   /** (1.22.0) 자랑하기: 몇 번 만에 풀었는지까지 넣은 글 — 평소 '공유'(횟수 비공개)와 따로, 자랑하고 싶은 사람이 직접 누를 때만 */
   function bragText() {
     var L = S.L, n = L.n || (L.res && L.res.guesses) || 0, line = '🏅 ' + n + '번 만에 성공 · 힌트 ' + (L.hints ? L.hints + '개' : '없이');
     if (L.res && L.res.points) line += ' · ⭐' + L.res.points + '점';
     var out = '🔤 꼬맨틀 #' + S.srv.no + ' 🎉\n' + line;
     if (L.res && L.res.streak > 1) out += '\n🔥 ' + L.res.streak + '일 연속 정답';
+    var tg = semTags(); if (tg.length) out += '\n' + tg.slice(0, 2).join(' · ');
     return out;
   }
   /** 오늘의 챌린지 자랑 글: 꼬맨틀 · 꼬들 몇 번 + 연속 챌린지 */
@@ -613,7 +625,7 @@
   var kodleP = null;
   function loadKodle() {
     if (window.JMB_KODLE) return Promise.resolve();
-    if (!kodleP) kodleP = new Promise(function (res, rej) { var s = document.createElement('script'); s.src = '../kodle/app.js?v=1.16.0'; s.onload = res; s.onerror = function () { kodleP = null; rej(new Error('꼬들 파일을 못 받았어요')); }; document.head.appendChild(s); });
+    if (!kodleP) kodleP = new Promise(function (res, rej) { var s = document.createElement('script'); s.src = '../kodle/app.js?v=1.18.0'; s.onload = res; s.onerror = function () { kodleP = null; rej(new Error('꼬들 파일을 못 받았어요')); }; document.head.appendChild(s); });
     return kodleP;
   }
   /** 꼬들이 보이는 화면인가: 🟩 꼬들 탭, 또는 연습 · 내 기록 탭에서 '꼬들' 을 고른 경우 */
@@ -720,7 +732,7 @@
     else if (L.pend) h += '<div class="note warn" style="margin-top:10px">기록을 아직 못 보냈어요. <button type="button" class="btn sm" id="retry">다시 보내기</button></div>';
     else if (!L.rec) h += '<p class="hint">연습이라 기록은 없어요.</p>';
     h += '<div class="heat">' + L.g.slice(0, L.cnt).map(function (x) { return HEAT[tier(x.w)]; }).join('') + '</div>' +
-      '<div class="btns"><button type="button" class="btn pri" id="share">' + xe('📤 카톡으로 공유') + '</button>' + (L.win ? '<button type="button" class="btn" id="brag" title="몇 번 만에 풀었는지도 함께 공개돼요">' + xe('🏅 자랑하기') + '</button>' : '') + '<button type="button" class="btn" id="topbtn">가까운 단어 1000개 보기</button>' +
+      semTagsHTML() + '<div class="btns"><button type="button" class="btn pri" id="share">' + xe('📤 카톡으로 공유') + '</button>' + (L.win ? '<button type="button" class="btn" id="brag" title="몇 번 만에 풀었는지도 함께 공개돼요">' + xe('🏅 자랑하기') + '</button>' : '') + '<button type="button" class="btn" id="topbtn">가까운 단어 1000개 보기</button>' +
       (S.nick ? '<button type="button" class="btn" id="goRank">' + xe('🏆 순위 보기') + '</button>' : '') + '</div></div>';
     return h;
   }

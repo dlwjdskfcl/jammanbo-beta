@@ -4,14 +4,13 @@
  * 오늘 문제는 카카오 로그인한 회원이면 서버(Kodle.js)에 기록돼 점수가 꼬맨틀 주간 · 시즌 · 누적 점수에 더해짐 (정답은 서버가 확인). 연습 판 · 로그인 안 한 판은 이 기기에만 저장. */
 (function () {
   'use strict';
-  var VER = '1.16.0', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 12), LOGMAX = 400;
+  var VER = '1.18.0', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 12), LOGMAX = 400;
   var CFG = window.JMB_CONFIG || {}, ENV = CFG.env || 'prod', SFX = ENV !== 'prod' ? '_' + ENV : '';
   var KEY = 'jmb_kodle_v1' + SFX, KLOG = 'jmb_kodle_log' + SFX, KST = 'jmb_kodle_st' + SFX, KHELP = 'jmb_kodle_help', KAUTH = 'jmb_kakao_v2' + SFX;
   var CH = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
   var JU = ['ㅏ', 'ㅐ', 'ㅑ', 'ㅒ', 'ㅓ', 'ㅔ', 'ㅕ', 'ㅖ', 'ㅗ', 'ㅗㅏ', 'ㅗㅐ', 'ㅗㅣ', 'ㅛ', 'ㅜ', 'ㅜㅓ', 'ㅜㅔ', 'ㅜㅣ', 'ㅠ', 'ㅡ', 'ㅡㅣ', 'ㅣ'];
   var JO = ['', 'ㄱ', 'ㄲ', 'ㄱㅅ', 'ㄴ', 'ㄴㅈ', 'ㄴㅎ', 'ㄷ', 'ㄹ', 'ㄹㄱ', 'ㄹㅁ', 'ㄹㅂ', 'ㄹㅅ', 'ㄹㅌ', 'ㄹㅍ', 'ㄹㅎ', 'ㅁ', 'ㅂ', 'ㅂㅅ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
   var ROWS = ['ㅂㅈㄷㄱㅅㅛㅕㅑㅐㅔ', 'ㅁㄴㅇㄹㅎㅗㅓㅏㅣ', 'ㅋㅌㅊㅍㅠㅜㅡ'];   // (1.14.0) 컴퓨터 자판(쿼티 · 두벌식) 배열. ⇧ 를 누르면 ㅂㅈㄷㄱㅅ → ㅃㅉㄸㄲㅆ · ㅐㅔ → ㅒㅖ (키 위 작은 글자가 ⇧ 를 눌렀을 때)
-  var COMP = { 'ㅘ': 'ㅗㅏ', 'ㅙ': 'ㅗㅐ', 'ㅚ': 'ㅗㅣ', 'ㅝ': 'ㅜㅓ', 'ㅞ': 'ㅜㅔ', 'ㅟ': 'ㅜㅣ', 'ㅢ': 'ㅡㅣ' };   // 겹모음 키: 한 번 누르면 기본 자모 두 칸(ㅗ+ㅏ …)
   var SHIFTED = { 'ㅂ': 'ㅃ', 'ㅈ': 'ㅉ', 'ㄷ': 'ㄸ', 'ㄱ': 'ㄲ', 'ㅅ': 'ㅆ', 'ㅐ': 'ㅒ', 'ㅔ': 'ㅖ' }, shift = false;
   var PHYS = { KeyQ: 'ㅂ', KeyW: 'ㅈ', KeyE: 'ㄷ', KeyR: 'ㄱ', KeyT: 'ㅅ', KeyY: 'ㅛ', KeyU: 'ㅕ', KeyI: 'ㅑ', KeyA: 'ㅁ', KeyS: 'ㄴ', KeyD: 'ㅇ', KeyF: 'ㄹ', KeyG: 'ㅎ', KeyH: 'ㅗ', KeyJ: 'ㅓ', KeyK: 'ㅏ', KeyL: 'ㅣ', KeyZ: 'ㅋ', KeyX: 'ㅌ', KeyC: 'ㅊ', KeyV: 'ㅍ', KeyB: 'ㅠ', KeyN: 'ㅜ', KeyM: 'ㅡ', KeyO: 'ㅐ', KeyP: 'ㅔ' };
   var BASE = (document.currentScript && document.currentScript.src ? document.currentScript.src : location.href).replace(/[?#].*$/, '').replace(/[^\/]*$/, '');
@@ -70,10 +69,20 @@
     return r;
   }
   function grid(m) { return m.guesses.map(function (w) { return score(w, m.ans).map(function (x) { return x === 'g' ? '🟩' : x === 'y' ? '🟨' : '⬛'; }).join(''); }).join('\n'); }
+  /** (1.17.0) 오늘 결과의 '기록' 태그 — 결과 카드(나만 봄)와 자랑 글. 개인 신기록 = 오늘을 뺀 내 최소 추측(서버 stats.pb)보다 적게 */
+  function tagsOf(m) {
+    if (!m.win || m.prac) return [];
+    var st = SV.today && SV.today.stats, n = m.guesses.length, t = [];
+    if (st && st.pb && st.wins >= 2) { if (n < st.pb) t.push('🆕 개인 신기록!'); else if (n === st.pb) t.push('🤝 개인 최고 기록 타이'); }
+    if (n === 1) t.push('🍀 단번에 정답!'); else if (n === 2) t.push('⚡ 두 번 만에 정답!');
+    if (st && st.streak >= 3) t.push('🔥 꼬들 ' + st.streak + '일 연속');
+    return t;
+  }
+  function tagsHTML(m) { var t = tagsOf(m); return t.length ? '<p class="rtags">' + t.map(function (x) { return '<span>' + x + '</span>'; }).join('') + '</p>' : ''; }
   /** (1.16.0) 자랑하기: 몇 번 만에 성공했는지 + 칸 색 줄까지 — 평소 '공유'(횟수 비공개)와 따로, 자랑하고 싶은 사람이 직접 누를 때만 */
   function bragText(m) {
     var r = !m.prac && SV.res && SV.res.final && SV.res.win && SV.res.points != null ? SV.res.points : null;
-    return '🟩 꼬들 ' + (m.prac ? '연습' : '#' + (m.no + 1)) + ' 🎉\n🏅 ' + m.guesses.length + '/' + TRIES + '번 만에 성공' + (r != null ? ' · ⭐' + r + '점' : '') + '\n' + grid(m);
+    return '🟩 꼬들 ' + (m.prac ? '연습' : '#' + (m.no + 1)) + ' 🎉\n🏅 ' + m.guesses.length + '/' + TRIES + '번 만에 성공' + (r != null ? ' · ⭐' + r + '점' : '') + (tagsOf(m).length ? '\n' + tagsOf(m).slice(0, 2).join(' · ') : '') + '\n' + grid(m);
   }
   /** 공유 글 (꼬맨틀과 같은 모양): 첫 줄 '🟩 꼬들 #N 🎉/😵', 둘째 줄 '⭐점수점'(맞혔고 서버가 확정했을 때) · 못 맞히면 '오늘은 아쉽게…'. 추측 횟수 · 칸 색은 넣지 않음 (단톡방에서 횟수가 드러나 부끄럽지 않게) */
   function shareText(m) {
@@ -171,7 +180,7 @@
     return st;
   }
   /** 겹글자 키(ㄲ · ㅐ …)는 풀린 자모가 모두 같은 상태일 때만 색을 보여 줌 */
-  function keySt(c, st) { var e = COMP[c]; if (!e) return st[c]; var x = st[e.charAt(0)], y = st[e.charAt(1)]; return x && x === y ? x : ''; }
+  function keySt(c, st) { return st[c]; }
   var KX = false;   // 엑셀 모드(꼬맨틀 화면 안에서 html.xl 일 때): 칸을 스프레드시트처럼 — 게임 방식은 그대로
   var COLS = 'ABCDEF';
   function boardHTML(m, cur, pop) {
@@ -206,12 +215,10 @@
       var sh = SHIFTED[c], d = shift && sh ? sh : c;   // ⇧ 가 눌려 있으면 쌍자음 · ㅒㅖ 가 들어감
       return '<button type="button" class="' + (CONS.indexOf(d) >= 0 ? 'cn ' : 'vw ') + (keySt(d, st) || '') + (sh ? ' sk' : '') + '" data-k="' + d + '">' + d + (sh ? '<i class="sg">' + (shift ? c : sh) + '</i>' : '') + '</button>';
     }
-    function cbtn(c) { return '<button type="button" class="vw cp ' + (keySt(c, st) || '') + '" data-k="' + c + '" title="' + COMP[c] + '">' + c + '</button>'; }
     return '<div class="keys">' +
       '<div class="kr">' + ROWS[0].split('').map(btn).join('') + '</div>' +
       '<div class="kr">' + ROWS[1].split('').map(btn).join('') + '<button type="button" class="w pri" data-k="Enter">입력</button></div>' +
-      '<div class="kr"><button type="button" class="w' + (shift ? ' on' : '') + '" data-k="Shift" aria-label="쌍자음 · ㅒ ㅖ (Shift)" aria-pressed="' + (shift ? 'true' : 'false') + '">⇧</button>' + ROWS[2].split('').map(btn).join('') + '<button type="button" class="w" data-k="Back" aria-label="지우기">⌫</button></div>' +
-      '<div class="kr kc">' + Object.keys(COMP).map(cbtn).join('') + '</div></div>';
+      '<div class="kr"><button type="button" class="w' + (shift ? ' on' : '') + '" data-k="Shift" aria-label="쌍자음 · ㅒ ㅖ (Shift)" aria-pressed="' + (shift ? 'true' : 'false') + '">⇧</button>' + ROWS[2].split('').map(btn).join('') + '<button type="button" class="w" data-k="Back" aria-label="지우기">⌫</button></div></div>';
   }
   /** 오늘 판 점수 칸: 서버가 확정한 값 · 확정 전에는 잠정(기본 점수만) · 로그인 안 했으면 안내 */
   function scoreHTML(m) {
@@ -250,7 +257,7 @@
       : '<button type="button" class="btn" id="kdGoPrac">🌱 연습</button><a class="btn" href="../semantle/">🔤 꼬맨틀</a>';
     return '<div class="kres"><div class="khead"><span class="em">' + (m.win ? '🎉' : '😵') + '</span><b>' + (m.win ? '정답이에요!' : '아쉬워요') + '</b></div>' +
       '<p class="ans">' + (m.win ? '<b>' + esc(m.aw) + '</b> — ' + m.guesses.length + '번 만에 맞혔어요' : '정답은 <b>' + esc(m.aw) + '</b> 였어요') + ' <small>(' + m.ans.split('').join(' ') + ')</small>' + (m.prac ? ' <small>· 연습(기록 없음)</small>' : '') + '</p>' +
-      (m.prac ? '' : scoreHTML(m) + courseHTML(m)) + '<div class="btns"><button type="button" class="btn pri" id="kdShare">📤 카톡으로 공유</button>' + (m.win ? '<button type="button" class="btn" id="kdBrag" title="몇 번 만에 풀었는지도 함께 공개돼요">🏅 자랑하기</button>' : '') + '' + more + '</div>' +
+      (m.prac ? '' : scoreHTML(m) + tagsHTML(m) + courseHTML(m)) + '<div class="btns"><button type="button" class="btn pri" id="kdShare">📤 카톡으로 공유</button>' + (m.win ? '<button type="button" class="btn" id="kdBrag" title="몇 번 만에 풀었는지도 함께 공개돼요">🏅 자랑하기</button>' : '') + '' + more + '</div>' +
       (m.prac ? '' : '<p class="hint" style="text-align:center;margin:4px 0 0">다음 문제는 내일 00:00에 열려요</p>') + '</div>';
   }
   /** (1.12.0) 순서 잠금: 서버가 locked 라고 하면(2026-11-13~, 오늘 꼬맨틀을 아직 안 끝냄) 게임 대신 안내 */
@@ -275,7 +282,7 @@
     var xl = document.documentElement.classList.contains('xl'), reserve = xl ? 74 : 20;   // 엑셀 모드는 아래 시트 탭 · 상태줄 자리
     var avail = (window.innerHeight || 700) - top - reserve - 10;
     var width = Math.min(c.clientWidth || 360, 520) - 28;
-    var unit = keys && !wide ? 6 + 4 * 0.85 : 6;                       // 좁은 화면에서 키보드가 아래에 있으면 칸 6줄 + 키 4줄(칸의 0.9배)
+    var unit = keys && !wide ? 6 + 3 * 0.85 : 6;                       // 좁은 화면에서 키보드가 아래에 있으면 칸 6줄 + 키 4줄(칸의 0.9배)
     var t = Math.floor(Math.min((avail - other - (keys && !wide ? 24 : 0)) / unit, wide ? 64 : (width - (KX ? 38 : 25)) / 6, 64)); t = Math.max(t, 20);
     var kk = wide ? Math.max(40, Math.min(54, Math.round(t * 0.95))) : Math.max(26, Math.min(46, Math.round(t * 0.85)));
     c.style.setProperty('--kt', t + 'px'); c.style.setProperty('--kk', kk + 'px');
@@ -371,7 +378,7 @@
       persist(m); return render(true);
     }
     if (view === 'play' && !m.prac && srvOn() && !SV.nonce && !SV.starting) ensureStarted().catch(startFail);   // 첫 글자를 누르는 순간 시작을 시도 (Enter 까지 기다리지 않아 연결 실패를 더 일찍 알게 됨)
-    var add = COMP[k] || k, wasShift = shift; shift = false;
+    var add = k, wasShift = shift; shift = false;
     if (cur.length + add.length <= LEN) { if (!m.t0 && !m.guesses.length) m.t0 = Date.now(); CUR[view] = cur + add; if (wasShift) render(); else paintCur(m); } else if (wasShift) render();
   }
 

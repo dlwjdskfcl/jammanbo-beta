@@ -94,3 +94,8 @@ html.xl .kd.kx .kr button{min-width:30px}
 .kd .kr button.cp{background:var(--accent-soft)}
 html.xl .kd.kx .kr button.w.on{background:var(--accent);border-color:var(--accent);color:#fff}
 html.xl .kd.kx .kr button.cp{background:var(--accent-soft)}
+
+/* 기록 태그 (신기록 · 번개 · 행운 …) — 결과 카드에 칩으로 (1.17.0) */
+.rtags{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;margin:6px 0 0}
+.rtags span{font-size:12px;font-weight:800;padding:2px 9px;border-radius:999px;background:var(--gold-soft,#fff9db);color:var(--gold,#b45309);border:1px solid var(--gold,#f59f00)}
+html.xl .rtags span{border-radius:2px}
