@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.19.0';
+  var VER = '1.20.0';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   function kstDay() { return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); }
@@ -828,7 +828,9 @@
     if (!list || !list.length) return kind === 'rate' ? '<div class="empty">아직 레이팅 순위에 오른 사람이 없어요.<br>하루에 두 명 이상 풀고, 3일 이상 참여하면 올라와요! 📈</div>' : '<div class="empty">아직 기록이 없어요.<br>첫 번째 주인공이 되어 보세요! 🏁</div>';
     return list.map(function (o) {
       var me = S.nick && o.nick === S.nick, sub, v;
-      if (kind === 'today') { sub = o.h ? '힌트 ' + o.h + '개' : '힌트 없이'; v = '+' + o.pts + '점'; }
+      if (kind === 'today') {   // (1.20.0) 꼬맨틀 + 꼬들 오늘 점수 합. 포기 · 실패한 사람도 한 게임이라도 했으면 나옴
+        var ps = []; if (o.s) ps.push('🔤 ' + (o.s === '정답' ? (o.h ? '힌트 ' + o.h + '개' : '힌트 없이') : '포기')); if (KODLE_ON && o.k) ps.push('🟩 ' + (o.k === '정답' ? '성공' : '실패'));
+        sub = ps.join(' · ') || '참여'; v = '+' + (o.pts || 0) + '점'; }
       else if (kind === 'streak') { sub = '최고 ' + o.best + '일'; v = '🔥 ' + o.v + '일'; }
       else if (kind === 'rate') { var T = tierOf(o.v); sub = o.games + '일 참여 · 최근 ' + (o.delta > 0 ? '+' : '') + o.delta; v = T.e + ' ' + o.v + '<small>' + T.n + '</small>'; }
       else { sub = '정답 ' + o.solves + '회'; v = o.v + '점'; }
@@ -863,10 +865,10 @@
         '<p class="hint">✅ 성공 · ❌ 아쉽게 실패 · – 아직. 몇 번 만에 풀었는지 · 걸린 시간은 나만 볼 수 있어요. 순위는 1분마다 갱신돼요.</p>';
       $('view').innerHTML = h; return;
     }
-    var title = tab === 'today' ? '오늘의 정답자 <small>' + R.day + ' · 점수 순</small>' : tab === 'week' ? '이번 주 포인트 <small>' + R.week + '(월)~</small>' : tab === 'season' ? '시즌 포인트 <small>' + R.season + '</small>' : tab === 'rate' ? '레이팅 <small>' + R.season + ' · 3일 이상 참여</small>' : '연속 정답 <small>지금 이어가는 중</small>';
+    var title = tab === 'today' ? '오늘의 참여자 <small>' + R.day + ' · 오늘 점수 순 (꼬맨틀 + 꼬들)</small>' : tab === 'week' ? '이번 주 포인트 <small>' + R.week + '(월)~</small>' : tab === 'season' ? '시즌 포인트 <small>' + R.season + '</small>' : tab === 'rate' ? '레이팅 <small>' + R.season + ' · 3일 이상 참여</small>' : '연속 정답 <small>지금 이어가는 중</small>';
     h += '<div class="seg sm" id="rkTabs">' + tabs.map(function (t) { return '<button type="button" data-t="' + t[0] + '" class="' + (t[0] === tab ? 'on' : '') + '">' + t[1] + '</button>'; }).join('') + '</div>' +
       '<div class="card"><h3>' + title + '</h3>' + rkRows(list, tab === 'week' || tab === 'season' ? 'pts' : tab) +
-      (tab === 'today' ? '<div class="hint">오늘 ' + R.solvedToday + '명 정답 · 참여 회원 ' + (typeof R.total === 'number' ? R.total : typeof R.people === 'number' ? R.people : Object.keys(R.people || {}).length) + '명</div>' : '') +
+      (tab === 'today' ? '<div class="hint">오늘 꼬맨틀 ' + R.solvedToday + '명 정답 · 오늘 한 사람 ' + (R.today || []).length + '명 · 누적 참여 회원 ' + (typeof R.total === 'number' ? R.total : typeof R.people === 'number' ? R.people : Object.keys(R.people || {}).length) + '명</div>' : '') +
       (tab === 'rate' ? '<div class="hint">그 날 푼 사람끼리 추측 횟수를 겨루는 점수 (처음 1500점). 오늘 결과는 잠정이라 사람이 더 풀면 조금 바뀌어요.</div>' : '') + '</div>' + pendingCard(R) +
       '<p class="hint">순위는 1분마다 갱신돼요. 시즌은 분기(1 · 4 · 7 · 10월)마다 새로 시작해요.</p>';
     $('view').innerHTML = h;
