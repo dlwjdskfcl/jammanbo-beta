@@ -1,4 +1,5 @@
-/* 잠만보 화면 추가 기능 v5 — 화면 코드(Apps Script Index.html)는 고치지 않고 덧붙입니다.
+/* 잠만보 화면 추가 기능 v6 — 화면 코드(Apps Script Index.html)는 고치지 않고 덧붙입니다.
+ *  (v6) 미니게임 메뉴 · 홈 카드를 시트 '미니게임목록' 으로 설정(순서 · 숨김 · 이름 …)
  *  (v5) 게임 목록을 games.js 로 옮김 · 홈 카드는 최근에 한 게임 5개 + 오락실 · NEW 표시
  *  1) 홈의 '폰 홈 화면에 추가' 안내 카드 숨김
  *  2) 미니게임 들어가는 곳: 상단 바 '미니게임' 버튼 → 메뉴(티츄 · 순서 룰렛 · 타이머 · 사운드보드 · 장소 지도 · 탱쫄 판별기↗) + 홈 화면 카드
@@ -25,7 +26,29 @@ function run(ROOT) {
   function isAdm() { return !!window.ADMIN_PW; }   // auth.js isAdmin() 과 같은 기준
   var IS_PROD = /^\/jammanbo\/$/.test(ROOT);
   function isDev() { return !!(window.JMB_AUTH && JMB_AUTH.isDev && JMB_AUTH.isDev()); }
-  function shown() { var a = isAdm(), d = isDev(); return GAMES.filter(function (g) { return (!g.admin || a) && (!g.dev || d) && (!g.beta || !IS_PROD); }); }
+  /* (v6) 시트 '미니게임목록'(운영진이 직접 고침)의 설정을 코드 기본 목록 위에 덮어씀: 순서 · 숨김 · 공개범위 · 홈카드 · 이름 · 설명 · 이모지 · NEW.
+   * 데이터는 화면의 getData 가 주는 D.menu (없으면 기기에 저장된 마지막 값). 설정이 없거나 이상하면 기본 목록 그대로. beta(테스트 전용)는 시트로 못 바꿈 */
+  function menuCfg() {
+    var m = window.D && window.D.menu;
+    if (!m) { try { var c = JSON.parse(localStorage.getItem('jmb_data_v2') || 'null'); m = c && c.d && c.d.menu; } catch (e) {} }
+    return m && m.length ? m : null;
+  }
+  function listAll() {
+    var m = menuCfg(); if (!m) return GAMES;
+    var by = {}; m.forEach(function (r) { by[r[0]] = r; });
+    return GAMES.map(function (g, i) {
+      var r = by[g.id], x = {}, k; for (k in g) x[k] = g[k];
+      x._i = i; x._o = 1e6 + i;
+      if (!r) return x;
+      if (typeof r[1] === 'number') x._o = r[1];
+      if (r[2] === 0) x._off = true;
+      if (r[3] === 'all') { x.dev = false; x.admin = false; } else if (r[3] === 'admin') { x.dev = false; x.admin = true; } else if (r[3] === 'dev') { x.dev = true; x.admin = false; }
+      if (r[4] === 0) x.home = false; else if (r[4] === 1) x.home = true;
+      if (r[5]) x.name = r[5]; if (r[6]) x.desc = r[6]; if (r[7]) x.emoji = r[7]; if (r[8]) x.isNew = r[8];
+      return x;
+    }).sort(function (a, b) { return (a._o - b._o) || (a._i - b._i); });
+  }
+  function shown() { var a = isAdm(), d = isDev(); return listAll().filter(function (g) { return !g._off && (!g.admin || a) && (!g.dev || d) && (!g.beta || !IS_PROD); }); }
 
   // 글꼴: 늦게 와도 화면은 먼저 뜸 (시스템 글꼴로 보이다가 바뀜)
   if (!document.getElementById('jmbFont')) {
