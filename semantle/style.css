@@ -403,3 +403,22 @@ html.xl .heat{display:none}   /* 결과 이모지 줄은 엑셀 모드에서 숨
 .stt th{font-size:12px;color:var(--muted);font-weight:700;line-height:1.25}.stt td.l,.stt th.l{text-align:left}.stt td.num{font-variant-numeric:tabular-nums;font-weight:700}
 .stt tr.me td{background:var(--accent-soft)}.stt .bk{font-size:15px}.stt .bk:not(.ok):not(.no){color:var(--muted)}
 html.xl .stt th,html.xl .stt td{border:1px solid var(--cell,#dadada)}html.xl .stt th{background:var(--hdr,#efefef);color:var(--ink2)}
+
+/* 오늘의 챌린지 (1.21.0) — 꼬맨틀 → 꼬들 하루 코스 */
+.chal{text-align:center;padding:16px 14px}
+.chal h2{margin:0;font-size:21px;letter-spacing:-.03em}.chal .csub{font-size:11px;color:var(--muted);letter-spacing:.06em;margin-top:2px}
+.cpill{display:inline-block;margin:10px 0 12px;padding:3px 12px;border-radius:999px;background:var(--surface2);color:var(--muted);font-weight:700;font-size:12.5px}.cpill.ok{background:var(--ok-soft);color:var(--ok)}
+.chal .step{text-align:left;background:var(--surface2);border:1px solid var(--line);border-radius:12px;padding:12px 14px;cursor:pointer}
+.chal .step:hover{border-color:var(--accent)}
+.chal .step .sr{display:flex;justify-content:space-between;align-items:center;gap:8px}.chal .step b{font-size:15px}
+.chal .step .st{font-size:12px;font-weight:700;padding:2px 10px;border-radius:999px;background:var(--surface);color:var(--muted);border:1px solid var(--line);white-space:nowrap}
+.chal .step.prog .st,.chal .step.done .st{background:var(--ok-soft);color:var(--ok);border-color:transparent}
+.chal .step p{margin:4px 0 0;color:var(--ink2);font-size:13px}.chal .step.done{border-color:var(--ok)}.chal .step.wait{opacity:.88}
+.chal .pbar{height:6px;border-radius:3px;background:var(--line);margin-top:8px;overflow:hidden}.chal .pbar i{display:block;height:100%;background:var(--ok);border-radius:3px;transition:width .4s}.chal .pbar.sm{height:4px;margin:6px auto 0;max-width:260px}
+.chal .carr{color:var(--muted);margin:6px 0;font-size:16px}
+.chal .cfoot{margin-top:14px}.chal .trophy{font-size:28px;filter:grayscale(1);opacity:.45}.chal .trophy.on{filter:none;opacity:1}
+.chal .cfoot b{display:block;margin-top:2px;font-size:16px}.chal .cfoot p{margin:2px 0 0;font-size:12.5px;color:var(--muted)}
+.chal .cstat{display:flex;justify-content:center;gap:28px;margin:12px 0 2px}.chal .cstat b{display:block;font-size:18px}.chal .cstat small{color:var(--muted);font-size:12px}
+.chal .btns{margin-top:12px}
+.cn{font-size:10px;opacity:.7;margin-left:2px}
+html.xl .chal .step,html.xl .cpill{border-radius:0}html.xl .chal{padding:14px}

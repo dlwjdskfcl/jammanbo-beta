@@ -4,7 +4,7 @@
  * 오늘 문제는 카카오 로그인한 회원이면 서버(Kodle.js)에 기록돼 점수가 꼬맨틀 주간 · 시즌 · 누적 점수에 더해짐 (정답은 서버가 확인). 연습 판 · 로그인 안 한 판은 이 기기에만 저장. */
 (function () {
   'use strict';
-  var VER = '1.12.0', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 12), LOGMAX = 400;
+  var VER = '1.13.0', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 12), LOGMAX = 400;
   var CFG = window.JMB_CONFIG || {}, ENV = CFG.env || 'prod', SFX = ENV !== 'prod' ? '_' + ENV : '';
   var KEY = 'jmb_kodle_v1' + SFX, KLOG = 'jmb_kodle_log' + SFX, KST = 'jmb_kodle_st' + SFX, KHELP = 'jmb_kodle_help', KAUTH = 'jmb_kakao_v2' + SFX;
   var CH = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
@@ -200,7 +200,7 @@
   function courseHTML(m) {
     var t = SV.today, out = [];
     if (t && t.semDone === false) out.push('🔤 오늘 꼬맨틀은 아직이에요 ' + (opt.embedded ? '<button type="button" class="btn sm pri" data-go="play">꼬맨틀 하러 가기</button>' : '<a class="btn sm pri" href="../semantle/">꼬맨틀 하러 가기</a>'));
-    else if (t && t.semDone) out.push('🎉 오늘 코스(꼬맨틀 + 꼬들) 완주!');
+    else if (t && t.semDone) out.push('🏆 오늘의 챌린지 완료!' + (t.ch && t.ch.st ? ' 🔥 연속 챌린지 ' + t.ch.st + '일' : '') + (opt.embedded ? ' <button type="button" class="btn sm" data-go="chal">챌린지 보기</button>' : ''));
     if (t && t.kd) out.push('오늘 ' + t.kd + '명이 꼬들을 마쳤어요 · 점수는 🏆 순위에서 (횟수 · 결과는 나만 봐요)');
     return out.length ? '<p class="hint course">' + out.join('<br>') + '</p>' : '';
   }

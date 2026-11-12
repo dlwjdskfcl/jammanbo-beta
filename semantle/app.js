@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.20.0';
+  var VER = '1.21.0';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   function kstDay() { return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); }
@@ -75,7 +75,7 @@
     var xb = $('xlBtn'); if (xb) xb.setAttribute('aria-pressed', S.xl ? 'true' : 'false');
     xlChrome();
   }
-  function xlTitle() { return '업무현황' + (S.view === 'kodle' ? '_꼬들' : S.view === 'prac' ? (S.kSub.prac === 'kodle' && KODLE_ON ? '_꼬들연습' : '_연습') : S.view === 'rank' ? '_순위' : S.view === 'hist' ? '_이력' : S.srv && S.srv.no ? '_' + S.srv.no : '') + '.xlsx'; }
+  function xlTitle() { return '업무현황' + (S.view === 'chal' ? '_챌린지' : S.view === 'kodle' ? '_꼬들' : S.view === 'prac' ? (S.kSub.prac === 'kodle' && KODLE_ON ? '_꼬들연습' : '_연습') : S.view === 'rank' ? '_순위' : S.view === 'hist' ? '_이력' : S.srv && S.srv.no ? '_' + S.srv.no : '') + '.xlsx'; }
 
   /* ---------- 엑셀 모드 껍데기 (1.10.0): 로고 · 리본 · 이름 상자 + 수식 입력줄 · 상태 표시줄. 켤 때 만들고 끌 때 지움.
    * 입력창(#gw)과 추측 폼(#gf)은 수식 입력줄 안에 한 번만 있음 (켜진 동안). 리본의 '편집' 그룹 버튼이 힌트 · 포기 · 새 문제 · 정렬을 맡음 ---------- */
@@ -554,6 +554,7 @@
     var st = S.srv && S.srv.stats;
     if (S.xl) { $('ttl').textContent = xlTitle(); $('sub').textContent = '저장됨'; return; }
     if (S.view === 'kodle') { $('ttl').textContent = '꼬들'; $('sub').textContent = '자모 6개를 색깔로 맞혀라 · 점수는 꼬맨틀에 합산'; return; }
+    if (S.view === 'chal') { var cn = chalState().n; $('ttl').textContent = '오늘의 챌린지'; $('sub').textContent = cn === 2 ? '🏆 오늘 코스 완료!' : cn + '/2 완료 · 꼬맨틀 → 꼬들'; return; }
     if (S.view !== 'kodle' && kodleSub()) { $('ttl').textContent = S.view === 'prac' ? '꼬들 연습' : '꼬들 기록'; $('sub').textContent = S.view === 'prac' ? '기록 없이 마음껏' : '꼬들 점수 · 연속 · 지난 판'; return; }
     if (S.view === 'prac') { $('ttl').textContent = '꼬맨틀 연습'; $('sub').textContent = '기록 없이 마음껏 — 힌트도 무제한'; return; }
     $('ttl').textContent = S.srv && S.srv.no ? '꼬맨틀 #' + S.srv.no : '꼬맨틀';
@@ -571,11 +572,13 @@
   }
   function render() {
     if (!S.nick) return renderGate(!!session());
-    setHead(); tabsOn(); kodleTab();
+    if (KODLE_ON && !S.homeSet) { S.homeSet = true; if (S.view === 'play') S.view = 'chal'; }   // 열면 오늘의 챌린지가 첫 화면
+    setHead(); tabsOn(); kodleTab(); chalTab();
     if (S.view === 'prac') renderPrac();
     else if (S.view === 'rank') renderRank();
     else if (S.view === 'hist') renderHist();
     else if (S.view === 'kodle') renderKodle('play');
+    else if (S.view === 'chal') renderChal();
     else renderPlay();
     xlState();   // 엑셀 모드: 리본 · 수식 입력줄 · 상태 표시줄을 지금 화면에 맞춤
   }
@@ -584,7 +587,7 @@
   var kodleP = null;
   function loadKodle() {
     if (window.JMB_KODLE) return Promise.resolve();
-    if (!kodleP) kodleP = new Promise(function (res, rej) { var s = document.createElement('script'); s.src = '../kodle/app.js?v=1.12.0'; s.onload = res; s.onerror = function () { kodleP = null; rej(new Error('꼬들 파일을 못 받았어요')); }; document.head.appendChild(s); });
+    if (!kodleP) kodleP = new Promise(function (res, rej) { var s = document.createElement('script'); s.src = '../kodle/app.js?v=1.13.0'; s.onload = res; s.onerror = function () { kodleP = null; rej(new Error('꼬들 파일을 못 받았어요')); }; document.head.appendChild(s); });
     return kodleP;
   }
   /** 꼬들이 보이는 화면인가: 🟩 꼬들 탭, 또는 연습 · 내 기록 탭에서 '꼬들' 을 고른 경우 */
@@ -621,18 +624,49 @@
     return '';
   }
   /** 끝나면 다음 게임으로: 꼬들 (두 글자 단어를 자모 색깔로 맞히기) */
+  /* ================= 오늘의 챌린지 (1.21.0) — 꼬맨틀 → 꼬들을 하루 코스로 묶음 ================= */
+  /** 오늘 코스의 두 단계(꼬맨틀 · 꼬들) 상태: {done, win, started, pct, locked} — 이 기기의 오늘 판 + 서버 요약(ch) */
+  function chalState() {
+    var td = S.ctx === 'td' ? S : S.hold.td, L = td && td.L, my = td && td.srv && td.srv.my, ch = td && td.srv && td.srv.ch;
+    var s = { done: !!((my && my.state === '완료') || (L && L.done)), win: !!((L && L.done && L.win) || (my && my.result === '정답')), started: !!(L && L.g && L.g.length), pct: 0 };
+    if (!s.done && s.started) {
+      if (S.ctx === 'td' && S.rankOf) { var best = 0; L.g.forEach(function (x) { var r = rankIn(x.w); if (r && (!best || r < best)) best = r; }); s.pct = best ? Math.max(12, Math.round((1 - Math.log(best) / Math.log(1001)) * 100)) : Math.min(35, 6 + L.g.length * 2); }
+      else s.pct = Math.min(35, 6 + L.g.length * 2);
+    }
+    var kv = null; try { kv = JSON.parse(localStorage.getItem('jmb_kodle_v1' + ENV_SFX) || 'null'); } catch (e) {}
+    if (kv && kv.day !== kstDay()) kv = null;
+    var k = { done: !!((kv && kv.done) || (ch && ch.tdone)), win: !!(kv && kv.win), started: !!(kv && kv.guesses && kv.guesses.length), pct: 0, locked: kstDay() >= KODLE_LOCK_FROM && !s.done };
+    if (!k.done && k.started) k.pct = Math.round(kv.guesses.length / 6 * 100);
+    return { s: s, k: k, ch: ch || null, n: (s.done ? 1 : 0) + (k.done ? 1 : 0) };
+  }
+  function chalStep(no, name, desc, st, go) {
+    var cls = st.done ? 'done' : st.started ? 'prog' : 'wait', lab = st.done ? '완료' : st.started ? '진행 중' : st.locked ? '🔒 대기 중' : no === 1 ? '시작 전' : '대기 중';
+    return '<div class="step ' + cls + '" data-go="' + go + '" role="button" tabindex="0"><div class="sr"><b>STEP 0' + no + '. ' + name + '</b><span class="st">' + lab + '</span></div><p>' + desc + '</p>' +
+      (st.done ? '<div class="pbar"><i style="width:100%"></i></div>' : st.started ? '<div class="pbar"><i style="width:' + st.pct + '%"></i></div>' : '') + '</div>';
+  }
+  function renderChal() {
+    var c = chalState(), all = c.n === 2, ch = c.ch, h = '<div class="card chal"><h2>오늘의 챌린지</h2><div class="csub">TODAY\'S WORD CHALLENGE</div><div class="cpill' + (all ? ' ok' : '') + '">2개 게임 중 ' + c.n + '개 완료</div>' +
+      chalStep(1, '꼬맨틀', '단어의 의미를 추리해 보세요.', c.s, 'play') + '<div class="carr" aria-hidden="true">↓</div>' + chalStep(2, '꼬들', '글자와 위치를 추리해 정답을 맞혀 보세요.', c.k, 'kodle');
+    h += '<div class="cfoot"><div class="trophy' + (all ? ' on' : '') + '">🏆</div><b>' + (all ? '오늘의 챌린지 완료!' : '오늘의 챌린지') + '</b><p>' + (all ? '두 게임을 모두 끝냈어요. 연속 챌린지 기록에 반영됐어요!' : '두 게임을 모두 완료하면 연속 챌린지 기록에 반영돼요') + '</p></div>';
+    if (ch) h += '<div class="cstat"><div><b>🔥 ' + ch.st + '일</b><small>연속 챌린지' + (ch.bs > ch.st ? ' · 최고 ' + ch.bs + '일' : '') + '</small></div><div><b>' + ch.cd + '명</b><small>오늘 완료' + (ch.cp ? ' · 참여 ' + ch.cp + '명' : '') + '</small></div></div>' +
+      (ch.cp ? '<div class="pbar sm" title="오늘 참여한 사람 중 챌린지를 완료한 비율"><i style="width:' + Math.round(ch.cd / ch.cp * 100) + '%"></i></div>' : '');
+    var next = !c.s.done ? ['play', (c.s.started ? '이어서 하기' : '시작하기') + ' · 꼬맨틀'] : !c.k.done ? ['kodle', '다음 게임으로 · 꼬들 →'] : ['rank', '🏆 순위 보기'];
+    h += '<div class="btns"><button type="button" class="btn pri" data-go="' + next[0] + '">' + xe(next[1]) + '</button></div></div>';
+    $('view').innerHTML = h;
+  }
   /** 오늘 꼬들을 이 기기에서 끝냈는지 (꼬들 모듈이 저장해 둔 값) */
   function kodleDoneToday() { try { var v = JSON.parse(localStorage.getItem('jmb_kodle_v1' + ENV_SFX) || 'null'); return !!(v && v.day === kstDay() && v.done); } catch (e) { return false; } }
   /** 꼬맨틀 결과 카드 아래: 다음 코스(꼬들)로 이어가기 — 오늘 마친 사람 수만 보여 줌(결과 · 횟수는 비공개) */
   function kodleLink() {
     if (!KODLE_ON || (S.L && S.L.prac)) return '';
-    var n = S.srv && S.srv.kd;
-    if (kodleDoneToday()) return '<div class="card next"><h3>🎉 오늘 코스 완주!</h3><p>꼬맨틀 + 꼬들을 모두 끝냈어요. 점수는 순위에서 확인해 보세요.</p><div class="btns"><button type="button" class="btn pri" data-go="rank">' + xe('🏆 순위 보기') + '</button></div></div>';
-    return '<div class="card next"><h3>🟩 다음 코스 — 오늘의 꼬들</h3><p>두 글자 단어를 <b>자모 6칸</b>으로 맞히는 짧은 퍼즐이에요. 꼬들 점수도 꼬맨틀 순위에 더해져요.' + (n ? '<br>오늘 <b>' + n + '명</b>이 마쳤어요 — 몇 번 만에 풀었는지는 아무도 몰라요 🙂' : '') + '</p><div class="btns"><button type="button" class="btn pri" data-go="kodle">' + xe('🟩 이어서 꼬들 하러 가기 →') + '</button></div></div>';
-  }
-  /** 오늘 꼬맨틀을 끝냈는지(맞힘 · 포기 모두) — 연습 중이어도 오늘 판 상태를 봄 */
+    var c = chalState(), n = c.ch && c.ch.cd;
+    if (c.k.done) return '<div class="card next"><h3>🏆 오늘의 챌린지 완료!</h3><p>꼬맨틀 + 꼬들을 모두 끝냈어요.' + (c.ch && c.ch.st ? ' 🔥 연속 ' + c.ch.st + '일' : '') + '</p><div class="btns"><button type="button" class="btn pri" data-go="rank">' + xe('🏆 순위 보기') + '</button><button type="button" class="btn" data-go="chal">' + xe('🏁 챌린지 보기') + '</button></div></div>';
+    return '<div class="card next"><h3>🏁 오늘의 챌린지 1/2 — STEP 01 완료!</h3><p>다음은 <b>STEP 02. 꼬들</b> — 글자와 위치를 추리해 정답을 맞히는 짧은 퍼즐이에요. 꼬들까지 끝내면 챌린지 완료!' + (n ? '<br>오늘 <b>' + n + '명</b>이 챌린지를 완료했어요 — 몇 번 만에 풀었는지는 아무도 몰라요 🙂' : '') + '</p><div class="btns"><button type="button" class="btn pri" data-go="kodle">' + xe('다음 게임으로 · 꼬들 →') + '</button><button type="button" class="btn" data-go="chal">' + xe('🏁 챌린지 보기') + '</button></div></div>';
+  }  /** 오늘 꼬맨틀을 끝냈는지(맞힘 · 포기 모두) — 연습 중이어도 오늘 판 상태를 봄 */
   function semDoneToday() { var td = S.ctx === 'td' ? S : S.hold.td; if (!td) return false; var my = td.srv && td.srv.my; return !!((my && my.state === '완료') || (td.L && td.L.done)); }
   function kodleLocked() { return KODLE_ON && kstDay() >= KODLE_LOCK_FROM && !semDoneToday(); }
+  /** 챌린지 탭 표시: 진행 상황(0/2 · 1/2 · 완료) */
+  function chalTab() { if (!KODLE_ON) return; var b = $('tabChal'); if (b) { var n = chalState().n; b.innerHTML = '🏁 챌린지' + (n === 2 ? ' ✅' : ' <small class="cn">' + n + '/2</small>'); } }
   /** 꼬들 탭 표시: 잠겨 있으면 🔒 · 오늘 아직이면 주황 점 */
   function kodleTab() { if (!KODLE_ON) return; var b = $('tabKodle'); if (b) b.innerHTML = kodleLocked() ? '🔒 꼬들' : '🟩 꼬들' + (kodleDoneToday() ? '' : ' <span class="kdot" aria-label="오늘 아직">●</span>'); }
   function lockCard() {
@@ -967,7 +1001,7 @@
   });
   /* (1.16.0) 꼬들: 위 탭 = 꼬맨틀 · 꼬들 · 연습 · 순위 · 내 기록. 연습 · 내 기록은 안에서 '꼬맨틀 | 꼬들' 을 고름 (꼬들은 한 화면에 다 들어오게) */
   if (KODLE_ON) {
-    $('tabKodle').hidden = false; $('tabs').children[0].textContent = '🔤 꼬맨틀';
+    $('tabKodle').hidden = false; $('tabChal').hidden = false; $('tabs').querySelector('[data-v="play"]').textContent = '🔤 꼬맨틀';
     setTimeout(function () { (window.requestIdleCallback || setTimeout)(function () { loadKodle().catch(function () {}); }); }, 3000);   // 한가할 때 꼬들 코드를 미리 받아 둠 → 탭을 누르면 바로 열림
     var _rp = renderPrac, _rh = renderHist;
     renderPrac = function () { if (S.kSub.prac === 'kodle') renderKodle('prac'); else { _rp(); $('view').insertAdjacentHTML('afterbegin', segHTML('prac')); } };
@@ -975,6 +1009,7 @@
   }
   /* 화면 이동과 뒤로가기: 오늘 문제 → 순위 · 내 기록은 한 칸 쌓아서(뒤로가기 = 오늘 문제), 순위 ↔ 내 기록은 갈아끼움. 창(모달)은 한 칸 쌓여서 뒤로가기로 닫힘 */
   function go(v) {
+    S.homeSet = true;   // 사용자가 직접 고른 화면은 '첫 화면 = 챌린지' 가 덮어쓰지 않음
     if (v === S.view) { window.scrollTo(0, 0); return; }
     var st = history.state || {};
     if (v === 'prac' && (S.busy || S.startP)) return toast('기록 중이에요. 잠시 뒤에 눌러 주세요', true);   // 오늘 판 기록이 끝나기 전엔 연습으로 못 감 (상태가 섞이지 않게)
@@ -992,7 +1027,7 @@
     if (v && v !== S.view && S.nick) { S.view = v; syncCtx(v); render(); window.scrollTo(0, 0); updateTop(); }
   });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && modalOpen) closeModal(); });
-  $('back').onclick = function () { if (modalOpen) return closeModal(); if (S.view !== 'play') return go('play'); location.href = ROOT; };
+  $('back').onclick = function () { if (modalOpen) return closeModal(); var home = KODLE_ON ? 'chal' : 'play'; if (S.view !== home) return go(home); location.href = ROOT; };
   $('helpBtn').onclick = function () { if (guard('help', 300)) help(); };
   $('xlBtn').onclick = function () {   // 엑셀 모드 켜고 끄기 (기기에 저장). 입력창 틀을 다시 만들어 버튼 글자 · 이모지를 맞춤
     if (!guard('xl', 300)) return;
