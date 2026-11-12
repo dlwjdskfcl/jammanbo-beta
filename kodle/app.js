@@ -4,7 +4,7 @@
  * 오늘 문제는 카카오 로그인한 회원이면 서버(Kodle.js)에 기록돼 점수가 꼬맨틀 주간 · 시즌 · 누적 점수에 더해짐 (정답은 서버가 확인). 연습 판 · 로그인 안 한 판은 이 기기에만 저장. */
 (function () {
   'use strict';
-  var VER = '1.14.0', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 12), LOGMAX = 400;
+  var VER = '1.15.0', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 12), LOGMAX = 400;
   var CFG = window.JMB_CONFIG || {}, ENV = CFG.env || 'prod', SFX = ENV !== 'prod' ? '_' + ENV : '';
   var KEY = 'jmb_kodle_v1' + SFX, KLOG = 'jmb_kodle_log' + SFX, KST = 'jmb_kodle_st' + SFX, KHELP = 'jmb_kodle_help', KAUTH = 'jmb_kakao_v2' + SFX;
   var CH = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
@@ -115,7 +115,7 @@
       if (!m.done || m.guesses.length !== g.length) { m.guesses = g; m.done = true; m.win = my.result === '정답'; persist(m); }
       SV.res = { win: m.win, guesses: my.guesses, points: my.points, streak: my.streak, parts: my.parts, final: true };
     } else if (m.done && my.state === '진행중' && !SV.sending && !SV.res) srvSubmit(m);   // 이 기기에서 끝났는데 서버에는 진행 중으로 남아 있으면 다시 보냄
-    else if (m.done && my.state === 'ready' && !SV.res) SV.res = { failed: true, msg: '로그인하기 전에 푼 판이라 점수에는 안 들어가요' };
+    else if (m.done && my.state === 'ready' && !SV.res) SV.res = { failed: true, msg: '로그인 전이거나 서버에 연결되지 않은 상태에서 푼 판이에요. 내일 판부터는 정상으로 기록돼요' };
     else if (my.state === '진행중' && !m.done && g.length > m.guesses.length) { m.guesses = g; persist(m); }
     render();
   }
@@ -123,6 +123,26 @@
     if (SV.nonce) return Promise.resolve(SV.nonce);
     if (!SV.starting) SV.starting = api('kodleStart', [token()]).then(function (r) { SV.nonce = r.nonce; return r.nonce; }, function (e) { SV.starting = null; throw e; });
     return SV.starting;
+  }
+  /** (1.15.0) 서버에 판을 시작하지 못했을 때: 조용히 넘기지 않고 알리고(안내 띠 + 알림) 몇 번 자동으로 다시 시도 — 연결이 돌아오면 지금까지 추측도 저장 */
+  var retryT = 0, retryN = 0;
+  function startFail(e) {
+    var msg = (e && e.message) || '연결 실패';
+    SV.startErr = msg;
+    if (/먼저 끝내|꼬맨틀 → 꼬들/.test(msg)) { render(); return; }   // 순서 잠금은 재시도 대상이 아님
+    if (retryN === 0) toast('서버 연결이 불안정해요. 이 판 기록을 자동으로 다시 시도해요…', true);
+    render();
+    if (retryN < 4) {
+      retryN++; clearTimeout(retryT);
+      retryT = setTimeout(function () {
+        if (!srvOn()) return;
+        ensureStarted().then(function () {
+          SV.startErr = ''; retryN = 0; toast('서버에 연결됐어요 ✅ 이 판이 기록돼요');
+          var m = GM.play; if (m && !m.done && m.guesses.length) srvSave(m);
+          render();
+        }, startFail);
+      }, 3000 * retryN);
+    }
   }
   function srvSave(m) { if (m.prac || !srvOn()) return; ensureStarted().then(function (n) { return api('kodleSave', [token(), n, m.guesses.join('|')]); }).catch(function () {}); }
   function srvSubmit(m) {
@@ -188,7 +208,7 @@
     if (!token()) return '<p class="hint">로그인하면 이 결과가 꼬맨틀 순위 점수에 합산돼요. <a href="#" id="resLogin">카카오 로그인</a></p>';
     if (SV.err === 'list') return '<p class="hint">⚠️ 점수 연동 점검 중이라 이번 판은 이 기기에만 기록돼요.</p>';
     var r = SV.res;
-    if (r && r.failed) return '<p class="hint">⚠️ 점수 저장에 실패했어요 (' + esc(r.msg) + '). 이 기기에는 기록돼 있어요.</p>';
+    if (r && r.failed) return '<p class="hint">⚠️ 이 판이 서버에 저장되지 않았어요 (' + esc(r.msg) + '). 이 기기의 \'내 기록\'에는 남아 있어요. ' + (/너무 빨리|정답이 달라|기록할 판을 찾을 수 없/.test(r.msg) ? '' : '<button type="button" class="btn sm" id="retrySend">다시 시도</button>') + '</p>';
     if (r && r.final) {
       if (!r.win) return '<p class="hint">0점 — 내일 다시 도전! (기록은 서버에 저장됐어요)</p>';
       var p = r.parts || {};
@@ -199,6 +219,7 @@
   }
   function bannerHTML() {
     if (!token()) return '<div class="note">🔑 로그인하면 꼬들 점수가 <b>꼬맨틀 순위</b>에 합산돼요. <button type="button" class="btn sm pri" id="bnLogin">카카오 로그인</button></div>';
+    if (SV.startErr && GM.play && !GM.play.done && !/먼저 끝내/.test(SV.startErr)) return '<div class="note warn">⚠️ 서버 연결이 불안정해요. 자동으로 다시 시도 중이에요 — 계속 안 되면 이 판은 이 기기에만 기록될 수 있어요.</div>';
     if (SV.err === 'list') return '<div class="note warn">⚠️ 점수 연동을 점검 중이에요. 풀 수는 있지만 이번 판은 기록되지 않아요.</div>';
     if (SV.today && SV.today.semDone === false && !GM.play.done) return '<div class="note">🔤 코스: <b>오늘 꼬맨틀 → 꼬들</b>. 꼬들 점수도 꼬맨틀 점수에 더해져요. <a class="btn sm" href="../semantle/">꼬맨틀 하러 가기</a></div>';
     return '';
@@ -286,6 +307,7 @@
   function wire() {
     var s = $('share'); if (s) s.onclick = function () { var t = shareText(GM[view]); (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(function () { toast('결과를 복사했어요'); }, function () { toast('복사하지 못했어요', true); }); };
     var p = $('pracNext'); if (p) p.onclick = function () { GM.prac = newGame(true); CUR.prac = ''; render(); };
+    var rt = $('retrySend'); if (rt) rt.onclick = function () { SV.res = null; srvSubmit(GM[view]); };
     var g = $('goPrac'); if (g) g.onclick = function () { go('prac'); };
     ['bnLogin', 'resLogin'].forEach(function (id) { var b = $(id); if (b) b.onclick = function (e) { e.preventDefault(); startLogin(); }; });
   }
@@ -317,10 +339,11 @@
       if (m.guesses.indexOf(cur) >= 0) { msg('이미 쓴 단어예요', true); return shake(m); }
       if (!m.t0) m.t0 = Date.now();
       m.guesses.push(cur); CUR[view] = '';
-      if (!m.prac && srvOn()) ensureStarted().catch(function () {});   // 첫 추측 때 서버 기록을 시작 (시작 시각 = 첫 추측)
+      if (!m.prac && srvOn()) ensureStarted().catch(startFail);   // 첫 추측 때 서버 기록을 시작 (시작 시각 = 첫 추측) — 실패하면 알리고 다시 시도
       if (cur === m.ans) finish(m, true); else if (m.guesses.length >= TRIES) finish(m, false); else srvSave(m);
       persist(m); return render(true);
     }
+    if (view === 'play' && !m.prac && srvOn() && !SV.nonce && !SV.starting) ensureStarted().catch(startFail);   // 첫 글자를 누르는 순간 시작을 시도 (Enter 까지 기다리지 않아 연결 실패를 더 일찍 알게 됨)
     var add = COMP[k] || k, wasShift = shift; shift = false;
     if (cur.length + add.length <= LEN) { if (!m.t0 && !m.guesses.length) m.t0 = Date.now(); CUR[view] = cur + add; if (wasShift) render(); else paintCur(m); } else if (wasShift) render();
   }
