@@ -4,13 +4,14 @@
  * 오늘 문제는 카카오 로그인한 회원이면 서버(Kodle.js)에 기록돼 점수가 꼬맨틀 주간 · 시즌 · 누적 점수에 더해짐 (정답은 서버가 확인). 연습 판 · 로그인 안 한 판은 이 기기에만 저장. */
 (function () {
   'use strict';
-  var VER = '1.13.0', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 12), LOGMAX = 400;
+  var VER = '1.14.0', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 12), LOGMAX = 400;
   var CFG = window.JMB_CONFIG || {}, ENV = CFG.env || 'prod', SFX = ENV !== 'prod' ? '_' + ENV : '';
   var KEY = 'jmb_kodle_v1' + SFX, KLOG = 'jmb_kodle_log' + SFX, KST = 'jmb_kodle_st' + SFX, KHELP = 'jmb_kodle_help', KAUTH = 'jmb_kakao_v2' + SFX;
   var CH = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
   var JU = ['ㅏ', 'ㅐ', 'ㅑ', 'ㅒ', 'ㅓ', 'ㅔ', 'ㅕ', 'ㅖ', 'ㅗ', 'ㅗㅏ', 'ㅗㅐ', 'ㅗㅣ', 'ㅛ', 'ㅜ', 'ㅜㅓ', 'ㅜㅔ', 'ㅜㅣ', 'ㅠ', 'ㅡ', 'ㅡㅣ', 'ㅣ'];
   var JO = ['', 'ㄱ', 'ㄲ', 'ㄱㅅ', 'ㄴ', 'ㄴㅈ', 'ㄴㅎ', 'ㄷ', 'ㄹ', 'ㄹㄱ', 'ㄹㅁ', 'ㄹㅂ', 'ㄹㅅ', 'ㄹㅌ', 'ㄹㅍ', 'ㄹㅎ', 'ㅁ', 'ㅂ', 'ㅂㅅ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
-  var ROWS = ['ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅ', 'ㅆㅇㅈㅉㅊㅋㅌㅍㅎ', 'ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅛ', 'ㅜㅠㅡㅣ'];   // 자음(쌍자음 포함) 2줄 · 모음 2줄 — 키가 전부 보임. 쌍자음 · ㅐ ㅒ ㅔ ㅖ 키는 기본 자모 둘로 풀려서 들어감
+  var ROWS = ['ㅂㅈㄷㄱㅅㅛㅕㅑㅐㅔ', 'ㅁㄴㅇㄹㅎㅗㅓㅏㅣ', 'ㅋㅌㅊㅍㅠㅜㅡ'];   // (1.14.0) 컴퓨터 자판(쿼티 · 두벌식) 배열. ⇧ 를 누르면 ㅂㅈㄷㄱㅅ → ㅃㅉㄸㄲㅆ · ㅐㅔ → ㅒㅖ (키 위 작은 글자가 ⇧ 를 눌렀을 때)
+  var COMP = { 'ㅘ': 'ㅗㅏ', 'ㅙ': 'ㅗㅐ', 'ㅚ': 'ㅗㅣ', 'ㅝ': 'ㅜㅓ', 'ㅞ': 'ㅜㅔ', 'ㅟ': 'ㅜㅣ', 'ㅢ': 'ㅡㅣ' };   // 겹모음 키: 한 번 누르면 기본 자모 두 칸(ㅗ+ㅏ …)
   var SHIFTED = { 'ㅂ': 'ㅃ', 'ㅈ': 'ㅉ', 'ㄷ': 'ㄸ', 'ㄱ': 'ㄲ', 'ㅅ': 'ㅆ', 'ㅐ': 'ㅒ', 'ㅔ': 'ㅖ' }, shift = false;
   var PHYS = { KeyQ: 'ㅂ', KeyW: 'ㅈ', KeyE: 'ㄷ', KeyR: 'ㄱ', KeyT: 'ㅅ', KeyY: 'ㅛ', KeyU: 'ㅕ', KeyI: 'ㅑ', KeyA: 'ㅁ', KeyS: 'ㄴ', KeyD: 'ㅇ', KeyF: 'ㄹ', KeyG: 'ㅎ', KeyH: 'ㅗ', KeyJ: 'ㅓ', KeyK: 'ㅏ', KeyL: 'ㅣ', KeyZ: 'ㅋ', KeyX: 'ㅌ', KeyC: 'ㅊ', KeyV: 'ㅍ', KeyB: 'ㅠ', KeyN: 'ㅜ', KeyM: 'ㅡ', KeyO: 'ㅐ', KeyP: 'ㅔ' };
   var BASE = (document.currentScript && document.currentScript.src ? document.currentScript.src : location.href).replace(/[?#].*$/, '').replace(/[^\/]*$/, '');
@@ -140,7 +141,7 @@
     return st;
   }
   /** 겹글자 키(ㄲ · ㅐ …)는 풀린 자모가 모두 같은 상태일 때만 색을 보여 줌 */
-  function keySt(c, st) { return st[c]; }
+  function keySt(c, st) { var e = COMP[c]; if (!e) return st[c]; var x = st[e.charAt(0)], y = st[e.charAt(1)]; return x && x === y ? x : ''; }
   var KX = false;   // 엑셀 모드(꼬맨틀 화면 안에서 html.xl 일 때): 칸을 스프레드시트처럼 — 게임 방식은 그대로
   var COLS = 'ABCDEF';
   function boardHTML(m, cur, pop) {
@@ -171,10 +172,16 @@
   function cellInfo(m) { if (!KX || !opt.onCell) return; var a = activeCell(m, CUR[view]); opt.onCell(a ? COLS.charAt(a.c) + (a.r + 1) : 'A1', m.done ? m.aw : CUR[view]); }
   function keysHTML(m) {
     var st = keyStates(m), CONS = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
-    function btn(c) { return '<button type="button" class="' + (CONS.indexOf(c) >= 0 ? 'cn ' : 'vw ') + (keySt(c, st) || '') + '" data-k="' + c + '">' + c + '</button>'; }
-    return '<div class="keys">' + ROWS.map(function (row, i) {
-      return '<div class="kr">' + (i === 3 ? '<button type="button" class="w pri" data-k="Enter">입력</button>' : '') + row.split('').map(btn).join('') + (i === 3 ? '<button type="button" class="w" data-k="Back" aria-label="지우기">⌫</button>' : '') + '</div>';
-    }).join('') + '</div>';
+    function btn(c) {
+      var sh = SHIFTED[c], d = shift && sh ? sh : c;   // ⇧ 가 눌려 있으면 쌍자음 · ㅒㅖ 가 들어감
+      return '<button type="button" class="' + (CONS.indexOf(d) >= 0 ? 'cn ' : 'vw ') + (keySt(d, st) || '') + (sh ? ' sk' : '') + '" data-k="' + d + '">' + d + (sh ? '<i class="sg">' + (shift ? c : sh) + '</i>' : '') + '</button>';
+    }
+    function cbtn(c) { return '<button type="button" class="vw cp ' + (keySt(c, st) || '') + '" data-k="' + c + '" title="' + COMP[c] + '">' + c + '</button>'; }
+    return '<div class="keys">' +
+      '<div class="kr">' + ROWS[0].split('').map(btn).join('') + '</div>' +
+      '<div class="kr">' + ROWS[1].split('').map(btn).join('') + '<button type="button" class="w pri" data-k="Enter">입력</button></div>' +
+      '<div class="kr"><button type="button" class="w' + (shift ? ' on' : '') + '" data-k="Shift" aria-label="쌍자음 · ㅒ ㅖ (Shift)" aria-pressed="' + (shift ? 'true' : 'false') + '">⇧</button>' + ROWS[2].split('').map(btn).join('') + '<button type="button" class="w" data-k="Back" aria-label="지우기">⌫</button></div>' +
+      '<div class="kr kc">' + Object.keys(COMP).map(cbtn).join('') + '</div></div>';
   }
   /** 오늘 판 점수 칸: 서버가 확정한 값 · 확정 전에는 잠정(기본 점수만) · 로그인 안 했으면 안내 */
   function scoreHTML(m) {
@@ -314,8 +321,8 @@
       if (cur === m.ans) finish(m, true); else if (m.guesses.length >= TRIES) finish(m, false); else srvSave(m);
       persist(m); return render(true);
     }
-    var add = k; shift = false;
-    if (cur.length + add.length <= LEN) { if (!m.t0 && !m.guesses.length) m.t0 = Date.now(); CUR[view] = cur + add; paintCur(m); }
+    var add = COMP[k] || k, wasShift = shift; shift = false;
+    if (cur.length + add.length <= LEN) { if (!m.t0 && !m.guesses.length) m.t0 = Date.now(); CUR[view] = cur + add; if (wasShift) render(); else paintCur(m); } else if (wasShift) render();
   }
 
   /* ── 창 ── */

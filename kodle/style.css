@@ -85,3 +85,12 @@ html.xl .kgrid th.ch{width:var(--kt);min-width:var(--kt)}
 html.xl .kd.kwide #board.kgrid{margin:4px 0}
 
 html.xl .kd.kx .kr button{min-width:30px}
+
+/* 쿼티 자판 (1.14.0): 키 위 작은 글자 = ⇧ 를 눌렀을 때 · 겹모음 줄(ㅘ ㅙ ㅚ ㅝ ㅞ ㅟ ㅢ — 한 번에 두 칸) */
+.kd .kr button{position:relative}
+.kd .kr button .sg{position:absolute;top:1px;right:3px;font-style:normal;font-size:calc(var(--kk)*.26);line-height:1;opacity:.5;font-weight:600}
+.kd .kr button.w.on{background:var(--accent);color:var(--accent-ink)}
+.kd .kr.kc{padding:0 6%}.kd .kr.kc button.cp{flex:1}
+.kd .kr button.cp{background:var(--accent-soft)}
+html.xl .kd.kx .kr button.w.on{background:var(--accent);border-color:var(--accent);color:#fff}
+html.xl .kd.kx .kr button.cp{background:var(--accent-soft)}
