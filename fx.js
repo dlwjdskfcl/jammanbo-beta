@@ -1,10 +1,11 @@
-/* 잠만보 효과 모음 fx.js v1 — 직접 만든 가벼운 기능 (외부 라이브러리·외부 접속 없음)
+/* 잠만보 효과 모음 fx.js v2 — 직접 만든 가벼운 기능 (외부 라이브러리·외부 접속 없음)
  * 메인 앱(index.html 머리에서) · 티츄 · 순서 룰렛이 같이 씀. (티츄·룰렛은 index.html 의 ../fx.js?v=1 — 이 파일을 바꾸면 그 숫자도 올리기) 이미지 저장만 같은 사이트의 vendor/snapdom.js(MIT)를 필요할 때 읽음
  *
  *   JMB_FX.avatar(name, px)    닉네임 → 미플(보드게임 말) 아바타 SVG 글자. 같은 이름은 늘 같은 색·표정·소품
  *   JMB_FX.haptic(kind)        진동 tap · turn · bomb · win · warn — 안드로이드는 vibrate, 아이폰(iOS 18+)은 스위치 '틱'
  *   JMB_FX.hapticOn() / setHaptic(on)   진동 켜기·끄기 (이 기기에 저장, 기본 켬)
  *   JMB_FX.confetti(opt)       꽃가루 {x, y(0~1), count, duration} — '동작 줄이기' 설정이면 안 함
+ *   JMB_FX.anim(el, 'slam'|'shake'|'pop')  요소에 연출 한 번 · flash(색) 화면 번쩍 · ring(el, 색) 퍼지는 원 · celebrate({kind:'win'|'lose', el, root}) 한 번에 (모두 transform · opacity 만, '동작 줄이기'면 안 함)
  *   JMB_FX.ics(ev) / gcal(ev)  캘린더 파일(.ics) 받기 · 구글 캘린더 주소   ev = {title, date:'YYYY-MM-DD', start:'HH:MM', end, place, note, url, uid}
  *   JMB_FX.capture(el, name, opt)  화면 한 부분 → PNG (휴대폰: 공유, PC: 저장). Promise<'shared'|'saved'|'cancel'>
  */
@@ -194,5 +195,55 @@
     });
   }
 
-  W.JMB_FX = { avatar: avatar, haptic: haptic, hapticOn: hapticOn, setHaptic: setHaptic, confetti: confetti, ics: ics, icsString: icsString, gcal: gcal, capture: capture, shareOrSave: shareOrSave };
+  /* ---------- 연출 (2026-11-13) — CSS 애니메이션 · 클래스를 잠깐 붙였다 뗌. transform · opacity 만 써서 가벼움, '동작 줄이기'면 아무것도 안 함 ---------- */
+  var animCss = false;
+  function animStyle() {
+    if (animCss) return;
+    animCss = true;
+    var st = D.createElement('style');
+    st.id = 'jmb-fx-css';
+    st.textContent =
+      '@keyframes jmbSlam{0%{transform:scale(2.6) skewX(-8deg);opacity:0}60%{opacity:1}100%{transform:scale(1) skewX(0)}}' +
+      '@keyframes jmbShake{0%,100%{transform:translate(0)}20%{transform:translate(-7px,3px)}40%{transform:translate(6px,-4px)}60%{transform:translate(-4px,2px)}80%{transform:translate(3px,-1px)}}' +
+      '@keyframes jmbPop{50%{transform:scale(1.08)}}' +
+      '@keyframes jmbFlash{0%{opacity:.5}100%{opacity:0}}' +
+      '@keyframes jmbRing{0%{transform:translate(-50%,-50%) scale(.2);opacity:.9}100%{transform:translate(-50%,-50%) scale(3.2);opacity:0}}' +
+      '.jmb-a-slam{animation:jmbSlam .55s cubic-bezier(.2,.9,.3,1) both}.jmb-a-shake{animation:jmbShake .45s linear}.jmb-a-pop{animation:jmbPop .4s ease}' +
+      '.jmb-flash{position:fixed;left:0;top:0;right:0;bottom:0;background:#fff;opacity:0;pointer-events:none;z-index:2147483000;animation:jmbFlash .5s ease-out}' +
+      '.jmb-ring{position:fixed;width:90px;height:90px;border:3px solid currentColor;border-radius:50%;pointer-events:none;z-index:2147483000;opacity:0;animation:jmbRing .7s ease-out forwards}' +
+      '@media (prefers-reduced-motion:reduce){.jmb-a-slam,.jmb-a-shake,.jmb-a-pop,.jmb-flash,.jmb-ring{animation:none!important}}';
+    D.head.appendChild(st);
+  }
+  var ANIM_MS = { slam: 600, shake: 500, pop: 450 };
+  // el 에 slam(쾅 등장) · shake(흔들림) · pop(통 튐) 한 번
+  function anim(el, kind) {
+    if (!el || REDUCE || !ANIM_MS[kind]) return false;
+    animStyle();
+    var c = 'jmb-a-' + kind;
+    el.classList.remove(c); void el.offsetWidth; el.classList.add(c);
+    setTimeout(function () { el.classList.remove(c); }, ANIM_MS[kind]);
+    return true;
+  }
+  function overlay(cls, css, ms) {
+    var d = D.createElement('div'); d.className = cls; d.setAttribute('aria-hidden', 'true'); if (css) d.style.cssText = css;
+    D.body.appendChild(d);
+    setTimeout(function () { if (d.parentNode) d.parentNode.removeChild(d); }, ms);
+  }
+  // 화면 전체 번쩍 (color 기본 흰색)
+  function flash(color) { if (REDUCE) return; animStyle(); overlay('jmb-flash', color ? 'background:' + color : '', 600); }
+  // 퍼지는 원 — el 의 가운데(없으면 화면 위쪽 가운데)에서
+  function ring(el, color) {
+    if (REDUCE) return; animStyle();
+    var x = W.innerWidth / 2, y = W.innerHeight * .35;
+    if (el && el.getBoundingClientRect) { var r = el.getBoundingClientRect(); x = r.left + r.width / 2; y = r.top + r.height / 2; }
+    overlay('jmb-ring', 'left:' + Math.round(x) + 'px;top:' + Math.round(y) + 'px;color:' + (color || '#f6c62a'), 800);
+  }
+  // 한 번에: opt = { kind: 'win' | 'lose', el: 강조할 요소(제목), root: 흔들 상자 }  — win 은 번쩍 + 쾅 + 원, lose 는 흔들림
+  function celebrate(opt) {
+    opt = opt || {};
+    if (opt.kind === 'lose') { anim(opt.root || opt.el, 'shake'); return; }
+    flash(); ring(opt.el); anim(opt.el, 'slam');
+  }
+
+  W.JMB_FX = { anim: anim, flash: flash, ring: ring, celebrate: celebrate, avatar: avatar, haptic: haptic, hapticOn: hapticOn, setHaptic: setHaptic, confetti: confetti, ics: ics, icsString: icsString, gcal: gcal, capture: capture, shareOrSave: shareOrSave };
 })(window);

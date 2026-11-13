@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.22.1';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.22.2';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
   var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay', LS_THEME = 'tichu_theme', LS_THEME_TIP = 'tichu_theme_tip', LS_BOTLV = 'tichu_botlv', LS_PRACT = 'tichu_practice';
@@ -2096,7 +2096,8 @@
     html += '<button class="btn ghost block" id="rImg" style="margin-top:8px">🖼 ' + (ended ? '게임' : '라운드') + ' 결과 이미지</button>';
     openModal(html);
     S.modal.result = true;
-    if (r.me >= 0 && ((ended && g.winner === us) || (h.dbl && team(h.out[0]) === us))) { fx('confetti'); fx('haptic', 'win'); }   // 🎉 우리 팀 승리 · 원투
+    if (r.me >= 0 && ((ended && g.winner === us) || (h.dbl && team(h.out[0]) === us))) { fx('confetti'); fx('haptic', 'win'); fx('celebrate', { kind: 'win', el: $('h2', modalEl) }); }   // 🎉 우리 팀 승리 · 원투
+    else if (r.me >= 0 && ended && g.winner !== us) fx('celebrate', { kind: 'lose', root: $('.sheet', modalEl) });   // 졌을 땐 창이 흔들림
     var ri = $('#rImg'); if (ri) ri.onclick = function () {
       if (!window.JMB_FX) return toast('이미지 저장을 쓸 수 없어요', true);
       toast('이미지를 만드는 중…');
