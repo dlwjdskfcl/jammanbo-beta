@@ -422,3 +422,5 @@ html.xl .stt th,html.xl .stt td{border:1px solid var(--cell,#dadada)}html.xl .st
 .chal .btns{margin-top:12px}
 .cn{font-size:10px;opacity:.7;margin-left:2px}
 html.xl .chal .step,html.xl .cpill{border-radius:0}html.xl .chal{padding:14px}
+/* (1.27.0) 엑셀 모드: 방금 입력한 줄(맨 위 고정)을 은은하게 */
+.xlg tr#lastRow td{background:var(--accent-soft)}

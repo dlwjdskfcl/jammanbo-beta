@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.26.1';
+  var VER = '1.27.0';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   function kstDay() { return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); }
@@ -130,7 +130,9 @@
   /** 엑셀 모드 격자: 열 머리글(A~F) · 행 번호 · 1행 제목 · 추측은 2행부터 · 빈 셀이 이어짐 · 활성 셀(초록 테두리) */
   function xlGrid(list) {
     var sorted = S.sort === 'order' ? list.slice() : list.slice().sort(function (a, b) { return b.s - a.s; });
-    var NR = Math.max(sorted.length + 16, 64), lastO = S.lastW ? list.filter(function (o) { return o.w === S.lastW; })[0] : null, lastRow = 0;
+    var lastO = S.lastW ? list.filter(function (o) { return o.w === S.lastW; })[0] : null;
+    if (S.sort !== 'order' && lastO && !lastO.win) sorted = [lastO].concat(sorted.filter(function (o) { return o.w !== lastO.w; }));   // (1.27.0) 방금 입력한 단어는 맨 위에 — 줄이 끼어들어 화면이 움직이지 않게. 다음 입력 때 제자리로 정렬
+    var NR = Math.max(sorted.length + 16, 64), lastRow = 0;
     sorted.forEach(function (o, i) { if (lastO && o.w === lastO.w) lastRow = i + 2; });
     var sel = S.sel && S.sel.r >= 1 && S.sel.r <= NR ? S.sel : { r: lastRow || 2, c: 1 };
     S.xAddr = XCOL[sel.c] + sel.r;
@@ -787,7 +789,7 @@
     } else if (S.scrollNew) {   // 새로 입력한 줄이 보이게
       S.scrollNew = false;
       var lr = $('lastRow');
-      if (lr) setTimeout(function () { lr.scrollIntoView({ block: 'center', behavior: beh }); }, 60);
+      if (lr) setTimeout(function () { lr.scrollIntoView({ block: 'nearest', behavior: beh }); }, 60);   // (1.27.0) 이미 보이면 안 움직임 (예전: 늘 가운데로)
     }
   }
 
