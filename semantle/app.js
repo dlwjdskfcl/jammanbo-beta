@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.24.1';
+  var VER = '1.25.0';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   function kstDay() { return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); }
@@ -927,10 +927,8 @@
     return '<div class="tablewrap"><table class="stt"><thead><tr><th class="l">닉네임</th><th>오늘<br>꼬맨틀</th>' + (KODLE_ON ? '<th>오늘<br>꼬들</th>' : '') + '<th>꼬맨틀<br>성공</th>' + (KODLE_ON ? '<th>꼬들<br>성공</th>' : '') + '</tr></thead><tbody>' +
       L.map(function (o) { return '<tr' + (o.nick === R.me ? ' class="me"' : '') + '><td class="l">' + esc(o.nick) + (o.nick === R.me ? ' <small>(나)</small>' : '') + '</td><td>' + mark(o.ts) + '</td>' + (KODLE_ON ? '<td>' + mark(o.tk) + '</td>' : '') + '<td class="num">' + o.sx + '</td>' + (KODLE_ON ? '<td class="num">' + o.kx + '</td>' : '') + '</tr>'; }).join('') + '</tbody></table></div>';
   }
-  function renderRank() {
-    var R = S.rank;
-    if (!R) { var rc = lsJSON(LS.rkc); if (rc && rc.r && rc.nick === S.nick) { S.rank = R = rc.r; R.at = 0; refreshRank(); } }   // 저장해 둔 순위를 먼저 보여 줌
-    if (!R) { loadRank().then(function () { if (S.view === 'rank') { if (S.rank) renderRank(); else $('view').innerHTML = '<div class="card empty">순위를 불러오지 못했어요.<br><button type="button" class="btn sm" id="rkRetry">다시 시도</button></div>'; } }); return; }
+  /** 내 레이팅 · 연속 · 배지 카드 — 순위 탭이 아니라 '내 기록' 탭 맨 위에 (순위 탭은 순수 순위만) */
+  function meCard(R) {
     var me = R.mine, h = '';
     if (me) {
       var have = {}; (me.badges || []).forEach(function (b) { have[b.id] = 1; });
@@ -939,6 +937,13 @@
         '<div class="hint" style="margin-top:6px">평균 추측 ' + (me.avg || '-') + '번 · 누적 ' + me.points + '점 · 최고 연속 ' + me.bestStreak + '일 · 최소 ' + (me.best || '-') + '번' + (me.firsts ? ' · 선두 ' + me.firsts + '번' : '') + '</div>' +
         '<div class="badges">' + BADGES.map(function (b) { return '<div class="badge' + (have[b.id] ? '' : ' off') + '" title="' + esc(b.d) + '"><div class="e">' + b.e + '</div><b>' + esc(b.n) + '</b><small>' + esc(b.d) + '</small></div>'; }).join('') + '</div></div>';
     } else h += '<div class="note warn">🔒 로그인하면 내 순위와 배지를 볼 수 있어요.<br><button type="button" class="btn sm" id="login">카카오 로그인</button></div>';
+    return h;
+  }
+  function renderRank() {
+    var R = S.rank;
+    if (!R) { var rc = lsJSON(LS.rkc); if (rc && rc.r && rc.nick === S.nick) { S.rank = R = rc.r; R.at = 0; refreshRank(); } }   // 저장해 둔 순위를 먼저 보여 줌
+    if (!R) { loadRank().then(function () { if (S.view === 'rank') { if (S.rank) renderRank(); else $('view').innerHTML = '<div class="card empty">순위를 불러오지 못했어요.<br><button type="button" class="btn sm" id="rkRetry">다시 시도</button></div>'; } }); return; }
+    var h = '';
     var tabs = [['today', '오늘'], ['board', '현황'], ['week', '이번 주'], ['season', '시즌'], ['streak', '연속'], ['rate', '레이팅']];
     var tab = S.rkTab, list = tab === 'today' ? R.today : tab === 'week' ? R.weekly : tab === 'season' ? R.seasonal : tab === 'rate' ? R.rated : R.streaks;
     if (tab === 'board') {   // (1.18.0) 현황: 사람마다 오늘 꼬맨틀 · 꼬들 성공 여부 + 오늘을 뺀 누적 성공 횟수 (추측 횟수 · 시간은 공개 안 함)
@@ -968,9 +973,13 @@
         function (e) { if (S.view === 'hist') $('view').innerHTML = '<div class="card empty">기록을 불러오지 못했어요.<br><small>' + esc(e.message) + '</small><br><button type="button" class="btn sm" id="histRetry" style="margin-top:8px">다시 시도</button></div>'; });
       return;
     }
+    if (!S.rank) {   // 내 카드에 쓸 순위 데이터 (저장해 둔 것 먼저, 없으면 한 번 불러옴)
+      var rc2 = lsJSON(LS.rkc); if (rc2 && rc2.r && rc2.nick === S.nick) { S.rank = rc2.r; S.rank.at = 0; }
+      else if (!S.rkTried) { S.rkTried = true; loadRank().then(function () { if (S.view === 'hist') renderHist(); }, function () {}); }
+    }
     var list = S.hist, wins = list.filter(function (o) { return o.result === '정답'; }), sumG = 0, sumP = 0;
     wins.forEach(function (o) { sumG += o.guesses; sumP += o.points; });
-    var h = '<div class="card"><h3>📜 내 기록 <small>최근 ' + list.length + '판</small></h3><div class="stats"><div><b>' + list.length + '</b><small>도전</small></div><div><b>' + wins.length + '</b><small>정답</small></div><div><b>' + (wins.length ? Math.round(sumG / wins.length * 10) / 10 : '-') + '</b><small>평균 추측</small></div><div><b>' + sumP + '</b><small>점수</small></div></div></div>';
+    var h = (S.rank ? meCard(S.rank) : '') + '<div class="card"><h3>📜 내 기록 <small>최근 ' + list.length + '판</small></h3><div class="stats"><div><b>' + list.length + '</b><small>도전</small></div><div><b>' + wins.length + '</b><small>정답</small></div><div><b>' + (wins.length ? Math.round(sumG / wins.length * 10) / 10 : '-') + '</b><small>평균 추측</small></div><div><b>' + sumP + '</b><small>점수</small></div></div></div>';
     if (!list.length) h += '<div class="card empty">아직 기록이 없어요.<br>오늘 문제를 풀면 여기에 쌓여요! 🌱</div>';
     list.forEach(function (o) {
       var ok = o.result === '정답', tag = o.state === '진행중' ? '<span class="chip on">진행 중</span>' : o.state === '만료' ? '<span class="chip">미완료</span>' : ok ? '<span class="chip on">정답</span>' : '<span class="chip">포기</span>';

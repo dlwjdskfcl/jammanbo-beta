@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.22.3';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.23.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
   var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay', LS_THEME = 'tichu_theme', LS_THEME_TIP = 'tichu_theme_tip', LS_BOTLV = 'tichu_botlv', LS_PRACT = 'tichu_practice';
@@ -948,16 +948,20 @@
         return '<tr class="prof' + (S.user && x.n === S.user.name ? ' me' : '') + '" data-pname="' + esc(x.n) + '"><td>' + med + '</td><td class="n">' + esc(x.n) + '</td><td><b>' + x.sc + '</b> <span class="small">: ' + x.op + '</span></td><td>' + (KI[x.k] || '') + ' ' + (x.w ? '승' : '패') + '</td><td class="small">' + esc(x.d) + '</td></tr>';
       }).join('') + '</tbody></table></div>';
   }
+  // 종합 점수 = 경험치(XP — AI전 · 사람전 · 티츄 모두 포함) + 사람전 레이팅이 1500 을 넘은 만큼 × 5 (사람 대전을 안 한 사람도 순위에 오르도록, 레이팅이 낮아도 깎지는 않음)
+  function hasHuman(p) { var i = S.rankInfo; return ((i && i.season ? p.sr : p.ranked) || 0) > 0; }
+  function totalOf(p) { return xpOf(stats(p)) + (hasHuman(p) ? Math.max(0, (p.rating || 1500) - 1500) * 5 : 0); }
   function rankBody() {
-    var sort = S.rankSort || 'rating', info = S.rankInfo, past = sort === 'rating' && S.rankSeason;
-    var h = '<div class="sec-title">랭킹 <div class="seg mini">' + [['rating', '레이팅'], ['level', '레벨']].concat(CFG.rt ? [['time', '⏱ 타임']] : []).map(function (x) { return '<button data-rsort="' + x[0] + '" class="' + (sort === x[0] ? 'on' : '') + '">' + x[1] + '</button>'; }).join('') + '</div></div>';
+    var sort = S.rankSort || 'total', info = S.rankInfo, past = sort === 'rating' && S.rankSeason;
+    var h = '<div class="sec-title">랭킹 <div class="seg mini">' + [['total', '종합'], ['rating', '레이팅'], ['level', '레벨']].concat(CFG.rt ? [['time', '⏱ 타임']] : []).map(function (x) { return '<button data-rsort="' + x[0] + '" class="' + (sort === x[0] ? 'on' : '') + '">' + x[1] + '</button>'; }).join('') + '</div></div>';
     if (sort === 'time') return tbBody(h);
     if (sort === 'rating' && info && info.season) {   // 시즌 고르기 (예전 서버면 안 보임)
       h += '<div class="season-bar"><select id="rSeason" class="season-sel" aria-label="시즌"><option value="">🏁 이번 시즌 · ' + esc(info.label) + '</option>' +
         (info.seasons || []).map(function (s) { return '<option value="' + esc(s.id) + '"' + (S.rankSeason === s.id ? ' selected' : '') + '>지난 시즌 · ' + esc(s.label) + '</option>'; }).join('') + '</select>' +
         (past ? '' : '<span class="small">' + md(info.end) + '까지</span>') + '</div>';
     }
-    h += '<div class="small">' + (sort !== 'rating' ? '레벨은 봇이 낀 판까지 모든 전적으로 쌓여요 (사람 4명 대전은 경험치 +20)'
+    h += '<div class="small">' + (sort === 'total' ? '종합 = 경험치(AI전 · 사람전 · 티츄 모두) + 사람전 레이팅이 1500 을 넘은 만큼 ×5 · 사람 대전을 안 해도 순위에 올라요'
+      : sort !== 'rating' ? '레벨은 봇이 낀 판까지 모든 전적으로 쌓여요 (사람 4명 대전은 경험치 +20)'
       : past ? '시즌이 끝났을 때의 순위예요 · 승/패는 그 시즌 사람전'
       : '레이팅은 사람 4명이 끝까지 한 게임만 반영 · 점수 차와 팀 안 활약(1등·원투·티츄)에 따라 달라져요' + (info && info.season ? ' · 분기마다 새 시즌(모두 1500 에서 다시)' : '') + ' · 이름을 누르면 전적') + '</div>';
     if (past) {
@@ -974,12 +978,13 @@
     if (!S.rank.length) return h + '<div class="empty">아직 기록이 없어요. 첫 판의 주인공이 되어 보세요!</div>';
     var list = S.rank.slice();
     if (sort === 'level') list.sort(function (a, b) { return xpOf(stats(b)) - xpOf(stats(a)) || b.win - a.win; });
+    else if (sort === 'total') list.sort(function (a, b) { return totalOf(b) - totalOf(a) || b.win - a.win; });
     var ssn = sort === 'rating' && info && info.season;   // 이번 시즌: 레이팅 옆은 시즌 승/패 (sr = 시즌 사람전 판수)
-    return h + '<div style="overflow-x:auto"><table class="table-list"><thead><tr><th>#</th><th>이름</th>' + (sort === 'level' ? '<th>XP</th>' : '<th>레이팅</th>') + '<th>' + (ssn ? '시즌' : '사람') + '(승/패)</th><th>AI(승/패)</th><th>티츄</th><th>1등률</th></tr></thead><tbody>' +
+    return h + '<div style="overflow-x:auto"><table class="table-list"><thead><tr><th>#</th><th>이름</th>' + (sort === 'level' ? '<th>XP</th>' : sort === 'total' ? '<th>종합</th><th>레이팅</th>' : '<th>레이팅</th>') + '<th>' + (ssn ? '시즌' : '사람') + '(승/패)</th><th>AI(승/패)</th><th>티츄</th><th>1등률</th></tr></thead><tbody>' +
       list.map(function (p, i) {
-        var rk = ssn ? p.sr : p.ranked, lead = sort === 'level' || rk, med = i < 3 && lead ? '<span class="medal">' + ['🥇', '🥈', '🥉'][i] + '</span>' : String(i + 1);
+        var rk = ssn ? p.sr : p.ranked, lead = sort === 'level' || sort === 'total' || rk, med = i < 3 && lead ? '<span class="medal">' + ['🥇', '🥈', '🥉'][i] + '</span>' : String(i + 1);
         return '<tr class="prof' + (S.user && p.name === S.user.name ? ' me' : '') + '" data-pname="' + esc(p.name) + '"><td>' + med + '</td><td class="n">' + lvTag(p) + ' ' + esc(p.name) + '</td><td>' +
-          (sort === 'level' ? xpOf(stats(p)).toLocaleString() : rk ? p.rating : '<span class="small">-</span>') + '</td>' + (p.wl ? '<td>' + (ssn && p.sw ? wlCell(p.sw[0], p.sw[0] + p.sw[1]) : wlCell(p.wl.hw, p.wl.hg)) + '</td><td>' + wlCell(p.wl.aw, p.wl.ag) + '</td>' : '<td>' + p.win + '/' + p.lose + '</td><td>' + p.rate + '%</td>') + '<td>' + pct(p.st[0] + p.gt[0], p.st[1] + p.gt[1]) + '</td><td>' + p.first + '%</td></tr>';
+          (sort === 'level' ? xpOf(stats(p)).toLocaleString() : sort === 'total' ? '<b>' + totalOf(p).toLocaleString() + '</b></td><td>' + (hasHuman(p) ? p.rating : '<span class="small">-</span>') : rk ? p.rating : '<span class="small">-</span>') + '</td>' + (p.wl ? '<td>' + (ssn && p.sw ? wlCell(p.sw[0], p.sw[0] + p.sw[1]) : wlCell(p.wl.hw, p.wl.hg)) + '</td><td>' + wlCell(p.wl.aw, p.wl.ag) + '</td>' : '<td>' + p.win + '/' + p.lose + '</td><td>' + p.rate + '%</td>') + '<td>' + pct(p.st[0] + p.gt[0], p.st[1] + p.gt[1]) + '</td><td>' + p.first + '%</td></tr>';
       }).join('') + '</tbody></table></div>';
   }
   function levelCard(m) {
