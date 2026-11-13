@@ -424,3 +424,6 @@ html.xl .stt th,html.xl .stt td{border:1px solid var(--cell,#dadada)}html.xl .st
 html.xl .chal .step,html.xl .cpill{border-radius:0}html.xl .chal{padding:14px}
 /* (1.27.0) 엑셀 모드: 방금 입력한 줄(맨 위 고정)을 은은하게 */
 .xlg tr#lastRow td{background:var(--accent-soft)}
+/* (1.28.0) 챌린지 완료 보너스 */
+.chal .cbonus{margin:10px 0 2px;padding:9px 12px;border-radius:12px;background:var(--accent-soft);display:flex;flex-direction:column;gap:2px;text-align:center}
+.chal .cbonus b{font-size:14px}.chal .cbonus small{opacity:.75;font-size:11.5px}
