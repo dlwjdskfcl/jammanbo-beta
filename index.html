@@ -252,7 +252,7 @@ function handleKakaoRedirect() {
   try { var back = sessionStorage.getItem('jmb_route'); if (back && back.indexOf(window.JMB_ROOT) === 0) history.replaceState(null, '', back); } catch (e) {}   // 로그인 전에 보던 탭으로
   if (err) { msg('카카오 로그인이 취소됐어요'); return Promise.resolve(); }
   // 꼬맨틀로 돌아갈 예정이면 로그인 확인을 기다리는 동안 단어 목록(약 410KB)을 미리 받아 둠 — 도착하자마자 바로 쓰도록 (꼬맨틀 app.js 의 VOCAB_URL 과 같은 주소)
-  try { var ret = sessionStorage.getItem('jmb_after_login') || ''; if (/\/semantle\//.test(ret)) fetch(window.JMB_ROOT + 'semantle/vocab2.txt?v=1').catch(function () {}); } catch (e) {}
+  try { var ret = sessionStorage.getItem('jmb_after_login') || ''; if (/\/semantle\//.test(ret)) fetch(window.JMB_ROOT + 'semantle/' + (((window.JMB_CONFIG || {}).env === 'prod') ? 'vocab2' : 'vocab3') + '.txt?v=1').catch(function () {}); } catch (e) {}
   var saved = lsGetJSON(AUTH_STATE);
   try { localStorage.removeItem(AUTH_STATE); } catch (e) {}
   if (!saved || saved.s !== p.get('state') || Date.now() - saved.t > 10 * 60 * 1000) { msg('로그인 요청이 올바르지 않아요. 다시 시도해 주세요.'); return Promise.resolve(); }
