@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.26.0';
+  var VER = '1.26.1';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   function kstDay() { return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); }
@@ -204,7 +204,7 @@
   /* (1.9.0) 단어 목록(약 410KB)은 기기(Cache Storage)에 저장해 두고 다음부터는 네트워크 없이 바로 읽음. 서버가 알려 주는 목록값(vh)과 다르면 새로 받음.
    * VOCAB_URL 의 숫자는 목록 내용이 바뀔 때만 올림 (시작 페이지 index.html 의 로그인 중 미리 받기 주소와 같게) — 화면 버전(VER)이 바뀌어도 다시 안 받음 */
   /* (1.11.0) 단어 목록 두 가지: V1 = 예전(vocab.txt, 4만 개 · 표 형식 1) / V2 = 늘린 것(vocab2.txt · 표 형식 2). 서버가 fmt=2 요청에 형식 2 로 답하면 V2, 아니면 V1 (운영 서버가 새 사전을 아직 안 가졌을 때 호환) */
-  var V1 = { id: 1, url: 'vocab.txt?v=1', key: 'vocab' }, V2 = ENV === 'prod' ? { id: 2, url: 'vocab2.txt?v=1', key: 'vocab2' } : { id: 2, url: 'vocab3.txt?v=1', key: 'vocab3' },   // (1.26.0) 테스트만 vocab3(6.25만) — 운영은 새벽에 이 조건을 없앰
+  var V1 = { id: 1, url: 'vocab.txt?v=1', key: 'vocab' }, V2 = { id: 2, url: 'vocab3.txt?v=1', key: 'vocab3' },   // (1.26.0~) 6.25만 단어(vocab3) — 되돌리기: vocab2.txt · 키 vocab2
     VCACHE = 'jmb_sem_vocab' + ENV_SFX;
   function vocabFromCache(V) {
     if (!window.caches) return Promise.resolve(null);
@@ -840,7 +840,9 @@
     // (1.24.0) 은행(난이도별 · 무작위, 최근에 푼 문제 제외) 먼저 — 비었거나 실패하면 예전 방식(지난 문제)
     (f2ok ? api('semPracticeBank', [token(), pLv(), pSeen().slice(-150), 2]).catch(function () { return null; }) : Promise.resolve(null))
       .then(function (br) { return br && br.ready ? br : (EDGE && f2ok ? edgeCall('practice', { k: kk }).catch(function () { return null; }) : Promise.resolve(null)); })
-      .then(function (er) { return er && er.ready ? er : api('semPractice', [token(), kk, f2ok ? 2 : 0]); }).then(function (r) {
+      .then(function (er) { return er && er.ready ? er : api('semPractice', [token(), kk, f2ok ? 2 : 0]); })
+      .then(function (r) { return r && r.bank && td0 && td0.vh && r.vh && td0.vh !== r.vh ? api('semPractice', [token(), kk, f2ok ? 2 : 0]) : r; })   // (1.26.1) 은행 문제가 다른 단어 목록 기준이면 오류 대신 지난 문제로
+      .then(function (r) {
       if (r.bank && r.id) { var sn = pSeen(); sn.push(r.id); if (sn.length > 300) sn.splice(0, sn.length - 300); try { localStorage.setItem(PSEEN_KEY, JSON.stringify(sn)); } catch (e) {} }
       if (!r || !r.ready) throw new Error('아직 연습할 지난 문제가 없어요. 내일부터 하루에 하나씩 늘어나요');
       var td = S.ctx === 'td' ? snap() : S.hold.td;   // 오늘 판 상태는 그대로 보관
@@ -1066,8 +1068,10 @@
     $('tabKodle').hidden = false; $('tabChal').hidden = false; $('tabs').querySelector('[data-v="play"]').textContent = '🔤 꼬맨틀';
     setTimeout(function () { (window.requestIdleCallback || setTimeout)(function () { loadKodle().catch(function () {}); }); }, 3000);   // 한가할 때 꼬들 코드를 미리 받아 둠 → 탭을 누르면 바로 열림
     var _rp = renderPrac, _rh = renderHist;
-    renderPrac = function () { if (S.kSub.prac === 'kodle') renderKodle('prac'); else { _rp(); $('view').insertAdjacentHTML('afterbegin', segHTML('prac')); } };
-    renderHist = function () { if (S.kSub.hist === 'kodle') renderKodle('hist'); else { _rh(); $('view').insertAdjacentHTML('afterbegin', segHTML('hist')); } };
+    // (1.26.1) 연습 판은 입력할 때마다 일부만 다시 그려서 선택 줄(꼬맨틀 연습 | 꼬들 연습)이 계속 하나씩 늘던 것 — 붙이기 전에 있던 것을 지움
+    function kSegSet(v) { var old = $('view').querySelectorAll('#kSeg'); for (var i = 0; i < old.length; i++) old[i].parentNode.removeChild(old[i]); $('view').insertAdjacentHTML('afterbegin', segHTML(v)); }
+    renderPrac = function () { if (S.kSub.prac === 'kodle') renderKodle('prac'); else { _rp(); kSegSet('prac'); } };
+    renderHist = function () { if (S.kSub.hist === 'kodle') renderKodle('hist'); else { _rh(); kSegSet('hist'); } };
   }
   /* 화면 이동과 뒤로가기: 오늘 문제 → 순위 · 내 기록은 한 칸 쌓아서(뒤로가기 = 오늘 문제), 순위 ↔ 내 기록은 갈아끼움. 창(모달)은 한 칸 쌓여서 뒤로가기로 닫힘 */
   function go(v) {
