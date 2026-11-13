@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.22.2';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.22.3';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
   var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay', LS_THEME = 'tichu_theme', LS_THEME_TIP = 'tichu_theme_tip', LS_BOTLV = 'tichu_botlv', LS_PRACT = 'tichu_practice';
@@ -263,6 +263,7 @@
   }, { passive: false });
 
   /* ----- 서버 호출 ----- */
+  var RT_READ = { ranking: 1, records: 1, timeBoard: 1 };
   function api(fn, a, timeoutMs) {
     if (CFG.rt && fn === 'create') return rtCreate(a || {});        // ⚡ 실시간 서버: 방 만들기(연습 포함)와
     if (a && isRt(a.room) && RT_FN[fn]) return rtCall(fn, a);       //    Q 방의 모든 요청은 WebSocket 으로
@@ -271,7 +272,8 @@
     var ctl = typeof AbortController === 'function' ? new AbortController() : null;
     var timer = ctl ? setTimeout(function () { ctl.abort(); }, timeoutMs || 20000) : 0;
     // env: 테스트·내 PC 에서는 'beta' → 티츄 서버가 카카오 확인도 잠만보 '테스트' 배포로 함 (운영은 안 붙임)
-    return fetch(CFG.api, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: fn, t: S.token || '', a: a || {}, env: CFG.env && CFG.env !== 'prod' ? 'beta' : undefined }), signal: ctl ? ctl.signal : undefined, cache: 'no-store' })
+    var viaRt = !!(CFG.rt && RT_READ[fn] && !(S.rtReadOff > Date.now()));   // 랭킹 · 전적 · 타임 기록판은 엣지가 캐시해서 바로 줌 (실패하면 2분간 GAS 로 직접)
+    return fetch(viaRt ? CFG.rt + '/api' : CFG.api, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: fn, t: S.token || '', a: a || {}, env: CFG.env && CFG.env !== 'prod' ? 'beta' : undefined }), signal: ctl ? ctl.signal : undefined, cache: 'no-store' })
       .then(function (r) {
         if (!r.ok) throw new Error('서버 응답 오류 (' + r.status + ')');
         return r.text().then(function (t) { try { return JSON.parse(t); } catch (x) { throw new Error('서버가 바빠요. 잠시 후 다시 시도해 주세요'); } });
@@ -282,7 +284,7 @@
         if (j) S.sv = j.sv || 'old';   // 옛 서버는 버전을 안 보냄
         if (!j || !j.ok) {
           var e = new Error((j && j.e) || '알 수 없는 오류');
-          e.code = j && j.code;
+          e.code = j && j.code; e.srv = true;
           if (e.code === 'auth' || e.code === 'maint') logout(e.message);
           throw e;
         }
@@ -290,6 +292,7 @@
       }, function (e) {
         clearTimeout(timer);
         if (e && typeof e.code === 'string' && e.code) throw e;          // 서버가 보낸 오류 코드(auth·gone 등). 브라우저 오류(DOMException)의 숫자 code 는 제외
+        if (viaRt && !(e && e.srv)) { S.rtReadOff = Date.now() + 120000; return api(fn, a, timeoutMs); }   // 엣지에 연결이 안 되면(서버가 준 오류가 아니면) 2분간 예전처럼 GAS 로
         var ne = new Error(e && (e.name === 'AbortError' || /abort/i.test(e.message || '')) ? '응답이 늦어 다시 연결하는 중이에요'
           : (e && /서버/.test(e.message || '') ? e.message : '연결이 잠깐 끊겼어요. 다시 연결하는 중이에요'));
         ne.net = true;
