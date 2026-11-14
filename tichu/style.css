@@ -611,3 +611,16 @@ body.ingame .toasts { top: auto; bottom: calc(var(--ch) + 150px); }
   .slot .who { text-align: left; }
   .panel .btn.block { min-height: 38px; padding-top: 6px; padding-bottom: 6px; }
 }
+
+/* (1.24.0) 받은 카드: 누가 줬는지 — 손패 위 안내 줄 + 카드 색(파트너 초록 · 왼쪽 파랑 · 오른쪽 주황) · 카드 모서리 글자 */
+.rbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 0 2px 8px; font-size: 12.5px; }
+.rbar b { color: var(--gold2); }
+.rbar .rf { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px 2px 8px; border-radius: 99px; background: rgba(255,255,255,.07); border: 1.5px solid currentColor; }
+.rbar .rf i { font-style: normal; font-weight: 700; }
+.rbar .rf.p, .hand .card[data-rf=p] { --rfc: #34d399; } .rbar .rf.l, .hand .card[data-rf=l] { --rfc: #60a5fa; } .rbar .rf.r, .hand .card[data-rf=r] { --rfc: #fbbf24; }
+.rbar .rf { color: var(--rfc); }
+.rbar .rf .card { transform: scale(.9); margin: -2px 0; }
+.hand .card[data-rf].new { box-shadow: 0 0 0 2.5px var(--rfc), 0 2px 5px rgba(0,0,0,.35); }
+.hand .card[data-rf].new::after { background: var(--rfc); }
+.hand .card[data-rf].new::before { position: absolute; left: 2px; bottom: 2px; z-index: 2; padding: 0 4px; border-radius: 6px; background: var(--rfc); color: #111; font-size: 10px; font-weight: 800; line-height: 15px; }
+.hand .card[data-rf=p].new::before { content: "파트너"; } .hand .card[data-rf=l].new::before { content: "왼"; } .hand .card[data-rf=r].new::before { content: "오"; }

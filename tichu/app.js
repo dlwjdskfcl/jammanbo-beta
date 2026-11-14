@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.23.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.24.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
   var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay', LS_THEME = 'tichu_theme', LS_THEME_TIP = 'tichu_theme_tip', LS_BOTLV = 'tichu_botlv', LS_PRACT = 'tichu_practice';
@@ -1266,8 +1266,8 @@
       // 받은 카드 안내
       if (g.phase === 'play' && g.recv && me >= 0 && !g.played[me] && S.recvShown !== key + ':' + g.round) {
         S.recvShown = key + ':' + g.round;
-        var from = {}; g.recv.forEach(function (x) { from[pos(x.f, me)] = x.c; });
-        toast('받은 카드 — 왼쪽: ' + TE.cardLabel(from[3]) + ' · 파트너: ' + TE.cardLabel(from[2]) + ' · 오른쪽: ' + TE.cardLabel(from[1]));
+        var from = {}, who = {}; g.recv.forEach(function (x) { from[pos(x.f, me)] = x.c; who[pos(x.f, me)] = seatName(x.f); });
+        toast('받은 카드 — 파트너 ' + who[2] + ': ' + TE.cardLabel(from[2]) + ' · 왼쪽 ' + who[3] + ': ' + TE.cardLabel(from[3]) + ' · 오른쪽 ' + who[1] + ': ' + TE.cardLabel(from[1]));
       }
     } else {
       if (S.modal && S.modal.result) closeModal();
@@ -1602,7 +1602,7 @@
       if (mst && mst.afk) h += '<div class="afkbar">자리 비움 · 자동 진행 중 <button class="btn sm primary" id="gBack">돌아왔어요</button></div>';
       h += '<div class="timerbar"><i id="myTimer" style="width:0"></i></div>';
       h += myBarHTML(g, me, pend, myTurn, top);
-      h += '<div class="handwrap"><div class="hand" id="hand"></div></div>';
+      h += '<div class="handwrap"><div id="recvBar"></div><div class="hand" id="hand"></div></div>';
     } else {
       // 관전: 누구 시점으로 볼지 고르는 큰 버튼 4개 (테이블 자리를 눌러도 됨) + 패 보기 방이면 그 사람 패 + 봇 자리 이어받기
       var takes = r.status === 'play' && !r.solo && !r.opt.peek ? r.seats.map(function (st, s) {
@@ -1897,8 +1897,11 @@
     var el = $('#hand'); if (!el || !S.room || !S.room.g) return;
     var g = S.room.g, hand = g.hand || [], me = S.room.me;
     if (S.optim && S.optim.k === 'play') hand = hand.filter(function (c) { return S.optim.cards.indexOf(c) < 0; });
-    var recvSet = {};
-    if (g.phase === 'play' && g.recv && !g.played[me]) g.recv.forEach(function (x) { recvSet[x.c] = 1; });
+    var recvSet = {}, recvBy = {}, RF = { 2: ['p', '파트너'], 3: ['l', '왼쪽'], 1: ['r', '오른쪽'] };   // (1.24.0) 누가 준 카드인지: p 파트너 · l 왼쪽 · r 오른쪽
+    if (g.phase === 'play' && g.recv && !g.played[me]) g.recv.forEach(function (x) { recvSet[x.c] = 1; recvBy[x.c] = (RF[pos(x.f, me)] || ['', ''])[0]; });
+    var rb = $('#recvBar');
+    if (rb) rb.innerHTML = !g.recv || g.phase !== 'play' || g.played[me] ? '' : '<div class="rbar"><b>🎁 받은 카드</b>' + g.recv.slice().sort(function (a, b) { return [2, 3, 1].indexOf(pos(a.f, me)) - [2, 3, 1].indexOf(pos(b.f, me)); }).map(function (x) {
+      var r = RF[pos(x.f, me)] || ['', '']; return '<span class="rf ' + r[0] + '"><i>' + r[1] + ' · ' + esc(seatName(x.f)) + '</i>' + cardHTML(x.c, '', 'xs') + '</span>'; }).join('') + '</div>';
     var inEx = {}; S.exch.forEach(function (c) { if (c) inEx[c] = 1; });
     var wrap = el.parentNode, cs = getComputedStyle(wrap), W = wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 2, n = hand.length;
     var cw = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cw')) || 46;
@@ -1906,7 +1909,7 @@
     el.style.width = total + 'px';
     el.innerHTML = hand.map(function (c, i) {
       var cls = (S.sel.indexOf(c) >= 0 ? 'sel' : '') + (recvSet[c] ? ' new' : '') + (inEx[c] ? ' sel dim' : '');
-      return cardHTML(c, cls).replace('class="card', 'style="left:' + (i * step).toFixed(1) + 'px" class="card');
+      return cardHTML(c, cls).replace('class="card', (recvBy[c] ? 'data-rf="' + recvBy[c] + '" ' : '') + 'style="left:' + (i * step).toFixed(1) + 'px" class="card');
     }).join('') || '<div class="small" style="text-align:center;padding-top:28px">' + (g.phase === 'play' && g.out.indexOf(me) >= 0 ? '손패를 다 냈어요! 🎉' : '') + '</div>';
     bindHandDrag(el);
   }
