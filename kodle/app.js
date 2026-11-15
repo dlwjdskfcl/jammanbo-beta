@@ -4,7 +4,7 @@
  * 오늘 문제는 카카오 로그인한 회원이면 서버(Kodle.js)에 기록돼 점수가 꼬맨틀 주간 · 시즌 · 누적 점수에 더해짐 (정답은 서버가 확인). 연습 판 · 로그인 안 한 판은 이 기기에만 저장. */
 (function () {
   'use strict';
-  var VER = '1.18.0', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 12), LOGMAX = 400;
+  var VER = '1.19.0', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 12), LOGMAX = 400;
   var CFG = window.JMB_CONFIG || {}, ENV = CFG.env || 'prod', SFX = ENV !== 'prod' ? '_' + ENV : '';
   var KEY = 'jmb_kodle_v1' + SFX, KLOG = 'jmb_kodle_log' + SFX, KST = 'jmb_kodle_st' + SFX, KHELP = 'jmb_kodle_help', KAUTH = 'jmb_kakao_v2' + SFX;
   var CH = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
@@ -18,7 +18,7 @@
   var $ = function (id) { return host ? host.querySelector('#' + id) : null; };   // 꼬들 칸 안의 요소만 (머리줄 · 탭은 쓰는 페이지 몫)
   var API = CFG.api || '', ROOT = (function () { var seg = location.pathname.split('/')[1] || ''; return /\.github\.io$/.test(location.hostname) && seg ? '/' + seg + '/' : '/'; })();
   var A = [], G = {}, ready = false, view = 'play', modalOpen = false;
-  var SV = { today: null, ok: false, nonce: '', starting: null, sending: false, res: null, err: '' };   // 서버 상태: today = kodleToday 응답 · ok = 정답 목록이 서버와 같음 · res = 방금 낸 결과(서버 확정값)
+  var SV = { today: null, ok: null, tryN: 0, nonce: '', starting: null, sending: false, res: null, err: '' };   // 서버 상태: today = kodleToday 응답 · ok = 정답 목록이 서버와 같음 · res = 방금 낸 결과(서버 확정값)
   var GM = { play: null, prac: null };   // 오늘 판 · 연습 판 (탭을 오가도 유지)
   var CUR = { play: '', prac: '' };       // 입력 중인 자모
 
@@ -123,9 +123,13 @@
     if (!token()) return Promise.resolve();
     return api('kodleToday', [token()]).then(function (r) {
       if (r.loginRequired) { SV.today = null; return; }
-      SV.today = r; SV.ok = r.ak === listKey(); SV.err = SV.ok ? '' : 'list';
+      SV.today = r; SV.tryN = 0; SV.ok = r.ak === listKey(); SV.err = SV.ok ? '' : 'list';
       if (SV.ok && ready) reconcile(r);
-    }).catch(function (e) { SV.err = e.message; });
+    }).catch(function (e) {
+      SV.err = e.message || '연결 실패';   // (1.19.0) 서버 확인이 실패해도 기록은 꺼지지 않음(SV.ok 는 모름 그대로) — 안내를 띄우고 몇 번 자동으로 다시 확인
+      if (SV.tryN < 3) { SV.tryN++; clearTimeout(srvToday._t); srvToday._t = setTimeout(function () { srvToday().then(function () { render(); }); }, 2500 * SV.tryN); }
+      render();
+    });
   }
   /** 서버에 있는 오늘 판과 이 기기의 판을 맞춤: 다른 기기에서 끝냈거나 더 진행했으면 그쪽을 따름, 이 기기에서 끝났는데 서버에 없으면 보냄 */
   function reconcile(r) {
@@ -237,6 +241,7 @@
   function bannerHTML() {
     if (!token()) return '<div class="note">🔑 로그인하면 꼬들 점수가 <b>꼬맨틀 순위</b>에 합산돼요. <button type="button" class="btn sm pri" id="kdBnLogin">카카오 로그인</button></div>';
     if (SV.startErr && GM.play && !GM.play.done && !/먼저 끝내/.test(SV.startErr)) return '<div class="note warn">⚠️ 서버 연결이 불안정해요. 자동으로 다시 시도 중이에요 — 계속 안 되면 이 판은 이 기기에만 기록될 수 있어요.</div>';
+    if (SV.err && SV.err !== 'list' && !SV.today && !SV.startErr && GM.play && !GM.play.done) return '<div class="note warn">⚠️ 서버 확인이 아직 안 됐어요 — 풀 수는 있고, 연결되면 이 판이 기록돼요. <button type="button" class="btn sm" id="kdSrvRetry">다시 확인</button></div>';   // (1.19.0)
     if (SV.err === 'list') return '<div class="note warn">⚠️ 점수 연동을 점검 중이에요. 풀 수는 있지만 이번 판은 기록되지 않아요.</div>';
     if (SV.today && SV.today.semDone === false && !GM.play.done) return '<div class="note">🔤 코스: <b>오늘 꼬맨틀 → 꼬들</b>. 꼬들 점수도 꼬맨틀 점수에 더해져요. <a class="btn sm" href="../semantle/">꼬맨틀 하러 가기</a></div>';
     return '';
@@ -343,6 +348,7 @@
     var p = $('kdNext'); if (p) p.onclick = function () { GM.prac = newGame(true); CUR.prac = ''; render(); };
     var rt = $('kdRetry'); if (rt) rt.onclick = function () { SV.res = null; srvSubmit(GM[view]); };
     var g = $('kdGoPrac'); if (g) g.onclick = function () { go('prac'); };
+    var sr = $('kdSrvRetry'); if (sr) sr.onclick = function () { SV.tryN = 0; srvToday().then(function () { render(); }); };
     ['kdBnLogin', 'kdResLogin'].forEach(function (id) { var b = $(id); if (b) b.onclick = function (e) { e.preventDefault(); startLogin(); }; });
   }
   function go(v) { view = v; if (opt.standalone) { try { history.replaceState(null, '', '#' + v); } catch (e) {} } render(); }
