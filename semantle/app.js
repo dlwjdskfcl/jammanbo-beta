@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.28.1';
+  var VER = '1.28.2';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   function kstDay() { return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); }
@@ -121,7 +121,7 @@
     if (!S.xl || !$('xlRibbon')) return;
     var game = (S.view === 'play' || (S.view === 'prac' && hasPrac())) && S.srv && S.srv.ready && S.L, L = game ? S.L : null;
     if (kodleSub()) { game = false; L = null; }   // 꼬들 화면(탭 · 연습 · 기록 안의 꼬들)에서는 꼬맨틀 입력 · 리본 버튼을 흐리게
-    var gw = $('gw'), open = !!L || S.loading; if (gw) { gw.disabled = !open; if (!open) gw.value = ''; }   // 불러오는 중에도 입력 가능 (대기열)
+    var gw = $('gw'), open = (!!L || S.loading) && !(L && S.optimistic && S.ctx === 'td' && !L.done && !L.prac); if (gw) { gw.disabled = !open; if (!open) gw.value = ''; }   // 불러오는 중에도 입력 가능 (대기열)
     $('xOk').disabled = !open;
     var hb = $('rbHint'), hi = L ? hintInfo() : { off: true };
     hb.disabled = !L || hi.off; $('rbHintT').textContent = L ? hintShort() : '힌트';
@@ -341,6 +341,25 @@
     L.rec = true; S.lastW = '';
   }
 
+  /** (1.28.2) 이 판이 '기록되는 판'인지 서버에 한 번 더 확인 — 서버 확인이 늦거나 실패해서 조용히 기록 안 되는 판으로 풀게 되는 일을 막음.
+   *  서버가 '이미 끝냈다'고 하면 연습, 아니면(진행중 · 기록 없음) 기록 판으로 바로잡음. force = 판이 끝난 뒤(정답 · 포기)에도 확인. 네트워크가 안 되면 그대로 두고 false */
+  function verifyRec(loud, force) {
+    var L = S.L;
+    if (!L || L.prac || S.ctx !== 'td' || !S.nick || (L.done && !force)) return Promise.resolve(false);
+    if (S.verP) return S.verP;
+    S.verP = api('semToday', [token(), 0, 1], 7000).then(function (r) {
+      if (!r || r.loginRequired || r.ready === false) return false;
+      var my = r.my || null;
+      if (S.srv) { S.srv.my = my; if (r.stats) S.srv.stats = r.stats; }
+      S.recVer = true;
+      if (my && my.state === '완료') { if (!L.res) L.rec = false; }
+      else { L.rec = true; if (!L.nonce && !L.done) ensureStart(); }
+      saveLocal();
+      if (loud) toast(L.rec ? '✅ 기록되는 판이에요' : '오늘 기록은 이미 했어요. 연습으로 계속 풀 수 있어요');
+      return true;
+    }, function (e) { if (loud) toast('서버에 연결하지 못했어요. 잠시 뒤 다시 확인해 주세요', true); return false; }).then(function (ok) { S.verP = null; return ok; });
+    return S.verP;
+  }
   function recordable() { return !!(S.L && S.L.rec && !S.L.done); }
   function ensureStart() {
     if (!S.L.rec || S.L.nonce) return Promise.resolve();
@@ -357,6 +376,9 @@
   function guess(raw) {
     if (S.loading || !S.idx) { var qw = normalize(raw); if (qw) { S.queue.push(raw); toast('문제를 불러오는 중이에요. ‘' + qw + '’ 은(는) 곧 계산돼요'); } return; }   // (1.12.0) 불러오는 동안 먼저 입력한 단어는 대기열로
     var w = normalize(raw), inp = $('gw');
+    var rl = S.L && !S.L.prac && !S.L.done && S.ctx === 'td';
+    if (rl && S.optimistic) { toast('기록 확인 중이에요. 잠깐만요…'); return; }   // (1.28.2) 서버 확인이 끝나야 입력
+    if (rl && S.nick && !S.recVer && !S.L.g.length) { verifyRec().then(function () { S.recVer = true; guess(raw); }); return; }   // (1.28.2) 첫 추측 전에 한 번 더 확인 (실패해도 풀 수는 있게 한 번만)
     if (/[A-Za-z0-9]/.test(String(raw || ''))) {   // 영어 · 숫자는 안 됨 (단어 목록이 한글뿐)
       toast('한글로만 입력해 주세요 (영어 · 숫자는 안 돼요)', true); hap('warn');
       if (inp) { inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake'); inp.select(); }
@@ -466,7 +488,7 @@
     ask('🏳️ 정말 포기할까요?', S.L.rec ? '정답 기록은 <b>0점</b>이고 연속 기록이 끊겨요.' : '오늘 문제를 포기해요.', '포기하기', true).then(function (ok) {
       if (!ok || S.L.done) return;
       finish(false); S.scrollRes = true;
-      if (S.L.rec) submit(false, ''); else render();
+      if (S.L.rec) submit(false, ''); else { render(); verifyRec(true, true).then(function () { if (S.L.rec) submit(false, ''); else render(); }); }   // (1.28.2)
     });
   }
 
@@ -476,7 +498,7 @@
     finish(true); S.scrollRes = true;
     if (!S.xl) { try { JMB_FX.confetti({ x: .5, y: .35, count: 120, duration: 2400 }); JMB_FX.celebrate({ kind: 'win' }); } catch (e) {} }   // 엑셀 모드는 조용히
     hap('win');
-    if (S.L.rec) submit(true, w); else render();
+    if (S.L.rec) submit(true, w); else { render(); verifyRec(true, true).then(function () { if (S.L.rec) submit(true, w); else render(); }); }   // (1.28.2)
   }
   function submit(isWin, word) {
     if (S.busy) return Promise.resolve();   // 두 번 누르거나 겹쳐도 한 번만 보냄
@@ -666,7 +688,9 @@
   function statusNote() {
     var L = S.L, my = S.srv.my;
     if (!S.nick) return '<div class="note warn">🔒 <b>로그인하고 풀면</b> 정답 기록 · 순위 · 연속 기록이 남아요. 지금은 연습 모드예요.<br><button type="button" class="btn sm" id="login">카카오 로그인</button></div>';
-    if (L.rec || !my) return '';
+    if (L.rec) return '';
+    if (!L.prac && !L.done && S.ctx === 'td' && !(my && my.state === '완료')) return '<div class="note warn">⚠️ <b>이번 판은 아직 기록이 안 돼요</b> — 서버 확인이 끝나지 않았어요. <button type="button" class="btn sm" id="recheck">기록 다시 확인</button></div>';   // (1.28.2)
+    if (!my) return '';
     if (my.state === '완료') return '<div class="note ok">✅ 오늘 기록은 끝났어요' + (my.result === '정답' ? ' (' + my.guesses + '번 · ' + my.points + '점)' : ' (포기)') + '. 아래는 연습이라 점수에 안 들어가요.</div>';
     return '';
   }
@@ -788,6 +812,8 @@
     ensurePlayFrame();
     $('pTop').innerHTML = S.xl ? (L.prac ? pracCard() : statusNote()) + (L.done ? resultCard() + kodleLink() : '') : (L.prac ? pracCard() : metaCard() + statusNote()) + (L.done ? resultCard() + kodleLink() : '');
     var inp = $('gw'); inp.placeholder = S.xl ? (L.done ? '더 입력해 볼까요?' : '단어 입력') : L.done ? '더 추측해 볼까요? (연습)' : '단어를 입력하세요';
+    var lockIn = !!(S.optimistic && S.ctx === 'td' && !L.done && !L.prac);   // (1.28.2) 서버 확인(기록 여부) 끝나기 전에는 입력 막음
+    if (lockIn) { inp.placeholder = '기록 확인 중…'; } inp.disabled = lockIn;
     var fb = S.fb; $('fb').className = 'fb t' + (fb ? fb.tr : 0);
     $('fb').innerHTML = fb ? (S.xl ? '' : TIER[fb.tr].e + ' ') + '‘' + esc(fb.w) + '’ ' + TIER[fb.tr].t + (fb.r ? ' (' + fb.r + '위)' : '') : (S.xl ? '준비' : '');
     $('pTools').innerHTML = S.xl ? '' : hintBtn() + (L.done ? '' : '<button type="button" class="btn" id="giveBtn">' + xe(L.prac ? '👀 정답 보기' : '🏳️ 포기') + '</button>') + (L.prac && !L.done ? '<button type="button" class="btn" id="pracNext">' + xe('🔁 다른 문제') + '</button>' : '');
@@ -1061,6 +1087,7 @@
       case 'brag': return share(bragText());
       case 'topbtn': return topList();
       case 'retry': return retryPending();
+      case 'recheck': return verifyRec(true).then(function () { render(); });
       case 'goRank': return go('rank');
       case 'pracStart': case 'pracNext': case 'rbNext': return startPrac();
       case 'rbHint': return hint();
@@ -1157,7 +1184,8 @@
     S.nick = nick; prepare(vocab, S.srv);
     var L = lsJSON(LS.play);
     if (!L || L.day !== S.srv.day || L.vh !== S.srv.vh) { L = freshLocal(); L.rec = true; }   // 기록 여부는 서버 확인 뒤 바로잡음 (먼저 풀기 시작해도 서버가 '이미 했어요' 면 연습으로 전환)
-    S.L = L; saveLocal(); S.optimistic = true; S.loading = false;
+    S.L = L; saveLocal(); S.optimistic = true; S.recVer = false; S.loading = false;
+    clearTimeout(startFast._t); startFast._t = setTimeout(function () { if (S.optimistic) { S.optimistic = false; render(); toast('서버 확인이 늦어요. 입력하면 한 번 더 확인할게요', true); } }, 9000);   // (1.28.2) 너무 오래 걸리면 잠금만 풀고, 첫 입력 때 다시 확인
     if (lsGet(LS.help) !== '1') setTimeout(help, 400);
     render(); flushQueue();
     return true;
@@ -1170,6 +1198,7 @@
     if (r.day !== S.srv.day) { dayCacheClear(); return bootFull(); }   // 날짜가 바뀜 → 새 표 (진행 중 추측은 판마다 따로 저장돼 있음)
     var s = S.srv; s.my = r.my; s.kd = r.kd; s.stats = r.stats; s.solvedToday = r.solvedToday; s.yesterday = r.yesterday; s.ch = r.ch; s.me = r.me; s.people = r.people; S.nick = r.me;   // (1.28.0) ch(챌린지 요약)도 합침 — 엣지로 시작하면 빠져서 연속 · 오늘 완료 인원이 안 보이던 것
     var L = S.L, my = r.my;
+    S.recVer = !!my;   // (1.28.2) 내 기록까지 받았을 때만 '확인됨'
     mergeServer(L, my);
     if (!L.done && L.g.length === 0) L.rec = !!(S.nick && my && my.state !== '완료');
     else if (S.nick && my && my.state === '완료' && L.rec && !L.res) L.rec = false;   // 다른 기기에서 이미 기록함
@@ -1206,7 +1235,8 @@
     return api('semToday', [token(), 2, 1]).then(reconcile, function (e) {
       S.optimistic = false;
       if (/로그인이 만료/.test(e.message)) { dayCacheClear(); return renderGate(false); }
-      toast('서버 확인이 늦어요. 지금은 저장된 문제로 풀 수 있어요', true);   // 인터넷이 불안해도 풀 수는 있음 (기록은 연결되면)
+      render();   // (1.28.2) 입력 잠금 풀기
+      toast('서버 확인이 늦어요. 입력하면 한 번 더 확인할게요', true);   // 인터넷이 불안해도 풀 수는 있음 (기록은 연결되면)
     });
   }
   function bootGas() {
@@ -1233,6 +1263,7 @@
       S.L = L;
       var my = srv.my;
       mergeServer(L, my);
+      S.recVer = !!my;
       if (!L.done && L.g.length === 0) L.rec = !!(S.nick && my && my.state !== '완료');
       else if (S.nick && my && my.state === '완료' && L.rec && !L.res) { L.rec = false; }   // 다른 기기에서 이미 기록함
       if (L.rec && my && my.state === '진행중' && !L.nonce) ensureStart();   // 다른 기기/새로고침: 이어 하기 (서버가 확인값을 다시 줌)
