@@ -4,7 +4,7 @@
  * 오늘 문제는 카카오 로그인한 회원이면 서버(Kodle.js)에 기록돼 점수가 꼬맨틀 주간 · 시즌 · 누적 점수에 더해짐 (정답은 서버가 확인). 연습 판 · 로그인 안 한 판은 이 기기에만 저장. */
 (function () {
   'use strict';
-  var VER = '1.19.0', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 12), LOGMAX = 400;
+  var VER = '1.19.1', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 12), LOGMAX = 400;
   var CFG = window.JMB_CONFIG || {}, ENV = CFG.env || 'prod', SFX = ENV !== 'prod' ? '_' + ENV : '';
   var KEY = 'jmb_kodle_v1' + SFX, KLOG = 'jmb_kodle_log' + SFX, KST = 'jmb_kodle_st' + SFX, KHELP = 'jmb_kodle_help', KAUTH = 'jmb_kakao_v2' + SFX;
   var CH = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
@@ -80,16 +80,18 @@
   }
   function tagsHTML(m) { var t = tagsOf(m); return t.length ? '<p class="rtags">' + t.map(function (x) { return '<span>' + x + '</span>'; }).join('') + '</p>' : ''; }
   /** (1.16.0) 자랑하기: 몇 번 만에 성공했는지 + 칸 색 줄까지 — 평소 '공유'(횟수 비공개)와 따로, 자랑하고 싶은 사람이 직접 누를 때만 */
+  function mdOf(day) { var p = String(day || dayOf() || '').split('-'); return p.length === 3 ? (+p[1]) + '/' + (+p[2]) : ''; }   // '2026-11-15' → '11/15'
   function bragText(m) {
     var r = !m.prac && SV.res && SV.res.final && SV.res.win && SV.res.points != null ? SV.res.points : null;
-    return '🟩 꼬들 ' + (m.prac ? '연습' : '#' + (m.no + 1)) + ' 🎉\n🏅 ' + m.guesses.length + '/' + TRIES + '번 만에 성공' + (r != null ? ' · ⭐' + r + '점' : '') + (tagsOf(m).length ? '\n' + tagsOf(m).slice(0, 2).join(' · ') : '') + '\n' + grid(m);
+    return '🟩 꼬들 ' + (m.prac ? '연습' : mdOf(m.day)) + ' 🎉\n🏅 ' + m.guesses.length + '/' + TRIES + '번 만에 성공' + (r != null ? ' · ⭐' + r + '점' : '') + (tagsOf(m).length ? '\n' + tagsOf(m).slice(0, 2).join(' · ') : '') + '\n' + grid(m);
   }
   /** 공유 글 (꼬맨틀과 같은 모양): 첫 줄 '🟩 꼬들 #N 🎉/😵', 둘째 줄 '⭐점수점'(맞혔고 서버가 확정했을 때) · 못 맞히면 '오늘은 아쉽게…'. 추측 횟수 · 칸 색은 넣지 않음 (단톡방에서 횟수가 드러나 부끄럽지 않게) */
   function shareText(m) {
-    var head = '🟩 꼬들 ' + (m.prac ? '연습' : '#' + (m.no + 1)) + (m.win ? ' 🎉' : ' 😵');
+    var head = '🟩 꼬들 ' + (m.prac ? '연습' : mdOf(m.day)) + (m.win ? ' 🎉' : ' 😵');   // (1.19.1) #번호 대신 날짜
     if (!m.win) return head + '\n오늘은 아쉽게…';
     var r = !m.prac && SV.res && SV.res.final && SV.res.win && SV.res.points != null ? SV.res.points : null;
-    return head + (r != null ? '\n⭐' + r + '점' : '');
+    // (1.19.1) 몇 번 만에 · 점수 · 기록 태그까지 (칸 색 격자는 '자랑하기'에만)
+    return head + '\n🏅 ' + m.guesses.length + '/' + TRIES + '번 만에 성공' + (r != null ? ' · ⭐' + r + '점' : '') + (tagsOf(m).length ? '\n' + tagsOf(m).slice(0, 2).join(' · ') : '');
   }
 
   /* ── 판 만들기 · 기록 ── */

@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.28.3';
+  var VER = '1.28.4';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   function kstDay() { return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); }
@@ -526,9 +526,10 @@
   function loadMine() { return api('semToday', [token(), 0, 1]).then(function (r) { var T = today_(); if (r && r.ready && T && T.srv) { T.srv.stats = r.stats; T.srv.my = r.my; T.srv.solvedToday = r.solvedToday; } render(); }, function () {}); }
 
   /* ================= 나눔 ================= */
+  function sd_(d) { var p = String(d || '').split('-'); return p.length === 3 ? (+p[1]) + '/' + (+p[2]) : ''; }   // 공유 글용 짧은 날짜 '2026-11-15' → '11/15'
   function shareText() {
     // (1.5.3) 링크 · 추측 횟수 · 이모지 열(개수로 횟수가 보임)은 넣지 않음 — 단톡방 도배 · 횟수 공개 부담을 줄이려고. 힌트 수와 점수만. 정답 단어도 넣지 않음
-    var L = S.L, head = '🔤 꼬맨틀 #' + S.srv.no + (L.win ? ' 🎉' : ' 😵');
+    var L = S.L, head = '🔤 꼬맨틀 ' + sd_(S.srv.day) + (L.win ? ' 🎉' : ' 😵');   // (1.28.4) #번호 대신 날짜
     if (!L.win) return head + '\n오늘은 포기…';
     var line = '힌트 ' + (L.hints ? L.hints + '개' : '없이');
     if (L.res && L.res.points) line += ' · ⭐' + L.res.points + '점';
@@ -549,7 +550,7 @@
   function bragText() {
     var L = S.L, n = L.n || (L.res && L.res.guesses) || 0, line = '🏅 ' + n + '번 만에 성공 · 힌트 ' + (L.hints ? L.hints + '개' : '없이');
     if (L.res && L.res.points) line += ' · ⭐' + L.res.points + '점';
-    var out = '🔤 꼬맨틀 #' + S.srv.no + ' 🎉\n' + line;
+    var out = '🔤 꼬맨틀 ' + sd_(S.srv.day) + ' 🎉\n' + line;
     if (L.res && L.res.streak > 1) out += '\n🔥 ' + L.res.streak + '일 연속 정답';
     var tg = semTags(); if (tg.length) out += '\n' + tg.slice(0, 2).join(' · ');
     return out;
@@ -656,7 +657,7 @@
   var kodleP = null;
   function loadKodle() {
     if (window.JMB_KODLE) return Promise.resolve();
-    if (!kodleP) kodleP = new Promise(function (res, rej) { var s = document.createElement('script'); s.src = '../kodle/app.js?v=1.19.0'; s.onload = res; s.onerror = function () { kodleP = null; rej(new Error('꼬들 파일을 못 받았어요')); }; document.head.appendChild(s); });
+    if (!kodleP) kodleP = new Promise(function (res, rej) { var s = document.createElement('script'); s.src = '../kodle/app.js?v=1.19.1'; s.onload = res; s.onerror = function () { kodleP = null; rej(new Error('꼬들 파일을 못 받았어요')); }; document.head.appendChild(s); });
     return kodleP;
   }
   /** 꼬들이 보이는 화면인가: 🟩 꼬들 탭, 또는 연습 · 내 기록 탭에서 '꼬들' 을 고른 경우 */
