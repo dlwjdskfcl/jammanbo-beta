@@ -1,4 +1,5 @@
-/* 잠만보 서비스 워커 v3.3 — 재방문을 빠르게 (안전하게)
+/* 잠만보 서비스 워커 v3.4 — 재방문을 빠르게 (안전하게)
+ * - v3.4: 보드게임 확대 퀴즈(quiz/) 추가 → SKIP_DIRS
  * - v3.3: 시작 페이지 · config.js 가 실제로 바뀌면 열려 있는 화면에 알려 한 번 다시 열게 함 (업데이트 뒤 새로고침 두 번 문제)
  * - v3.2: 오락실(arcade/) · 마이티(mighty/) · 빙고(bingo/) · 단체 줄넘기(jumprope/) · 잠만보 던전(rogue/) · 파티 게임(party/) 추가 → SKIP_DIRS
  * - v3.1: 꼬맨틀(semantle/) 추가 → SKIP_DIRS
@@ -19,9 +20,9 @@
  * - Apps Script·카카오(다른 출처)와 로그인 복귀(?code=…)·초기화(?reset)는 건드리지 않음
  */
 var SCOPE = new URL(self.registration.scope).pathname;   // '/jammanbo/' 또는 '/jammanbo-beta/'
-var CACHE = 'jmb-static-v3.3:' + SCOPE;
+var CACHE = 'jmb-static-v3.4:' + SCOPE;
 // 미니게임 등 따로 동작하는 하위 폴더 (앱 첫 화면으로 바꿔치기하지 않음). 새 게임을 만들면 여기에 '폴더이름/' 추가
-var SKIP_DIRS = ['tichu/', 'roulette/', 'map/', 'timer/', 'sound/', 'escape/', 'aging/', 'semantle/', 'kodle/', 'arcade/', 'mighty/', 'bingo/', 'jumprope/', 'rogue/', 'party/', 'toolbox/'];
+var SKIP_DIRS = ['quiz/', 'tichu/', 'roulette/', 'map/', 'timer/', 'sound/', 'escape/', 'aging/', 'semantle/', 'kodle/', 'arcade/', 'mighty/', 'bingo/', 'jumprope/', 'rogue/', 'party/', 'toolbox/'];
 // 이 범위의 옛 캐시인지: 'jmb-static-…:범위' 형식이거나, 범위 표시가 없던 예전 이름(운영에서만 쓰던 것)
 function isMineOld(k) {
   if (k === CACHE || k.indexOf('jmb-static-') !== 0) return false;
