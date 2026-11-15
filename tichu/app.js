@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.24.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.25.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
   var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay', LS_THEME = 'tichu_theme', LS_THEME_TIP = 'tichu_theme_tip', LS_BOTLV = 'tichu_botlv', LS_PRACT = 'tichu_practice';
@@ -316,7 +316,7 @@
   }
   function rtClose() {
     var ws = RT.ws;
-    RT.ws = null; RT.id = ''; RT.ok = false; RT.ready = null;
+    RT.ws = null; RT.id = ''; RT.ok = false; RT.ready = null; clearInterval(RT.hb);
     Object.keys(RT.wait).forEach(function (k) { RT.wait[k].bad(rtErr(null)); });
     RT.wait = {};
     if (ws) try { ws.close(); } catch (e) {}
@@ -324,9 +324,17 @@
   function rtOpen(id) {
     rtClose();
     var ws = RT.ws = new WebSocket(rtUrl('/room/' + id));
-    RT.id = id;
+    RT.id = id; RT.rx = Date.now();
     RT.ready = new Promise(function (ok, bad) { ws.onopen = ok; ws.onerror = function () { bad(rtErr(null)); }; });
+    clearInterval(RT.hb);   // (1.25.0) 연결이 조용히 죽어도(Wi-Fi ↔ LTE 전환 등) 알아채서 다시 붙음
+    RT.hb = setInterval(function () {
+      if (RT.ws !== ws) return;
+      if (ws.readyState !== 1) return;
+      if (Date.now() - RT.rx > 50000) { rtDead(ws, id); return; }
+      try { ws.send('ping'); } catch (e) {}
+    }, 20000);
     ws.onmessage = function (ev) {
+      RT.rx = Date.now();   // pong 포함 무엇이든 받으면 살아 있음
       var j; try { j = JSON.parse(ev.data); } catch (e) { return; }
       if (j.now) S.offset = j.now - Date.now();
       if (j.bye) {   // 방이 닫힘 · 내보냄
@@ -348,12 +356,25 @@
       if (S.route.name === 'room' && S.roomId === id) { netFail(); setTimeout(function () { if (S.roomId === id && !RT.ws) rtJoin(id); }, Math.min(5000, 600 * S.netFails)); }
     };
   }
+  /** (1.25.0) 답도 · 끊김 알림도 없이 멈춘 연결을 버리고 다시 붙음 (onclose 와 같은 재연결) */
+  function rtDead(ws, id) {
+    if (RT.ws !== ws) return;
+    rtClose();
+    if (S.route.name === 'room' && S.roomId === id) { netFail(); setTimeout(function () { if (S.roomId === id && !RT.ws) rtJoin(id); }, Math.min(5000, 600 * S.netFails)); }
+  }
+  /** 화면이 다시 보일 때: 한참 아무것도 안 왔으면 ping 을 보내 보고 3초 안에 답이 없으면 다시 연결 */
+  function rtCheck() {
+    var ws = RT.ws, id = RT.id; if (!ws || ws.readyState !== 1 || Date.now() - RT.rx < 25000) return;
+    var at = Date.now(); try { ws.send('ping'); } catch (e) { return rtDead(ws, id); }
+    setTimeout(function () { if (RT.ws === ws && RT.rx < at) rtDead(ws, id); }, 3000);
+  }
   function rtSend(fn, a, t) {
     if (!RT.ws) return Promise.reject(rtErr(null));
-    var id = ++RT.seq, ws = RT.ws;
+    var id = ++RT.seq, ws = RT.ws, rid = RT.id;
     return RT.ready.then(function () {
       return new Promise(function (ok, bad) {
-        RT.wait[id] = { ok: ok, bad: bad };
+        var tm = setTimeout(function () { if (RT.wait[id]) { delete RT.wait[id]; bad(rtErr(null)); rtDead(ws, rid); } }, 15000);   // (1.25.0) 15초 넘게 답이 없으면 끊긴 것 → 버튼이 영원히 먹통이 되지 않게
+        RT.wait[id] = { ok: function (v) { clearTimeout(tm); ok(v); }, bad: function (e) { clearTimeout(tm); bad(e); } };
         ws.send(JSON.stringify({ id: id, fn: fn, t: t, a: a || {} }));
       });
     });
@@ -1179,7 +1200,7 @@
     if (!S.pollT && !S.polling && !S.busy) startPoll(0);
     else if (S.polling && Date.now() - (S.pollStart || 0) > 25000) { S.pollSeq++; S.polling = false; startPoll(0); }
   }, 5000);
-  document.addEventListener('visibilitychange', function () { sendVis(document.hidden); if (!document.hidden && S.route.name === 'room') { S.pollSeq++; S.polling = false; startPoll(0); } });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) rtCheck(); sendVis(document.hidden); if (!document.hidden && S.route.name === 'room') { S.pollSeq++; S.polling = false; startPoll(0); } });
   window.addEventListener('pagehide', function () { sendVis(true); });
   // 홈으로 나가거나 다른 앱으로 가면 서버에 알림 → 다른 사람에게 '📱 화면 나감', 방장이면 1분 뒤 다음 사람에게 방장이 넘어감 (실시간 서버 방만)
   function sendVis(hidden) {
