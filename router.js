@@ -19,7 +19,9 @@
   function fromPath() {
     var p = location.pathname;
     if (p.indexOf(ROOT) !== 0) return 'home';
-    var seg = decodeURIComponent(p.slice(ROOT.length).split('/')[0] || '').replace(/\.html$/, '').toLowerCase();
+    var seg0 = p.slice(ROOT.length).split('/')[0] || '';
+    try { seg0 = decodeURIComponent(seg0); } catch (e) {}   // 깨진 주소(%E0%A4%A 등)에서 라우터가 꺼지지 않게
+    var seg = seg0.replace(/\.html$/, '').toLowerCase();
     if (!seg) return 'home';
     if (Object.prototype.hasOwnProperty.call(ROUTES, seg)) return seg;
     return ALIAS[seg] || 'home';

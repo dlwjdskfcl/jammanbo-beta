@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.28.4';
+  var VER = '1.29.0';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   function kstDay() { return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); }
@@ -288,7 +288,7 @@
 
   /* ================= 오늘 판 (이 기기에 저장) ================= */
   function freshLocal() { return { day: S.srv.day, vh: S.srv.vh, g: [], hints: 0, done: false, win: false, rec: false, nonce: '', startAt: 0, res: null, pend: false }; }
-  function saveLocal() { if (S.L && S.L.prac) return; lsSet(LS.play, JSON.stringify(S.L)); }   // 연습 판은 저장하지 않음 (오늘 판을 덮어쓰면 안 됨)
+  function saveLocal() { if (S.L && S.L.prac) return; if (S.L && S.nick) S.L.nick = S.nick; lsSet(LS.play, JSON.stringify(S.L)); }   // (1.29.0) nick: 다른 계정의 판을 이어받지 않게   // 연습 판은 저장하지 않음 (오늘 판을 덮어쓰면 안 됨)
   function guessWords() { return S.L.g.map(function (x) { return x.w; }); }
   function realCount() { return S.L.g.filter(function (x) { return !x.h; }).length; }
   function simOf(w) { return S.sims[S.idx.get(w)]; }
@@ -314,7 +314,7 @@
   /* ---------- 진행 중 추측을 서버에도 저장 (다른 기기 · 캐시를 지운 뒤에도 이어 하기) ---------- */
   var saveT = 0;
   function gString() { return S.L.g.map(function (x) { return (x.h ? '*' : '') + x.w; }).join('|'); }
-  function scheduleSave() { if (!recordable()) return; clearTimeout(saveT); saveT = setTimeout(flushSave, 800); }
+  function scheduleSave() { if (!recordable()) return; clearTimeout(saveT); saveT = setTimeout(flushSave, 3000); }   // (1.29.0) 0.8 → 3초: 여럿이 동시에 풀 때 서버 락 대기를 줄임 (숨기기 · 닫기 · 끝낼 때는 즉시)
   function flushSave() {
     clearTimeout(saveT);
     if (!S.L || !recordable() || !S.L.nonce || !S.L.g.length || !API) return Promise.resolve();
@@ -352,7 +352,7 @@
       var my = r.my || null;
       if (S.srv) { S.srv.my = my; if (r.stats) S.srv.stats = r.stats; }
       S.recVer = true;
-      if (my && my.state === '완료') { if (!L.res) L.rec = false; }
+      if (my && my.state === '완료') { if (!L.res) { L.rec = false; if (my.res) { L.res = my.res; L.pend = false; } } }   // (1.29.0) 서버 결과가 있으면 가져옴
       else { L.rec = true; if (!L.nonce && !L.done) ensureStart(); }
       saveLocal();
       if (loud) toast(L.rec ? '✅ 기록되는 판이에요' : '오늘 기록은 이미 했어요. 연습으로 계속 풀 수 있어요');
@@ -361,10 +361,13 @@
     return S.verP;
   }
   function recordable() { return !!(S.L && S.L.rec && !S.L.done); }
+  /** (1.29.0) 일시적인 오류(연결 끊김 · 서버 락 대기 · 요청 과다)인가 — 다시 보내면 될 수 있음. 서버가 규칙으로 거절한 것(너무 빨리 · 정답이 달라 · 이미 했어요 …)은 아님 */
+  function transientErr(e) { var m = String((e && e.message) || ''); return !e || !e.server || /lock|Lock|too many|바빠|잠시 후|시간이 초과|Timeout|timeout|서버 응답 오류/.test(m); }
   function ensureStart() {
     if (!S.L.rec || S.L.nonce) return Promise.resolve();
     if (S.startP) return S.startP;
-    S.startP = api('semStart', [token()]).then(function (r) { S.L.nonce = r.nonce; S.L.startAt = Date.now(); saveLocal(); }, function (e) {
+    S.startP = api('semStart', [token()]).then(function (r) { S.L.nonce = r.nonce; S.L.startAt = Date.now(); S.startWarn = false; saveLocal(); }, function (e) {
+      if (transientErr(e)) { if (!S.startWarn) { S.startWarn = true; toast('서버 연결이 불안정해요. 계속 풀 수 있고, 연결되면 이 판이 기록돼요', true); } return; }   // (1.29.0) 기록 판 유지 · 다음 추측 때 다시 시도
       S.L.rec = false; saveLocal();
       toast(/이미 했어요|더 할 수 없어요/.test(e.message) ? '오늘 기록은 이미 했어요. 연습으로 계속 풀 수 있어요' : e.message, true); render();
     }).then(function () { S.startP = null; });
@@ -504,22 +507,32 @@
     if (S.busy) return Promise.resolve();   // 두 번 누르거나 겹쳐도 한 번만 보냄
     S.busy = true; render();
     return ensureStart().then(function () {
-      if (!S.L.rec || !S.L.nonce) { S.busy = false; render(); return; }
+      if (S.L.rec && !S.L.nonce) {   // (1.29.0) 시작이 아직 안 됐으면(연결 문제) 조용히 넘기지 않고 기록 대기로 두고 다시 시도
+        S.busy = false; S.L.pend = { win: isWin, word: word }; saveLocal(); toast('기록을 보내지 못했어요. 연결되면 다시 보낼게요', true); render();
+        if ((S.pendTry = (S.pendTry || 0) + 1) <= 4) setTimeout(retryPending, 4000 * S.pendTry);
+        return;
+      }
+      if (!S.L.rec) { S.busy = false; render(); return; }
       clearTimeout(saveT);
       var payload = { win: isWin, guesses: Math.max(isWin ? 1 : 0, S.L.n), hints: S.L.hints, answer: word, g: gString().slice(0, 11000) };
       return api('semSubmit', [token(), S.L.nonce, payload]).then(function (r) {
-        S.L.res = r; S.L.pend = false; saveLocal(); S.busy = false; lsSet(LS.pend, null);
+        S.L.res = r; S.L.pend = false; S.pendTry = 0; saveLocal(); S.busy = false; lsSet(LS.pend, null);
         S.rank = null; loadMine(); render();
       }, function (e) {
         S.busy = false;
-        if (e.server) { S.L.res = { error: e.message }; S.L.rec = false; saveLocal(); toast(e.message, true); }   // 서버가 거절 — 다시 보내도 같음
-        else { S.L.pend = { win: isWin, word: word }; saveLocal(); toast('기록을 보내지 못했어요. 연결되면 다시 보낼게요 (' + e.message + ')', true); }
+        if (e.server && /기록할 판을 찾을 수 없/.test(e.message)) {   // (1.29.0) 이미 등록됐을 수 있음(응답만 끊겼던 경우) → 서버 기록을 가져와 맞춤
+          S.L.pend = false; saveLocal(); verifyRec(false, true).then(function () { if (!S.L.res) { S.L.res = { error: e.message }; S.L.rec = false; saveLocal(); toast(e.message, true); } render(); });
+        } else if (e.server && !transientErr(e)) { S.L.res = { error: e.message }; S.L.rec = false; saveLocal(); toast(e.message, true); }   // 서버가 규칙으로 거절 — 다시 보내도 같음
+        else {   // 연결 문제 · 서버가 잠깐 바쁨 → 기록 대기, 자동으로 몇 번 다시 보냄
+          S.L.pend = { win: isWin, word: word }; saveLocal(); toast('기록을 보내지 못했어요. 연결되면 다시 보낼게요 (' + e.message + ')', true);
+          if ((S.pendTry = (S.pendTry || 0) + 1) <= 4) setTimeout(retryPending, 4000 * S.pendTry);
+        }
         render();
       });
     });
   }
   function retryPending() {
-    if (!S.L || !S.L.pend || !S.L.rec || !S.L.nonce) return;
+    if (!S.L || !S.L.pend || !S.L.rec) return;   // (1.29.0) nonce 가 없으면 submit 이 먼저 시작을 시도
     submit(S.L.pend.win, S.L.pend.word);
   }
   /* loadMine: semToday 세 번째 인자 1 = 표 없이 기록 · 통계만 받음 (큰 표를 다시 받지 않음) */
@@ -1081,7 +1094,7 @@
       case 'goHome': location.href = ROOT; return;
       case 'ydBtn': return yesterdayList();
       case 'askOk': { var r = askRes; askRes = null; closeModal(); if (r) setTimeout(function () { r(true); }, 80); return; }   // 창이 닫힌 뒤에 다음 동작
-      case 'logoutBtn': ask('로그아웃할까요?', '잠만보 앱도 함께 로그아웃돼요.', '로그아웃', true).then(function (ok) { if (ok) { lsSet(LS.auth, null); lsSet(LS.rkc, null); lsSet(LS.hsc, null); dayCacheClear(); location.reload(); } }); return;
+      case 'logoutBtn': ask('로그아웃할까요?', '잠만보 앱도 함께 로그아웃돼요.', '로그아웃', true).then(function (ok) { if (ok) { lsSet(LS.auth, null); lsSet(LS.rkc, null); lsSet(LS.hsc, null); lsSet(LS.play, null); lsSet('jmb_kodle_v1' + ENV_SFX, null); dayCacheClear(); location.reload(); } }); return;
       case 'hintBtn': return hint();
       case 'giveBtn': return giveUp();
       case 'share': return share();
@@ -1184,7 +1197,7 @@
     S.srv = { ready: true, day: c.day, no: c.no, n: c.n, vh: c.vh, fmt: c.fmt, table: c.table, top: c.top, me: nick, yesterday: '', solvedToday: 0, people: 0, my: null, stats: null };
     S.nick = nick; prepare(vocab, S.srv);
     var L = lsJSON(LS.play);
-    if (!L || L.day !== S.srv.day || L.vh !== S.srv.vh) { L = freshLocal(); L.rec = true; }   // 기록 여부는 서버 확인 뒤 바로잡음 (먼저 풀기 시작해도 서버가 '이미 했어요' 면 연습으로 전환)
+    if (!L || L.day !== S.srv.day || L.vh !== S.srv.vh || (L.nick && L.nick !== nick)) { L = freshLocal(); L.rec = true; }   // 기록 여부는 서버 확인 뒤 바로잡음 (먼저 풀기 시작해도 서버가 '이미 했어요' 면 연습으로 전환)
     S.L = L; saveLocal(); S.optimistic = true; S.recVer = false; S.loading = false;
     clearTimeout(startFast._t); startFast._t = setTimeout(function () { if (S.optimistic) { S.optimistic = false; render(); toast('서버 확인이 늦어요. 입력하면 한 번 더 확인할게요', true); } }, 9000);   // (1.28.2) 너무 오래 걸리면 잠금만 풀고, 첫 입력 때 다시 확인
     if (lsGet(LS.help) !== '1') setTimeout(help, 400);
@@ -1260,7 +1273,7 @@
       prepare(vocab, srv);
       dayCachePut(srv);   // 다음부터는 서버를 기다리지 않고 바로 시작
       var L = lsJSON(LS.play);
-      if (!L || L.day !== srv.day || L.vh !== srv.vh) L = freshLocal();
+      if (!L || L.day !== srv.day || L.vh !== srv.vh || (L.nick && L.nick !== S.nick)) L = freshLocal();
       S.L = L;
       var my = srv.my;
       mergeServer(L, my);
