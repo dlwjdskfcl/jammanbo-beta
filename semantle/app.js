@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.30.1';
+  var VER = '1.30.2';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   function kstDay() { return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); }
@@ -66,12 +66,14 @@
   function f2(v) { return v.toFixed(2); }   // (1.11.0) 값은 퍼센트(코사인 × 100) 그대로 — 안내문의 '-100 ~ 100' 과 같게 (예전에는 /100 이라 0.19 처럼 보였음)
   function hap(k) { try { window.JMB_FX && JMB_FX.haptic(k); } catch (e) {} }
   /* ---------- 엑셀 모드 (1.8.0): html.xl 클래스 + 시트 탭 이름 · 탭 제목 · 브라우저 색. 이모지는 엑셀 모드에서 뺌 ---------- */
-  function xe(s) { return S.xl ? String(s).replace(/^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]+\s*/u, '') : s; }
+  function noEmoji(s) { return String(s).replace(/^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]+\s*/u, ''); }
+  function xe(s) { return S.xl ? noEmoji(s) : s; }
+  var TAB_PLAIN = { prac: 1, rank: 1, hist: 1 };   // (1.30.2) 연습 · 순위 · 내 기록 탭은 엑셀 모드가 아니어도 이모지 없이 글자만
   function applyXl() {
     document.documentElement.classList.toggle('xl', !!S.xl);
     [].forEach.call($('tabs').children, function (b) {
       if (!b.hasAttribute('data-l')) b.setAttribute('data-l', b.textContent);
-      b.textContent = S.xl ? xe(b.getAttribute('data-l')) : b.getAttribute('data-l');
+      b.textContent = S.xl || TAB_PLAIN[b.getAttribute('data-v')] ? noEmoji(b.getAttribute('data-l')) : b.getAttribute('data-l');
     });
     [].forEach.call(document.querySelectorAll('meta[name="theme-color"]'), function (m) {
       if (!m.hasAttribute('data-o')) m.setAttribute('data-o', m.getAttribute('content'));
