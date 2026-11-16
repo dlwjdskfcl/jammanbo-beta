@@ -2,7 +2,7 @@
  * 기기 저장: jmb_mighty_save(진행 중인 게임) · jmb_mighty_set(설정) · jmb_mighty_stats(전적) */
 (function () {
   'use strict';
-  var VER = '1.0.1';
+  var VER = '1.0.3';
   var E = window.MightyEngine, AI = window.MightyAI, FX = window.JMB_FX, ARC = window.JMB_ARCADE;
   var ROOT = (function () { var seg = location.pathname.split('/')[1] || ''; return /\.github\.io$/.test(location.hostname) && seg ? '/' + seg + '/' : '/'; })();
   var LS = { save: 'jmb_mighty_save', set: 'jmb_mighty_set', stats: 'jmb_mighty_stats' };
@@ -110,7 +110,8 @@
     var st = G.st;
     G.mult = Math.min(4, G.mult * 2);
     if (st.phase === 'allpass') G.starter = (G.starter + 1) % 5;
-    G.notice = ''; G.st = E.deal({ starter: G.starter, mult: G.mult });
+    G.notice = ''; G.rlv = SET.level; G.hinted = 0;   // 새로 나눈 패 — 힌트 · 실력 표시도 처음부터
+    G.st = E.deal({ starter: G.starter, mult: G.mult });
     resetUI(); save(); render(); pump();
   }
   function pump() {
@@ -152,7 +153,10 @@
   }
   function doAct(seat, a) {
     var st = G.st, hl = st.history.length, fs = st.friendSeat, ph = st.phase, lead = !st.trick.length;
-    try { E.act(st, seat, a); } catch (e) { if (seat === ME) toast('그 수는 둘 수 없어요'); else { try { E.act(st, seat, fallback(st, seat)); } catch (e2) { return; } } }
+    try { E.act(st, seat, a); } catch (e) {
+      if (seat === ME) { toast('그 수는 둘 수 없어요'); UI.pend = null; return render(); }   // 판은 그대로 — 다시 고르게
+      try { a = fallback(st, seat); E.act(st, seat, a); } catch (e2) { return toast('판을 이어 갈 수 없어요 — 설정(오른쪽 위)에서 새 게임을 눌러 주세요', 8000); }
+    }
     UI.sel = []; UI.pend = null; UI.hintCard = -1;
     var who = seat === ME ? '나' : NAMES[seat] + ' 님';
     if (ph === 'play') {
@@ -177,6 +181,7 @@
     if (f.kind === 'first') return '초구 프렌드 (첫 트릭을 딴 사람)';
     return cardTxt(f.card) + (f.card === E.mightyOf(st.giruda) ? ' (마이티)' : '');
   }
+  function sideWon(r) { return (r.declarer === ME || r.friendSeat === ME) ? r.win : !r.win; }   // 내 편이 이겼나 (13장 공약에 13장 성공은 0점이라 점수 부호로는 못 가림)
   function finishRound() {
     var st = G.st, r = st.result, i;
     if (!G.recorded) {
@@ -184,7 +189,7 @@
       G.rounds.push({ no: G.roundNo, d: r.declarer, f: r.friendSeat, bid: r.bid, g: r.giruda, made: r.made, win: r.win, delta: r.delta, tags: r.tags });
       if (G.rounds.length > 200) G.rounds.shift();
       G.starter = r.declarer; G.mult = 1; G.recorded = true;
-      var role = r.declarer === ME ? 'd' : r.friendSeat === ME ? 'f' : 'o', won = r.delta[ME] > 0;
+      var role = r.declarer === ME ? 'd' : r.friendSeat === ME ? 'f' : 'o', won = sideWon(r);
       STATS.n++; STATS[role]++; if (won) { STATS.win++; STATS[role + 'w']++; }
       STATS.sum += r.delta[ME]; STATS.best = Math.max(STATS.best || 0, r.delta[ME]);
       rankRound(r, role, won);
@@ -204,15 +209,21 @@
     G.rank = { ok: true, streak: STATS.streak, score: sc };
     if (!ARC) return;
     var note = ((role === 'd' ? '주공 ' : role === 'f' ? '프렌드 ' : '야당 ') + (r.giruda === NT ? 'NT' : E.SUIT_CH[r.giruda]) + r.bid + (r.tags.length ? ' ' + r.tags.join(' ') : '')).slice(0, 40);
-    try {
-      ARC.report('mighty', 'streak', STATS.streak, note);
-      setTimeout(function () { try { ARC.report('mighty', 'score', sc, note, { quiet: true }); } catch (e) {} }, 3500);   // 서버가 3초 간격을 요구
-    } catch (e) {}
+    var told = false;
+    function sent(o) {   // 못 올라갔으면 눈에 보이게 (기기에 적어 두었다가 다시 보냄)
+      if (!o || !o.error || told) return;
+      told = true;
+      toast(o.queued ? '🏆 랭킹 전송이 아직 안 됐어요 (' + o.error + ') — 기기에 보관했다가 다시 보내요' : '🏆 랭킹에 올리지 못했어요: ' + o.error, 5200);
+    }
+    // 두 기록 모두 바로 맡김 — arcade.js 가 먼저 기기에 적고 3초 간격으로 차례로 보냄 (보내는 중에 화면을 닫아도 다음에 열 때 이어서)
+    try { ARC.report('mighty', 'streak', STATS.streak, note).then(sent, sent); } catch (e) {}
+    try { ARC.report('mighty', 'score', sc, note, { quiet: true }).then(sent, sent); } catch (e) {}
   }
   function abandon() {   // 판 도중에 새 게임으로 버리면 연승이 끊김 (유리한 판만 남기지 못하게)
     var g = load();
     if (g && g.st.phase !== 'done' && STATS.streak) { STATS.streak = 0; lsSet(LS.stats, STATS); }
   }
+  function cutNote() { var g = load(); return g && g.st.phase !== 'done' && STATS.streak ? '\n(판 도중이라 ' + STATS.streak + '연승이 끊겨요)' : ''; }
 
   /* ---------- 뒤로가기 (안드로이드 뒤로 · 아이폰 스와이프): 창 닫기 → 게임 중이면 첫 화면 → 첫 화면이면 나가기 ----------
    * history 에 'game'(게임 화면) · 'modal'(창) 칸을 쌓음. 결과 창은 칸을 안 쌓음(뒤로 = 첫 화면). 랭킹 창은 arcade.js 가 {jarc:1} 을 따로 쌓고 닫음 */
@@ -283,11 +294,11 @@
       '<div class="modes">' +
       (sv ? '<button type="button" class="mode main" data-a="resume"><span class="ic">▶</span><span><b>이어하기</b><small>' + sv.roundNo + '번째 판 · 내 점수 ' + sign(sv.scores[0]) + '</small></span></button>' : '') +
       '<button type="button" class="mode' + (sv ? '' : ' main') + '" data-a="new"><span class="ic">🃏</span><span><b>새 게임</b><small>나 + AI 4명 · 여러 판 누적 점수</small></span></button>' +
-      (ARC ? '<button type="button" class="mode" data-a="board"><span class="ic">🏆</span><span><b>모임 랭킹</b><small>한 판 최고 점수 · 연속 승리' + (STATS.streak ? ' (지금 ' + STATS.streak + '연승)' : '') + '</small></span></button>' : '') +
+      (ARC ? '<button type="button" class="mode" data-a="board"><span class="ic">🏆</span><span><b>모임 랭킹</b><small>한 판 최고 점수 · 연속 승리' + (STATS.streak ? ' (지금 ' + STATS.streak + '연승)' : '') + (ARC.pending && ARC.pending() ? ' · 아직 못 올린 기록 ' + ARC.pending() + '건(자동으로 다시 보내요)' : '') + '</small></span></button>' : '') +
       '<div class="two"><button type="button" class="mode" data-a="tour" data-v="0"><span class="ic">👋</span><span><b>빠른 안내</b><small>30초</small></span></button>' +
       '<button type="button" class="mode" data-a="help"><span class="ic">📖</span><span><b>규칙</b><small>자세히</small></span></button></div></div>' +
       '<div class="box"><h3>AI 실력</h3><div class="seg" id="lvSeg">' + [1, 2, 3].map(function (l) { return '<button type="button" data-a="level" data-v="' + l + '" class="' + (SET.level === l ? 'on' : '') + '">' + LEVELS[l] + '</button>'; }).join('') + '</div>' +
-      '<p class="hint">🏆 모임 랭킹은 <b>AI 고수 · 힌트 없이</b> 이긴 판만 올라가요.</p><p class="hint">쉬움 — 가끔 실수하고 공약이 소극적 · 보통 — 기본기 · 고수 — 남은 카드를 따져 여러 경우를 굴려 봄. 게임 중에도 설정에서 바꿀 수 있어요.' + (ARC ? '<br>🏆 모임 랭킹에는 <b>고수</b>로 <b>힌트 없이</b> 이긴 판만 올라가요 (쉬움 · 보통은 안 올라감).' : '') + '</p></div>' +
+      '<p class="hint">쉬움 — 가끔 실수하고 공약이 소극적 · 보통 — 기본기 · 고수 — 남은 카드를 따져 여러 경우를 굴려 봄. 게임 중에도 설정에서 바꿀 수 있어요.' + (ARC ? '<br>🏆 모임 랭킹에는 <b>고수</b>로 <b>힌트 없이</b> 이긴 판만 올라가요 (쉬움 · 보통 · 힌트를 쓴 판은 안 올라가고 연승도 끊겨요).' : '') + '</p></div>' +
       '<div class="box"><h3>내 전적<small>이 기기에 저장</small></h3><div class="stats">' +
       '<div><b>' + STATS.n + '</b><small>판</small></div><div><b>' + p(STATS.win, STATS.n) + '</b><small>승률</small></div><div><b>' + sign(STATS.sum) + '</b><small>누적 점수</small></div>' +
       '<div><b>' + p(STATS.dw, STATS.d) + '</b><small>주공 ' + STATS.d + '판</small></div><div><b>' + p(STATS.fw, STATS.f) + '</b><small>프렌드 ' + STATS.f + '판</small></div><div><b>' + p(STATS.ow, STATS.o) + '</b><small>야당 ' + STATS.o + '판</small></div>' +
@@ -376,12 +387,12 @@
       for (s = 0; s <= 4; s++) h += '<button type="button" class="pick' + (kg === s ? ' on' : '') + '" data-a="kg" data-v="' + s + '"' + (s === st.giruda || st.bid + cost(s) <= 20 ? '' : ' disabled') + '>' + suitH(s) + '<small>' + (s === st.giruda ? '그대로' : '공약 +' + cost(s)) + '</small></button>';
       h += '</div><div class="prow"><button type="button" class="btn pri" data-a="discard"' + (UI.sel.length === 3 ? '' : ' disabled') + '>3장 버리기 (' + UI.sel.length + '/3)' + (kg !== st.giruda ? ' · ' + suitH(kg) + ' ' + (st.bid + cost(kg)) : '') + '</button></div>';
     } else if (st.phase === 'friend') {
-      var g = st.giruda, own = st.hands[ME], q = [[E.mightyOf(g), '마이티'], [JOKER, '조커']], fr = UI.fr;
+      var g = st.giruda, own = st.hands[ME].concat(st.discards), q = [[E.mightyOf(g), '마이티'], [JOKER, '조커']], fr = UI.fr;
       if (g !== NT) q.push([E.card(g, 14), '기루다 A'], [E.card(g, 13), '기루다 K']); else q.push([E.card(0, 13), '♠K'], [E.card(2, 14), '♥A']);
       h += '<div class="fgrid">';
       for (i = 0; i < q.length; i++) {
         var mineC = own.indexOf(q[i][0]) >= 0;
-        h += '<button type="button" class="pick' + (fr && fr.kind === 'card' && fr.card === q[i][0] ? ' on' : '') + '" data-a="fr" data-k="card" data-c="' + q[i][0] + '"' + (mineC ? ' disabled' : '') + '>' + cardSpan(q[i][0]) + '<small>' + (mineC ? '내 손에 있음' : q[i][1]) + '</small></button>';
+        h += '<button type="button" class="pick' + (fr && fr.kind === 'card' && fr.card === q[i][0] ? ' on' : '') + '" data-a="fr" data-k="card" data-c="' + q[i][0] + '"' + (mineC ? ' disabled' : '') + '>' + cardSpan(q[i][0]) + '<small>' + (mineC ? '내 카드' : q[i][1]) + '</small></button>';
       }
       h += '</div><div class="prow"><button type="button" class="pick" data-a="frpick">다른 카드<small>직접 고르기</small></button>' +
         '<button type="button" class="pick' + (fr && fr.kind === 'first' ? ' on' : '') + '" data-a="fr" data-k="first">초구<small>첫 트릭 승자</small></button>' +
@@ -449,9 +460,16 @@
   }
   var ACT = {
     resume: function () { G = load(); if (!G) return newGameStart(); enterGame(); resetUI(); render(); pump(); },
-    'new': function () { if (load() && !confirm('진행 중인 게임과 점수표를 지우고 새로 시작할까요?')) return; newGameStart(); },
+    'new': function () { if (load() && !confirm('진행 중인 게임과 점수표를 지우고 새로 시작할까요?' + cutNote())) return; newGameStart(); },
     help: showHelp,
-    level: function (el) { SET.level = +el.getAttribute('data-v'); lsSet(LS.set, SET); if (G && UI.view === 'game') { G.rlv = Math.min(G.rlv || 0, SET.level); save(); } if ($('modal').innerHTML) showSettings(); render(); },
+    level: function (el) {
+      var lv = +el.getAttribute('data-v');
+      if (lv === SET.level) return;
+      if (lv < 3 && SET.level === 3 && STATS.streak > 0 && !confirm('고수가 아닌 판은 랭킹에 안 올라가고 ' + STATS.streak + '연승도 끊겨요. 바꿀까요?')) return;
+      SET.level = lv; lsSet(LS.set, SET);
+      if (G) { G.rlv = Math.min(G.rlv || 0, lv); save(); }   // 하던 판은 가장 낮았던 실력으로 침 (첫 화면에서 바꿔도 — 쉬움으로 두다가 끝에만 고수로 돌리지 못하게)
+      if ($('modal').innerHTML) showSettings(); render();
+    },
     speed: function (el) { SET.speed = +el.getAttribute('data-v'); lsSet(LS.set, SET); showSettings(); },
     tog: function (el) {
       var k = el.getAttribute('data-k'), v = +el.getAttribute('data-v');
@@ -502,7 +520,7 @@
     home: function () { goHome(); },
     board: function (el) { if (ARC) ARC.openBoard('mighty', el.getAttribute('data-v') || 'score'); },
     tour: function (el) { var v = el.getAttribute('data-v'); if (v === 'end') closeModal(); else showTour(+v); },
-    reset: function () { if (!confirm('점수표를 지우고 새 게임을 시작할까요?')) return; closeModal(); newGameStart(); },
+    reset: function () { if (!confirm('점수표를 지우고 새 게임을 시작할까요?' + cutNote())) return; closeModal(); newGameStart(); },
     result: function () { closeModal(); showResult(); }
   };
   function newGameStart() { abandon(); enterGame(); newGame(); }
@@ -510,9 +528,12 @@
   function doHint() {
     var st = G.st, a;
     if (!myTurn()) return;
-    try { a = AI.choose(st, ME, 3); } catch (e) { return; }
+    var first = !G.hinted && ranked();   // 랭킹에 올라갈 수 있던 판의 첫 힌트
+    if (first && STATS.streak > 0 && !confirm('힌트를 보면 이 판은 랭킹에 안 올라가고 ' + STATS.streak + '연승도 끊겨요. 볼까요?')) return;
+    try { a = AI.choose(st, ME, 3); } catch (e) { a = null; }
+    if (!a) return toast('지금은 힌트를 낼 수 없어요');
     if (!G.hinted) { G.hinted = 1; save(); }   // 힌트를 쓴 판은 랭킹에 안 올림
-    var why = a.why ? ' — ' + a.why : '';
+    var why = (a.why ? ' — ' + a.why : '') + (first ? ' (힌트를 쓴 판은 랭킹 제외)' : '');
     if (a.t === 'pass') toast('💡 추천: 패스' + why, 4200);
     else if (a.t === 'bid') { UI.bs = a.s; UI.bn = a.n; toast('💡 추천: 공약 ' + bidTxt(a.n, a.s) + why, 4200); }
     else if (a.t === 'discard') { UI.sel = a.cards.slice(); UI.kg = a.giruda == null ? st.giruda : a.giruda; toast('💡 추천: ' + a.cards.map(cardTxt).join(' ') + ' 버리기' + why, 4200); }
@@ -592,7 +613,7 @@
       UI.view === 'game' ? '<button type="button" class="btn" data-a="home">첫 화면으로</button><button type="button" class="btn" data-a="reset">새 게임</button>' : '');
   }
   function showFriendPick() {
-    var st = G.st, own = st.hands[ME], h = '', s, r;
+    var st = G.st, own = st.hands[ME].concat(st.discards), h = '', s, r;
     for (s = 0; s < 4; s++) {
       h += '<div class="rgrid" style="margin-bottom:6px">';
       for (r = 14; r >= 2; r--) {
@@ -601,14 +622,14 @@
       }
       h += '<span></span></div>';
     }
-    h += '<button type="button" class="pick" style="width:100%" data-a="fr" data-k="card" data-c="' + JOKER + '"' + (own.indexOf(JOKER) >= 0 ? ' disabled' : '') + '>' + cardSpan(JOKER) + '</button><p class="hint">흐린 카드는 내 손에 있는 카드예요. 고른 카드를 가진 사람이 프렌드가 됩니다.</p>';
+    h += '<button type="button" class="pick" style="width:100%" data-a="fr" data-k="card" data-c="' + JOKER + '"' + (own.indexOf(JOKER) >= 0 ? ' disabled' : '') + '>' + cardSpan(JOKER) + '</button><p class="hint">흐린 카드는 내 손에 있거나 방금 버린 카드예요. 고른 카드를 가진 사람이 프렌드가 됩니다.</p>';
     modal('프렌드 카드 고르기', h);
   }
   function roleTag(r, s) { return s === r.declarer ? '<span class="role d">주공</span>' : s === r.friendSeat ? '<span class="role f">프렌드</span>' : '<span class="role o">야당</span>'; }
   function showResult() {
     var st = G.st, r = st.result; if (!r) return;
     $('toast').classList.remove('on');
-    var mineWon = r.delta[ME] > 0, myR = r.declarer === ME || r.friendSeat === ME;
+    var mineWon = sideWon(r), myR = r.declarer === ME || r.friendSeat === ME;
     var calc = r.win ? '(' + r.made + ' − ' + r.bid + ') + (' + r.bid + ' − 13) × 2 = <b>' + r.base + '</b>' : r.bid + ' − ' + r.made + ' = <b>' + r.base + '</b>';
     if (r.mult > 1) calc += ' · ' + r.tags.join(' · ') + ' → × ' + r.mult + ' = <b>' + r.base * r.mult + '</b>';
     var rk = G.rank, rankLine = !rk ? '' : rk.ok && rk.streak ? '🏆 랭킹 기록 — <b>' + rk.streak + '연승</b> · 이 판 <b>' + sign(rk.score) + '점</b>' + (NICK ? '' : '<br>잠만보에 로그인하면 모임 랭킹에 올라가요') :
@@ -666,8 +687,13 @@
 
   /* ---------- 시작 ---------- */
   G = load();
-  if (G) { UI.view = 'game'; if (G.st.declarer === ME && G.st.phase === 'kitty') UI.kg = G.st.giruda; }
-  fixHist();
-  render();
+  try {
+    if (G) { UI.view = 'game'; if (G.st.declarer === ME && G.st.phase === 'kitty') UI.kg = G.st.giruda; }
+    fixHist();
+    render();
+  } catch (e) {   // 저장된 판이 망가져 그릴 수 없으면 그 판만 버리고 첫 화면으로 (전적 · 연승은 그대로)
+    G = null; lsDel(LS.save); UI.view = 'home';
+    fixHist(); render();
+  }
   if (G) pump(); else if (!SET.tour) showTour(0);   // 처음 온 사람에게 30초 안내
 })();

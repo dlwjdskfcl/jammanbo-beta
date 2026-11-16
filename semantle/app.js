@@ -6,7 +6,9 @@
  */
 (function () {
   'use strict';
-  var VER = '1.30.2';
+  var VER = '1.31.0';
+  var LATE_FROM = '2026-11-16', LATE_AT = '23:30', LATE_PTS = 10;   // (1.31.0) 밤 23:30 에 톡방에 정답이 공개됨 → 그 뒤 정답은 고정 점수 (서버 SEM_CFG_ LATE_* 와 같게 — 점수는 서버가 정함, 여기는 안내용)
+  function lateNow() { var t = new Date(Date.now() + 9 * 3600e3).toISOString(); return t.slice(0, 10) >= LATE_FROM && t.slice(11, 16) >= LATE_AT; }
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   function kstDay() { return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); }
@@ -665,7 +667,7 @@
       '<p>매일 하나의 <b>비밀 단어</b>가 정해져요. 아무 단어나 입력하면 비밀 단어와 <b>뜻이 얼마나 가까운지</b>(유사도)를 알려 줘요. 철자가 아니라 <b>쓰임새·의미</b>가 비슷해야 점수가 높아요.</p>' +
       '<ul><li>유사도는 -100 ~ 100. 높을수록 가까워요.</li><li><b>1000위 안</b>에 들면 순위가 보여요. (1위 = 비밀 단어와 가장 가까운 단어)</li><li>같은 문맥에 같이 나올 법한 단어를 떠올려 보세요. 반대말도 의외로 가까울 수 있어요. ‘사랑’과 ‘증오’는 뜻은 반대지만 같은 문맥에 자주 나와서 비슷해요. ‘밤’처럼 뜻이 여럿인 단어(어두운 밤 · 먹는 밤)는 어느 쪽인지도 생각해 보세요.</li><li>정답을 맞힌 뒤에도 추측을 계속할 수 있어요. 맞힌 뒤에 보이는 <b>가까운 단어 1000개</b>를 살펴보면 유사도를 이해하는 데 도움이 돼요. 정답은 한국 시간 자정에 바뀌고, 어제 정답과 가까운 단어도 볼 수 있어요.</li><li>비밀 단어는 명사 · 동사 · 형용사 등 모든 품사의 <b>기본형</b>이고 <b>두 글자 이상</b>이에요. 예) 행복, 기쁘다, 사랑하다. 추측은 한 글자 단어도 할 수 있어요.</li></ul>' +
       '<h4>🏆 점수와 순위</h4>' +
-      '<ul><li><b>정답 점수</b> = ' + BASE_PTS + ' − 추측 횟수 − 힌트 × ' + HINT_COST + ' (최소 0점) — 힌트를 안 쓰고 적게 추측할수록 높아요. 힌트 하나가 꽤 아파요. 일찍 푼다고 더 받지는 않아요</li><li><b>연속 보너스</b> 이틀째부터 연속 정답 하루마다 +5 (최대 +30) — <b>11월 16일부터는 없어져요</b> (연속 기록 · 배지는 그대로)</li><li><b>힌트</b>는 처음엔 못 써요. 추측 <b>5번마다 하나씩</b> 생기고 개수 제한은 없어요. 하나당 −' + HINT_COST + '점. 지금까지 찾은 가장 가까운 단어보다 더 가까운 단어를 알려 줘요</li><li>포기하면 0점 · 연속 기록이 끊겨요</li><li>하루에 한 번만 기록돼요. 정답을 맞힌 뒤에도 계속 연습할 수 있어요.</li><li>순위는 오늘(점수 순) · 이번 주 · 시즌(분기) · 연속 정답 · 레이팅이 있어요. <b>다른 사람에게는 힌트 수와 점수만 보여요</b> (추측한 단어 · 걸린 시간은 나만 봐요. 점수로 추측 횟수를 짐작할 수는 있어요).</li>' + (/jammanbo-beta/.test(location.pathname) ? '<li>🟩 <b>꼬들</b> 점수(정답 100 − 추측당 10 · 연속 보너스)도 주간 · 시즌 · 누적 점수에 더해져요. 정답 횟수 · 평균 · 연속 · 레이팅은 꼬맨틀만 셈</li>' : '') + '<li><b>레이팅</b>은 그 날 푼 사람끼리 추측 횟수를 겨루는 점수예요 (처음 1500점). 적게 맞히면 오르고 많이 맞히면 내려가요. 같으면 무승부, 포기는 꼴찌, 힌트 1개는 추측 5번으로 쳐요. 분기마다 새로 시작하고 3일 이상 참여하면 순위에 올라요.</li><li>순위에서 이름을 누르면 그 사람의 기록과 나와의 비교를 볼 수 있어요.</li></ul>' +
+      '<ul><li><b>정답 점수</b> = ' + BASE_PTS + ' − 추측 횟수 − 힌트 × ' + HINT_COST + ' (최소 0점) — 힌트를 안 쓰고 적게 추측할수록 높아요. 힌트 하나가 꽤 아파요. 일찍 푼다고 더 받지는 않아요</li><li><b>밤 ' + LATE_AT + ' 이후</b>에 맞히면 추측 횟수와 상관없이 <b>' + LATE_PTS + '점</b> — 그 시간에 모임 톡방에 오늘 정답과 순위가 올라와요 (꼬들도 같고, 그날 챌린지 보너스도 없어요)</li><li><b>연속 보너스</b> 이틀째부터 연속 정답 하루마다 +5 (최대 +30) — <b>11월 16일부터는 없어져요</b> (연속 기록 · 배지는 그대로)</li><li><b>힌트</b>는 처음엔 못 써요. 추측 <b>5번마다 하나씩</b> 생기고 개수 제한은 없어요. 하나당 −' + HINT_COST + '점. 지금까지 찾은 가장 가까운 단어보다 더 가까운 단어를 알려 줘요</li><li>포기하면 0점 · 연속 기록이 끊겨요</li><li>하루에 한 번만 기록돼요. 정답을 맞힌 뒤에도 계속 연습할 수 있어요.</li><li>순위는 오늘(점수 순) · 이번 주 · 시즌(분기) · 연속 정답 · 레이팅이 있어요. <b>다른 사람에게는 힌트 수와 점수만 보여요</b> (추측한 단어 · 걸린 시간은 나만 봐요. 점수로 추측 횟수를 짐작할 수는 있어요).</li>' + (/jammanbo-beta/.test(location.pathname) ? '<li>🟩 <b>꼬들</b> 점수(정답 100 − 추측당 10 · 연속 보너스)도 주간 · 시즌 · 누적 점수에 더해져요. 정답 횟수 · 평균 · 연속 · 레이팅은 꼬맨틀만 셈</li>' : '') + '<li><b>레이팅</b>은 그 날 푼 사람끼리 추측 횟수를 겨루는 점수예요 (처음 1500점). 적게 맞히면 오르고 많이 맞히면 내려가요. 같으면 무승부, 포기는 꼴찌, 힌트 1개는 추측 5번으로 쳐요. 분기마다 새로 시작하고 3일 이상 참여하면 순위에 올라요.</li><li>순위에서 이름을 누르면 그 사람의 기록과 나와의 비교를 볼 수 있어요.</li></ul>' +
       '<h4>📚 출처</h4><p class="hint">단어의 의미 거리는 Facebook FastText 한국어 벡터(CC-BY-SA 3.0), 단어 목록 일부는 국립국어원 한국어기초사전(CC BY-SA 2.0 KR)을 바탕으로 했어요.</p>' +
       '<h4>📱 팁</h4><p>한글 단어만 입력할 수 있어요 (영어 · 숫자는 안 돼요). ‘먹었다’ · ‘학교에서’ · ‘웃다’ 처럼 사전에 없는 꼴은 사전에 있는 가까운 꼴(‘먹다’ · ‘학교’ · ‘웃는’)로 바꿔 찾아요. 점수는 컴퓨터가 웹 · 위키백과 글에서 단어가 함께 쓰인 정도를 학습해 계산한 뜻 거리라서, 학습한 글에 따라 편향이 있거나 가끔 이상한 점수가 나올 수 있어요. 웃고 넘겨 주세요 😄</p><p class="hint">단어 벡터 출처: 페이스북(메타) 패스트텍스트, CC BY-SA 3.0 · 게임 방식은 뉴스젤리 꼬맨틀을 참고했어요.</p>' +
       '<div class="btns"><button type="button" class="btn pri" data-x>알겠어요</button></div>');
@@ -709,7 +711,7 @@
   var kodleP = null;
   function loadKodle() {
     if (window.JMB_KODLE) return Promise.resolve();
-    if (!kodleP) kodleP = new Promise(function (res, rej) { var s = document.createElement('script'); s.src = '../kodle/app.js?v=1.19.2'; s.onload = res; s.onerror = function () { kodleP = null; rej(new Error('꼬들 파일을 못 받았어요')); }; document.head.appendChild(s); });
+    if (!kodleP) kodleP = new Promise(function (res, rej) { var s = document.createElement('script'); s.src = '../kodle/app.js?v=1.20.0'; s.onload = res; s.onerror = function () { kodleP = null; rej(new Error('꼬들 파일을 못 받았어요')); }; document.head.appendChild(s); });
     return kodleP;
   }
   /** 꼬들이 보이는 화면인가: 🟩 꼬들 탭, 또는 연습 · 내 기록 탭에서 '꼬들' 을 고른 경우 */
@@ -741,7 +743,7 @@
   function statusNote() {
     var L = S.L, my = S.srv.my;
     if (!S.nick) return '<div class="note warn">🔒 <b>로그인하고 풀면</b> 정답 기록 · 순위 · 연속 기록이 남아요. 지금은 연습 모드예요.<br><button type="button" class="btn sm" id="login">카카오 로그인</button></div>';
-    if (L.rec) return '';
+    if (L.rec) return !L.done && !L.prac && lateNow() ? '<div class="note warn">🌙 <b>밤 ' + LATE_AT + ' 이 지났어요</b> — 톡방에 오늘 정답이 공개되는 시간이라, 지금 맞히면 <b>' + LATE_PTS + '점</b>으로 기록돼요.</div>' : '';
     if (!L.prac && !L.done && S.ctx === 'td' && !(my && my.state === '완료')) return '<div class="note warn">⚠️ <b>이번 판은 아직 기록이 안 돼요</b> — 서버 확인이 끝나지 않았어요. <button type="button" class="btn sm" id="recheck">기록 다시 확인</button></div>';   // (1.28.2)
     if (!my) return '';
     if (my.state === '완료') return '<div class="note ok">✅ 오늘 기록은 끝났어요' + (my.result === '정답' ? ' (' + my.guesses + '번 · ' + my.points + '점)' : ' (포기)') + '. 아래는 연습이라 점수에 안 들어가요.</div>';
@@ -772,6 +774,7 @@
   function chalBonusLine(ch, all) {
     var rule = ch.bst === 0 ? '<small>완료 보너스 = 매일 ' + (ch.bb || CH_BASE) + '점 (연속일수와 상관없어요)</small>' : '<small>완료 보너스 = ' + (ch.bb || CH_BASE) + '점 + 연속일수마다 ' + (ch.bst || 5) + '점 (최대 ' + (ch.bmax || CH_MAXB) + '점)</small>';
     if (!ch.bon) return '<div class="cbonus"><b>🎁 완료 보너스는 ' + md_(ch.bf || CH_BONUS_FROM) + '부터!</b>' + rule + '</div>';
+    if (ch.lt) return '<div class="cbonus"><b>🌙 밤 ' + LATE_AT + ' 이후에 끝낸 날은 완료 보너스가 없어요</b>' + rule + '</div>';   // (1.31.0)
     return '<div class="cbonus"><b>🎁 ' + (all || ch.tdone ? '오늘 보너스 +' + ch.bp + '점' : '둘 다 끝내면 보너스 +' + ch.bp + '점') + '</b>' + rule + '</div>';
   }
   function md_(d) { var p = String(d || '').split('-'); return p.length === 3 ? (+p[1]) + '월 ' + (+p[2]) + '일' : ''; }
@@ -813,13 +816,14 @@
     var h = '<div class="card res pop"><div class="em">' + (L.win ? '🎉' : '😵') + '</div><h2>' + (L.win ? '정답이에요!' : '아쉬워요') + '</h2>' +
       '<p>' + (L.win ? '<b>' + esc(S.vocab[S.ans]) + '</b> — ' + n + '번 만에 맞혔어요' + (L.hints ? ' · 힌트 ' + L.hints : '') : '정답은 <b>' + esc(S.vocab[S.ans]) + '</b> 였어요') + '</p>';
     if (S.busy && !r) {   // (1.14.0) 서버 확인을 기다리지 않고 결과부터 보여 줌 — 점수는 '잠정'(기본 점수 − 힌트), 서버가 확정하면 연속 보너스까지 반영해 바뀜
-      var base = L.win ? Math.max(0, BASE_PTS - n - HINT_COST * (L.hints || 0)) : 0;
-      h += L.win ? '<div class="pts">+' + base + '점 <small>(잠정)</small></div><div class="parts"><span class="chip">기본 <b>' + Math.max(0, BASE_PTS - n) + '</b></span>' + (L.hints ? '<span class="chip">힌트 <b>-' + HINT_COST * L.hints + '</b></span>' : '') + '<span class="chip">기록 확인 중…</span></div>'
+      var lateP = lateNow(), base = !L.win ? 0 : lateP ? LATE_PTS : Math.max(0, BASE_PTS - n - HINT_COST * (L.hints || 0));
+      h += L.win && lateP ? '<div class="pts">+' + base + '점 <small>(잠정)</small></div><div class="parts"><span class="chip">🌙 밤 ' + LATE_AT + ' 이후 정답</span><span class="chip">기록 확인 중…</span></div>'
+        : L.win ? '<div class="pts">+' + base + '점 <small>(잠정)</small></div><div class="parts"><span class="chip">기본 <b>' + Math.max(0, BASE_PTS - n) + '</b></span>' + (L.hints ? '<span class="chip">힌트 <b>-' + HINT_COST * L.hints + '</b></span>' : '') + '<span class="chip">기록 확인 중…</span></div>'
         : '<p class="hint">기록 확인 중…</p>';
     } else if (r && !r.error) {
       if (r.win) {
         h += '<div class="pts">+' + r.points + '점</div><div class="parts">' +
-          '<span class="chip">기본 <b>' + r.parts.base + '</b></span>' + '<span class="chip">오늘 ' + r.order + '번째 정답</span>' +
+          (r.parts.late ? '<span class="chip">🌙 밤 ' + LATE_AT + ' 이후 정답 <b>' + r.parts.base + '</b></span>' : '<span class="chip">기본 <b>' + r.parts.base + '</b></span>') + '<span class="chip">오늘 ' + r.order + '번째 정답</span>' +
           (r.parts.streak ? '<span class="chip hot">🔥 ' + r.streak + '일 연속 <b>+' + r.parts.streak + '</b></span>' : '') + (r.parts.hint ? '<span class="chip">힌트 <b>' + r.parts.hint + '</b></span>' : '') + '<span class="chip">⏱ ' + mmss(r.sec) + '</span></div>';
       } else h += '<p class="hint">0점 · 연속 기록이 끊겼어요. 내일 다시 도전!</p>';
     } else if (r && r.error) h += '<div class="note bad" style="margin-top:10px">기록하지 못했어요: ' + esc(r.error) + '</div>';

@@ -4,7 +4,7 @@
  * 오늘 문제는 카카오 로그인한 회원이면 서버(Kodle.js)에 기록돼 점수가 꼬맨틀 주간 · 시즌 · 누적 점수에 더해짐 (정답은 서버가 확인). 연습 판 · 로그인 안 한 판은 이 기기에만 저장. */
 (function () {
   'use strict';
-  var VER = '1.19.2', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 12), LOGMAX = 400;
+  var VER = '1.20.0', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 12), LOGMAX = 400;
   var CFG = window.JMB_CONFIG || {}, ENV = CFG.env || 'prod', SFX = ENV !== 'prod' ? '_' + ENV : '';
   var KEY = 'jmb_kodle_v1' + SFX, KLOG = 'jmb_kodle_log' + SFX, KST = 'jmb_kodle_st' + SFX, KHELP = 'jmb_kodle_help', KAUTH = 'jmb_kakao_v2' + SFX;
   var CH = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
@@ -236,9 +236,10 @@
     if (r && r.final) {
       if (!r.win) return '<p class="hint">0점 — 내일 다시 도전! (기록은 서버에 저장됐어요)</p>';
       var p = r.parts || {};
+      if (p.late) return '<div class="pts">+' + r.points + '점</div><div class="parts"><span class="chip">🌙 밤 23:30 이후 정답 <b>' + r.points + '</b></span></div><p class="hint">밤 23:30 에 모임 톡방에 정답이 공개돼서, 그 뒤에 맞히면 고정 점수예요</p>';   // (1.20.0) 서버 SEM_CFG_ LATE_*
       return '<div class="pts">+' + r.points + '점</div><div class="parts"><span class="chip">기본 <b>' + (p.base != null ? p.base : r.points) + '</b></span>' + (p.streak ? '<span class="chip">🔥 ' + r.streak + '일 연속 <b>+' + p.streak + '</b></span>' : '') + '</div><p class="hint">꼬맨틀 주간 · 시즌 점수에 합산돼요</p>';
     }
-    var base = m.win ? Math.max(40, 100 - 10 * (m.guesses.length - 1)) : 0;
+    var kt = kst().toISOString(), base = !m.win ? 0 : (kt.slice(0, 10) >= '2026-11-16' && kt.slice(11, 16) >= '23:30') ? 10 : Math.max(40, 100 - 10 * (m.guesses.length - 1));   // 밤 23:30 이후 정답은 10점 (서버가 확정)
     return m.win ? '<div class="pts">+' + base + '점 <small>(잠정)</small></div><div class="parts"><span class="chip">기록 확인 중…</span></div>' : '<p class="hint">기록 확인 중…</p>';
   }
   function bannerHTML() {

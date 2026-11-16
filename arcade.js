@@ -2,8 +2,9 @@
  * 미니게임 index.html 에서 ../config.js 다음에 넣음: <script src="../arcade.js?v=1"></script>  (이 파일을 바꾸면 그 숫자도 올리기)
  *
  *   JMB_ARCADE.report(game, mode, score, note, opt)  판이 끝났을 때 — 이 기기 최고 기록을 고치고, 카카오 로그인 회원이면 서버(메인 GAS Arcade.gs)에 보냄
- *        → Promise<{ best(기기 최고 갱신), prev, server: {best, rank, of, weekBest, allRank} | null }> · 순위 알림은 알아서 띄움 (opt.quiet 면 안 띄움)
- *        보내기에 실패하면 기기에 모아 두었다가 다음에 열 때 다시 보냄
+ *        → Promise<{ best(기기 최고 갱신), prev, error · queued(보내기 실패 · 나중에 다시 보냄), server: {best, rank, of, weekBest, allRank} | null }> · 순위 알림은 알아서 띄움 (opt.quiet 면 안 띄움)
+ *        보낼 기록은 먼저 기기에 적어 두고 한 번에 하나씩(서버 3초 간격) 보냄 — 여러 번 이어 불러도 됨. 화면을 닫거나 실패해도 다음에 열 때 이어서 보냄
+ *   JMB_ARCADE.pending()               아직 서버에 못 올라간 내 기록 수
  *   JMB_ARCADE.openBoard(game, mode)   랭킹 창 (이번 주 · 역대, 모드 탭, 내 순위) — 로그인 안 했으면 로그인 안내
  *   JMB_ARCADE.best(game, mode)        이 기기 최고 기록 {s, at, note} | null
  *   JMB_ARCADE.nick() · token() · login()   잠만보 카카오 로그인 세션 (같은 출처 저장소)
@@ -62,7 +63,10 @@
         var j; try { j = JSON.parse(t); } catch (x) { throw new Error('서버가 바빠요. 잠시 후 다시 시도해 주세요'); }
         if (!j || !j.ok) {
           var msg = (j && j.e) || '알 수 없는 오류', e = new Error(/허용되지 않은 요청/.test(msg) ? '랭킹 서버가 아직 준비되지 않았어요' : msg);
-          e.server = true;   // 서버가 거절한 것 (다시 보내도 소용없음)
+          e.server = true;   // 서버가 답한 거절
+          e.retry = !/점수가 이상|랭킹이 없는|오늘은 더|닉네임을 먼저|회원 목록에서|탈퇴/.test(msg);   // 규칙 거절만 포기 — 그 밖(도배 간격 · 혼잡 · 점검 · 로그인 만료 · 모르는 오류)은 보관했다가 다시 보냄
+          e.gap = /너무 빨리/.test(msg);
+          e.auth = /로그인이 만료/.test(msg);   // 다시 로그인해야 풀림 → 보관만 하고 이 화면에서는 더 안 보냄
           throw e;
         }
         return j.r;
@@ -80,17 +84,56 @@
 
   /* ---------- 기록 ---------- */
   function best(game, mode) { var b = lsJSON(LS.best, {}); return (b[game] && b[game][mode]) || null; }
-  function queue() { return lsJSON(LS.q, []); }
   function send(game, mode, score, note) { return api('arcadeSubmit', [token(), game, mode, score, note || '']); }
-  var flushing = false;
-  function flush() {   // 못 보낸 기록 다시 보내기 (한 번에 하나씩 — 서버가 3초 간격을 요구)
-    var q = queue();
-    if (flushing || !q.length || !nick()) return;
-    flushing = true;
-    var it = q[0];
-    var done = function (drop) { flushing = false; if (drop) { var r = queue(); r.shift(); lsSet(LS.q, r.length ? JSON.stringify(r) : null); if (r.length) setTimeout(flush, 3500); } };
-    if (Date.now() - it.t > 6 * 86400000 || it.k !== nick()) return done(true);   // 오래됐거나 다른 사람 것
-    send(it.g, it.m, it.s, it.n).then(function () { done(true); }, function (e) { done(!!e.server); });
+  /* 보낼 기록은 먼저 기기(jmb_arcade_q)에 적고 → 한 번에 하나씩 보내고 → 서버가 받으면 지움.
+   * 보내는 도중 화면을 닫거나 인터넷이 끊겨도 다음에 어느 미니게임이든 열면 이어서 보냄 (같은 기록이 두 번 가도 서버는 그 주 최고만 남기므로 안전) */
+  var GAP_MS = 3400, RETRY_MS = [20000, 60000, 180000], KEEP_MS = 6 * 86400000, FAIL_MAX = 8;
+  var mem = [], waiters = {}, busy = false, lastDone = 0, retryN = 0, retryT = 0;
+  function qid(o) { return o.id || (o.t + ':' + o.g + ':' + o.m); }
+  function queue() {   // 기기에 적힌 것 + (기기에 못 적었으면) 이 화면이 들고 있는 것
+    var q = lsJSON(LS.q, []), ids = {}, i;
+    if (!q || !q.length || !q.filter) q = [];
+    q = q.filter(function (o) { return o && o.g && o.m; });
+    for (i = 0; i < q.length; i++) ids[qid(q[i])] = 1;
+    for (i = 0; i < mem.length; i++) if (!ids[qid(mem[i])]) q.push(mem[i]);
+    return q;
+  }
+  function qSave(q) { lsSet(LS.q, q.length ? JSON.stringify(q.slice(-30)) : null); }
+  function qDrop(id) { mem = mem.filter(function (o) { return qid(o) !== id; }); qSave(queue().filter(function (o) { return qid(o) !== id; })); }
+  function settle(id, res) { var w = waiters[id]; if (w) { delete waiters[id]; w(res); } return !!w; }
+  function rankMsg(r) { return (r.best ? '🏆 이번 주 내 최고! ' : '🏆 ') + '모임 랭킹 이번 주 ' + r.rank + '위' + (r.of > 1 ? ' · ' + r.of + '명 중' : ''); }
+  function flush() {
+    clearTimeout(retryT);
+    var me = nick();
+    if (busy || !me) return;
+    var q = queue(), keep = q.filter(function (o) { return o.k === me && Date.now() - o.t < KEEP_MS; });   // 오래됐거나 다른 사람 것은 버림
+    if (keep.length !== q.length) { mem = mem.filter(function (o) { return keep.indexOf(o) >= 0; }); qSave(keep); }
+    var it = keep[0];
+    if (!it) return;
+    busy = true;
+    setTimeout(function () {   // 서버가 한 사람당 3초 간격을 요구 → 앞 전송이 끝난 뒤 간격을 두고
+      send(it.g, it.m, it.s, it.n).then(function (r) { done(it, null, r); }, function (e) { done(it, e || new Error('오류'), null); });
+    }, Math.max(0, lastDone + GAP_MS - Date.now()));
+  }
+  function done(it, e, r) {
+    busy = false; lastDone = Date.now();
+    var id = qid(it);
+    if (!e) {
+      qDrop(id); retryN = 0;
+      if (!settle(id, { r: r }) && r && r.rank) pill('🏆 보관해 둔 기록을 올렸어요 · 이번 주 ' + r.rank + '위', it.g, it.m);
+      return flush();
+    }
+    if (e.server && e.retry && !e.gap && !e.auth) {   // 서버가 같은 기록을 계속 거절하면 그만둠 (연결 오류는 세지 않음)
+      var q = queue(), n = 0;
+      q.forEach(function (o) { if (qid(o) === id) n = o.f = (o.f || 0) + 1; });
+      qSave(q);
+      if (n >= FAIL_MAX) e.retry = false;
+    }
+    if (e.server && !e.retry) { qDrop(id); settle(id, { e: e }); return flush(); }   // 규칙 거절 → 포기하고 다음 것
+    Object.keys(waiters).forEach(function (k) { settle(k, { e: e, queued: true }); });   // 일시 오류 → 기다리던 쪽에 '보관됨'을 알림
+    if (e.auth) return;
+    if (e.gap) retryT = setTimeout(flush, GAP_MS + 600);
+    else if (retryN < RETRY_MS.length) retryT = setTimeout(flush, RETRY_MS[retryN++]);   // 이 화면이 열려 있는 동안 20초 · 1분 · 3분 뒤 다시, 그 뒤는 다음에 열 때
   }
   function report(game, mode, score, note, opt) {
     opt = opt || {};
@@ -101,16 +144,18 @@
     if (isBest) { g[mode] = { s: score, at: Date.now(), note: note || '' }; lsSet(LS.best, JSON.stringify(all)); }
     var out = { best: isBest, prev: prev ? prev.s : null, server: null };
     if (!nick()) return Promise.resolve(out);
-    return send(game, mode, score, note).then(function (r) {
-      out.server = r;
-      if (!opt.quiet && r && r.rank) pill((r.best ? '🏆 이번 주 내 최고! ' : '🏆 ') + '모임 랭킹 이번 주 ' + r.rank + '위' + (r.of > 1 ? ' · ' + r.of + '명 중' : ''), game, mode);
-      return out;
-    }, function (e) {
-      if (!e.server) { var q = queue(); q.push({ g: game, m: mode, s: score, n: note || '', t: Date.now(), k: nick() }); lsSet(LS.q, JSON.stringify(q.slice(-20))); }
-      out.error = e.message;
-      return out;
+    var it = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8), g: game, m: mode, s: score, n: note || '', t: Date.now(), k: nick() };
+    mem.push(it); qSave(queue());   // 먼저 적어 두고 보냄
+    return new Promise(function (res) {
+      waiters[it.id] = function (o) {
+        if (o.r) { out.server = o.r; if (!opt.quiet && o.r.rank) pill(rankMsg(o.r), game, mode); }
+        else { out.error = (o.e && o.e.message) || '오류'; if (o.queued) out.queued = true; }
+        res(out);
+      };
+      flush();
     });
   }
+  function pending() { var me = nick(); return me ? queue().filter(function (o) { return o.k === me; }).length : 0; }   // 아직 서버에 못 올라간 내 기록 수
 
   /* ---------- 화면: 알림 · 랭킹 창 ---------- */
   var cssDone = false;
@@ -234,6 +279,7 @@
   }
 
   W.JMB_ARCADE = { BOARDS: BOARDS, ROOT: ROOT, report: report, best: best, bests: function () { return lsJSON(LS.best, {}); }, log: function () { return lsJSON(LS.log, {}); },
-    board: board, brief: brief, openBoard: openBoard, closeBoard: closeBoard, nick: nick, token: token, session: session, login: login, api: api, pill: pill };
+    board: board, brief: brief, openBoard: openBoard, closeBoard: closeBoard, nick: nick, token: token, session: session, login: login, api: api, pill: pill, pending: pending };
   if (D.readyState === 'complete') setTimeout(flush, 1500); else W.addEventListener('load', function () { setTimeout(flush, 1500); });
+  W.addEventListener('online', function () { retryN = 0; flush(); });   // 인터넷이 돌아오면 보관한 기록부터
 })(window);
