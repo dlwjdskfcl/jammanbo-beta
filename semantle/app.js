@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.29.1';
+  var VER = '1.30.0';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   function kstDay() { return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); }
@@ -18,6 +18,7 @@
   var EDGE = window.SEM_EDGE_LOCAL || CFG.semEdge || '';   // (1.13.0) 엣지(Cloudflare Worker): 표를 Apps Script 없이 0.1초대로 줌. 비어 있거나 실패하면 Apps Script 경로
   var ROOT = (function () { var seg = location.pathname.split('/')[1] || ''; return /\.github\.io$/.test(location.hostname) && seg ? '/' + seg + '/' : '/'; })();
   var LS = { auth: 'jmb_kakao_v2' + ENV_SFX, state: 'jmb_kakao_state' + ENV_SFX, play: 'jmb_sem_play' + ENV_SFX, pend: 'jmb_sem_pend' + ENV_SFX, help: 'jmb_sem_help', tab: 'jmb_sem_tab', sort: 'jmb_sem_sort', xl: 'jmb_sem_xl', rkc: 'jmb_sem_rkc' + ENV_SFX, hsc: 'jmb_sem_hsc' + ENV_SFX };   // rkc · hsc: 순위 · 내 기록을 기기에 저장해 두었다가 먼저 보여 줌 (1.14.0)
+  var CHO_AFTER = 3;   // 초성 보기: 단어 힌트를 이만큼 쓴 뒤에 열림, 비용은 힌트 1개(HINT_COST)와 같음 — 서버 힌트 수 검사는 초성 몫 1개를 더 허용 (Semantle.js submit)
   var BASE_PTS = 200, HINT_COST = 40, TOPN = 1000, HINT_EVERY = 5;   // 점수 상수 (서버 SEM_CFG_ BASE · HINT_COST 와 같게 — 1.16.1 에서 150 · 15 → 200 · 40)   // HINT_EVERY: 추측 5번마다 힌트가 하나씩 생김, 개수 제한 없음 (서버 SEM_CFG_.HINT_EVERY 와 같게)
   var CH_BONUS_FROM = '2026-11-14', CH_BASE = 20, CH_MAXB = 50;   // 서버 Kodle.js KODLE_CFG_.CH_FROM · CH_BASE · CH_BASE + CH_MAX×CH_STEP 와 같게
   var BADGES = [   // 서버 Semantle.js badgesOf 와 같은 id
@@ -102,6 +103,7 @@
         '<div class="xg dec" aria-hidden="true"><div class="xgi v"><span class="xsel w">일반</span><span class="xrow"><span>%</span><span>,</span><span>.0</span><span>.00</span></span></div><div class="xgl">표시 형식</div></div>' +
         '<div class="xg xgame"><div class="xgi">' +
           '<button type="button" class="xb" id="rbHint"><span class="xi">Σ</span><span class="xt" id="rbHintT">힌트</span></button>' +
+          '<button type="button" class="xb" id="rbCho" style="display:none"><span class="xi">ㄱ</span><span class="xt">초성</span></button>' +
           '<button type="button" class="xb" id="rbGive"><span class="xi">✕</span><span class="xt" id="rbGiveT">포기</span></button>' +
           '<button type="button" class="xb" id="rbNext"><span class="xi">↻</span><span class="xt">새 문제</span></button>' +
           '<button type="button" class="xb" id="rbSort"><span class="xi">⇅</span><span class="xt" id="rbSortT">정렬</span></button>' +
@@ -125,6 +127,7 @@
     $('xOk').disabled = !open;
     var hb = $('rbHint'), hi = L ? hintInfo() : { off: true };
     hb.disabled = !L || hi.off; $('rbHintT').textContent = L ? hintShort() : '힌트';
+    var rc = $('rbCho'); if (rc) rc.style.display = L && choAvail() ? '' : 'none';
     $('rbGive').disabled = !L || L.done; $('rbGiveT').textContent = L && L.prac ? '정답 보기' : '포기';
     $('rbNext').style.display = L && L.prac ? '' : 'none';
     $('rbSort').disabled = !L; $('rbSortT').textContent = '정렬: ' + (S.sort === 'sim' ? '유사도' : '입력순');
@@ -313,7 +316,8 @@
 
   /* ---------- 진행 중 추측을 서버에도 저장 (다른 기기 · 캐시를 지운 뒤에도 이어 하기) ---------- */
   var saveT = 0;
-  function gString() { return S.L.g.map(function (x) { return (x.h ? '*' : '') + x.w; }).join('|'); }
+  function gString() { var s = S.L.g.map(function (x) { return (x.h ? '*' : '') + x.w; }); if (S.L.cho) s.unshift('**'); return s.join('|'); }   // '**' = 초성을 열었다는 표시 (단어가 아님 — parseG · 내 기록에서 걸러 냄)
+  function choOf(g) { return ('|' + String(g || '') + '|').indexOf('|**|') >= 0; }
   function scheduleSave() { if (!recordable()) return; clearTimeout(saveT); saveT = setTimeout(flushSave, 3000); }   // (1.29.0) 0.8 → 3초: 여럿이 동시에 풀 때 서버 락 대기를 줄임 (숨기기 · 닫기 · 끝낼 때는 즉시)
   function flushSave() {
     clearTimeout(saveT);
@@ -330,14 +334,15 @@
     if (!S.nick || !my || L.done) return;
     var sg = parseG(my.g);
     if (my.state === '완료' && my.res) {   // 다른 기기에서 이미 끝냄 → 끝난 판 그대로 보여 줌
-      L.g = sg; L.done = true; L.win = !!my.res.win; L.n = my.res.guesses; L.cnt = sg.length; L.hints = my.res.hints; L.res = my.res; L.rec = false;
+      L.g = sg; L.done = true; L.win = !!my.res.win; L.n = my.res.guesses; L.cnt = sg.length; L.hints = my.res.hints; L.res = my.res; L.rec = false; L.cho = choOf(my.g) ? 1 : 0;
       return;
     }
     if (my.state !== '진행중' || !sg.length) return;
+    if (choOf(my.g)) L.cho = 1;   // 다른 기기에서 연 초성 (이 기기 L.hints 에는 아직 안 센 것)
     var have = {}; sg.forEach(function (x) { have[x.w] = 1; });
     var merged = sg.concat(L.g.filter(function (x) { return !have[x.w]; }));
     if (merged.length > L.g.length) L.g = merged;
-    L.hints = Math.max(L.hints, L.g.filter(function (x) { return x.h; }).length);
+    L.hints = Math.max(L.hints, L.g.filter(function (x) { return x.h; }).length + (L.cho ? 1 : 0));
     L.rec = true; S.lastW = '';
   }
 
@@ -448,7 +453,8 @@
   }
   /* 힌트는 처음엔 못 씀: 추측 5번마다 하나씩 생김, 개수 제한 없음 (끝난 뒤 연습에서는 바로 씀) */
   function hintsUnlocked() { return Math.floor(realCount() / HINT_EVERY); }
-  function hintsLeft() { return hintsUnlocked() - S.L.hints; }
+  function wordHints() { return S.L.hints - (S.L.cho ? 1 : 0); }   // L.hints 는 초성 몫(−40점)까지 센 값 — 단어 힌트 몫만
+  function hintsLeft() { return hintsUnlocked() - wordHints(); }
   function hintNext() { return HINT_EVERY - realCount() % HINT_EVERY; }
   function hintInfo() {
     var L = S.L, label, off = false;
@@ -481,9 +487,40 @@
       if (gated) S.L.hints++;
       addGuess(S.vocab[pick], true);
       toast('💡 힌트: ‘' + S.vocab[pick] + '’ — ' + rankIn(S.vocab[pick]) + '위예요' + cost);
+      if (gated && wordHints() === CHO_AFTER && !S.L.cho) setTimeout(function () { if (choAvail()) toast('🔤 이제 초성 보기를 쓸 수 있어요'); }, 2400);
     };
     if (!rec) return use();
-    ask('💡 힌트를 볼까요?', '지금까지 찾은 가장 가까운 단어보다 <b>더 가까운 단어</b> 하나를 알려 줘요.<br>' + (S.L.hints + 1) + '번째 힌트 · <b>−' + HINT_COST + '점</b>', '힌트 보기').then(function (ok) { if (ok) use(); });
+    ask('💡 힌트를 볼까요?', '지금까지 찾은 가장 가까운 단어보다 <b>더 가까운 단어</b> 하나를 알려 줘요.<br>' + (wordHints() + 1) + '번째 힌트 · <b>−' + HINT_COST + '점</b>', '힌트 보기').then(function (ok) { if (ok) use(); });
+  }
+
+  /* ---------- 🔤 초성 보기 (단어 힌트를 CHO_AFTER 번 쓴 뒤): 정답의 초성(= 글자 수도 보임). 비용은 힌트 1개 — L.hints 에 더하고 L.cho = 1,
+   * 서버에는 추측 목록 맨 앞 '**' 표시(gString)와 payload.cho 로 알림. 연습은 제한 · 점수 없이 L.choShow 로 보기만 ---------- */
+  var CHO_TBL = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
+  function choOpen() { var L = S.L; return !!(L && (L.cho || L.choShow)); }
+  function choAvail() { var L = S.L; return !!L && !L.done && !choOpen() && (!!L.prac || wordHints() >= CHO_AFTER); }
+  function choChars() {
+    var w = (S.vocab && S.ans != null && S.vocab[S.ans]) || '';
+    return Array.from(w).map(function (ch) { var c = ch.charCodeAt(0) - 0xAC00; return c >= 0 && c <= 11171 ? CHO_TBL.charAt(Math.floor(c / 588)) : ch; });
+  }
+  function choLine() {
+    if (!choOpen() || S.L.done) return '';
+    var cs = choChars(); if (!cs.length) return '';
+    return '<div class="cho">' + (S.xl ? '' : '<span class="cl">🔤 초성</span>') + cs.map(function (c) { return '<span class="chc">' + esc(c) + '</span>'; }).join('') + '<small>' + cs.length + '글자</small></div>';
+  }
+  function choBtn() { return choAvail() ? '<button type="button" class="btn" id="choBtn">' + xe('🔤 초성') + '</button>' : ''; }
+  function chosung() {
+    var L = S.L; if (!L || L.done || choOpen()) return;
+    var gated = !L.prac, rec = recordable();
+    if (gated && S.optimistic && S.ctx === 'td') return toast('기록 확인 중이에요. 잠시 뒤에 눌러 주세요', true);   // 비용이 기록에 안 들어가는 일이 없게
+    if (gated && wordHints() < CHO_AFTER) return toast('힌트를 ' + CHO_AFTER + '번 쓰면 초성을 볼 수 있어요', true);
+    var use = function () {
+      if (S.L !== L || L.done || choOpen()) return;   // 묻는 사이에 판이 바뀌었거나 이미 열었으면 무시
+      if (gated) { L.cho = 1; L.hints++; saveLocal(); scheduleSave(); } else L.choShow = 1;
+      toast('🔤 초성을 열었어요' + (gated && rec ? ' (−' + HINT_COST + '점)' : ''));
+      render();
+    };
+    if (!gated || !rec) return use();
+    ask('🔤 초성을 볼까요?', '정답의 <b>초성</b>(글자 수도 같이 보여요)을 알려 줘요.<br>힌트 1개와 같게 <b>−' + HINT_COST + '점</b>', '초성 보기').then(function (ok) { if (ok) use(); });
   }
   function giveUp() {
     if (S.L.done) return;
@@ -514,7 +551,7 @@
       }
       if (!S.L.rec) { S.busy = false; render(); return; }
       clearTimeout(saveT);
-      var payload = { win: isWin, guesses: Math.max(isWin ? 1 : 0, S.L.n), hints: S.L.hints, answer: word, g: gString().slice(0, 11000) };
+      var payload = { win: isWin, guesses: Math.max(isWin ? 1 : 0, S.L.n), hints: S.L.hints, cho: S.L.cho ? 1 : 0, answer: word, g: gString().slice(0, 11000) };
       return api('semSubmit', [token(), S.L.nonce, payload]).then(function (r) {
         S.L.res = r; S.L.pend = false; S.pendTry = 0; saveLocal(); S.busy = false; lsSet(LS.pend, null);
         S.rank = null; loadMine(); render();
@@ -816,7 +853,7 @@
   function ensurePlayFrame() {
     if ($('pList')) return;
     if (S.xl) { $('view').innerHTML = '<div id="pTop"></div><div id="pTools"></div><div id="pList"></div>'; return; }   // 엑셀 모드: 입력창은 수식 입력줄(제목줄 아래)에 있음
-    $('view').innerHTML = '<div id="pTop"></div><div class="stk" id="stk"><form class="gform" id="gf" autocomplete="off"><input id="gw" type="text" inputmode="text" enterkeyhint="send" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="20" lang="ko" aria-label="추측할 단어"><button type="submit" class="btn pri">' + (S.xl ? '입력' : '추측') + '</button></form><div class="fb" id="fb" aria-live="polite"></div></div><div class="tools" id="pTools"></div><div id="pList"></div>';
+    $('view').innerHTML = '<div id="pTop"></div><div class="stk" id="stk"><form class="gform" id="gf" autocomplete="off"><input id="gw" type="text" inputmode="text" enterkeyhint="send" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="20" lang="ko" aria-label="추측할 단어"><button type="submit" class="btn pri">' + (S.xl ? '입력' : '추측') + '</button></form><div class="fb" id="fb" aria-live="polite"></div><div id="choBox"></div></div><div class="tools" id="pTools"></div><div id="pList"></div>';
   }
   function renderPlay() {
     var L = S.L;
@@ -824,13 +861,15 @@
       $('view').innerHTML = '<div class="card empty">📭<br><b>오늘 문제가 아직 준비되지 않았어요</b><br><small>운영진에게 알려 주세요 (시트 ‘꼬맨틀사전’ 에 오늘 날짜가 없어요)</small></div>'; return;
     }
     ensurePlayFrame();
-    $('pTop').innerHTML = S.xl ? (L.prac ? pracCard() : statusNote()) + (L.done ? resultCard() + kodleLink() : '') : (L.prac ? pracCard() : metaCard() + statusNote()) + (L.done ? resultCard() + kodleLink() : '');
+    var cb = $('choBox'), cl = choLine();   // 초성은 입력창 아래(스크롤해도 보이는 고정 영역), 엑셀 모드는 맨 위 카드 자리
+    if (cb) cb.innerHTML = S.xl ? '' : cl;
+    $('pTop').innerHTML = (S.xl || !cb ? cl : '') + (S.xl ? (L.prac ? pracCard() : statusNote()) + (L.done ? resultCard() + kodleLink() : '') : (L.prac ? pracCard() : metaCard() + statusNote()) + (L.done ? resultCard() + kodleLink() : ''));
     var inp = $('gw'); inp.placeholder = S.xl ? (L.done ? '더 입력해 볼까요?' : '단어 입력') : L.done ? '더 추측해 볼까요? (연습)' : '단어를 입력하세요';
     var lockIn = !!(S.optimistic && S.ctx === 'td' && !L.done && !L.prac);   // (1.28.2) 서버 확인(기록 여부) 끝나기 전에는 입력 막음
     if (lockIn) { inp.placeholder = '기록 확인 중…'; } inp.disabled = lockIn;
     var fb = S.fb; $('fb').className = 'fb t' + (fb ? fb.tr : 0);
     $('fb').innerHTML = fb ? (S.xl ? '' : TIER[fb.tr].e + ' ') + '‘' + esc(fb.w) + '’ ' + TIER[fb.tr].t + (fb.r ? ' (' + fb.r + '위)' : '') : (S.xl ? '준비' : '');
-    $('pTools').innerHTML = S.xl ? '' : hintBtn() + (L.done ? '' : '<button type="button" class="btn" id="giveBtn">' + xe(L.prac ? '👀 정답 보기' : '🏳️ 포기') + '</button>') + (L.prac && !L.done ? '<button type="button" class="btn" id="pracNext">' + xe('🔁 다른 문제') + '</button>' : '');
+    $('pTools').innerHTML = S.xl ? '' : hintBtn() + choBtn() + (L.done ? '' : '<button type="button" class="btn" id="giveBtn">' + xe(L.prac ? '👀 정답 보기' : '🏳️ 포기') + '</button>') + (L.prac && !L.done ? '<button type="button" class="btn" id="pracNext">' + xe('🔁 다른 문제') + '</button>' : '');
     $('pList').innerHTML = S.xl ? rows() : L.g.length ? '<div class="card" style="padding:8px 10px">' + rows() + '</div>'   // 엑셀 모드는 추측이 없어도 빈 격자를 보여 줌
       : (!L.done ? '<p class="hint">처음 입력해 볼 단어는 뭐든 괜찮아요. 예: <b>사람</b> · <b>음식</b> · <b>하늘</b> — 점수가 높은 쪽으로 따라가 보세요!</p>' : '');
     xlState();
@@ -1044,9 +1083,9 @@
     if (!list.length) h += '<div class="card empty">아직 기록이 없어요.<br>오늘 문제를 풀면 여기에 쌓여요! 🌱</div>';
     list.forEach(function (o) {
       var ok = o.result === '정답', tag = o.state === '진행중' ? '<span class="chip on">진행 중</span>' : o.state === '만료' ? '<span class="chip">미완료</span>' : ok ? '<span class="chip on">정답</span>' : '<span class="chip">포기</span>';
-      var words = String(o.g || '').split('|').filter(Boolean);
+      var words = String(o.g || '').split('|').filter(function (t) { return t && t !== '**'; }), choUsed = choOf(o.g);   // '**' = 초성 열었다는 표시
       h += '<details class="card hc"><summary><span class="d">' + esc(dayLabel(o.day)) + '</span>' + tag + '<span class="m">' + (o.state === '완료' ? o.guesses + '번' + (ok ? ' · +' + o.points + '점' : '') : '') + '</span></summary>' +
-        (o.answer ? '<p class="hint" style="margin-top:8px">정답: <b>' + esc(o.answer) + '</b>' + (o.state === '완료' ? ' · ⏱ ' + mmss(o.sec) + (o.hints ? ' · 힌트 ' + o.hints : '') + (ok && o.order ? ' · 오늘 ' + o.order + '번째' : '') : '') + '</p>' : '') +
+        (o.answer ? '<p class="hint" style="margin-top:8px">정답: <b>' + esc(o.answer) + '</b>' + (o.state === '완료' ? ' · ⏱ ' + mmss(o.sec) + (o.hints ? ' · 힌트 ' + o.hints : '') + (choUsed ? ' · 초성 포함' : '') + (ok && o.order ? ' · 오늘 ' + o.order + '번째' : '') : '') + '</p>' : '') +
         (words.length ? '<div class="gchips">' + words.map(function (t, i) { var hint = t.charAt(0) === '*', w = hint ? t.slice(1) : t; return '<span class="gc' + (o.answer && w === o.answer ? ' ok' : '') + '">' + (i + 1) + '. ' + esc(w) + (hint ? ' 💡' : '') + '</span>'; }).join('') + '</div>' : '<p class="hint">저장된 추측이 없어요.</p>') + '</details>';
     });
     $('view').innerHTML = h + '<p class="hint">추측한 단어는 서버에 저장돼서 기기를 바꿔도 이어서 할 수 있어요.</p>';
@@ -1096,6 +1135,7 @@
       case 'askOk': { var r = askRes; askRes = null; closeModal(); if (r) setTimeout(function () { r(true); }, 80); return; }   // 창이 닫힌 뒤에 다음 동작
       case 'logoutBtn': ask('로그아웃할까요?', '잠만보 앱도 함께 로그아웃돼요.', '로그아웃', true).then(function (ok) { if (ok) { lsSet(LS.auth, null); lsSet(LS.rkc, null); lsSet(LS.hsc, null); lsSet(LS.play, null); lsSet('jmb_kodle_v1' + ENV_SFX, null); dayCacheClear(); location.reload(); } }); return;
       case 'hintBtn': return hint();
+      case 'choBtn': case 'rbCho': return chosung();
       case 'giveBtn': return giveUp();
       case 'share': return share();
       case 'brag': return share(bragText());

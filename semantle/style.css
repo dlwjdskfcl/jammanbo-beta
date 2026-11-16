@@ -87,6 +87,10 @@ svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-l
 .gform .btn{flex:none;padding:0 18px}
 .fb{min-height:26px;margin:2px 2px 8px;font-weight:800;font-size:14.5px}
 .fb.t0{color:var(--muted)} .fb.t1{color:#4dabf7} .fb.t2{color:var(--gold)} .fb.t3{color:var(--hot)} .fb.t4{color:var(--bad)} .fb.t5{color:var(--bad)}
+.cho{display:flex;align-items:center;flex-wrap:wrap;gap:5px;margin:0 2px 6px;font-weight:800}
+.cho .cl{font-size:12.5px;color:var(--muted);margin-right:2px}
+.cho .chc{min-width:26px;padding:2px 5px;text-align:center;font-size:17px;line-height:1.25;border:1px solid var(--accent);border-radius:8px}
+.cho small{font-size:12px;font-weight:400;color:var(--muted);margin-left:2px}
 .tools{display:flex;gap:8px;margin-bottom:10px}
 .tools .btn{flex:1;padding:8px 6px;font-size:13.5px;border-radius:12px;font-weight:700}
 
