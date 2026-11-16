@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.30.0';
+  var VER = '1.30.1';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   function kstDay() { return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); }
@@ -1249,16 +1249,20 @@
     S.optimistic = false;
     if (!r || r.loginRequired || !r.me) { dayCacheClear(); S.nick = ''; return renderGate(!!session()); }   // 토큰이 만료됐거나 닉네임이 연결되지 않음
     if (!r.ready) { render(); return; }
-    if (r.day !== S.srv.day) { dayCacheClear(); return bootFull(); }   // 날짜가 바뀜 → 새 표 (진행 중 추측은 판마다 따로 저장돼 있음)
-    var s = S.srv; s.my = r.my; s.kd = r.kd; s.stats = r.stats; s.solvedToday = r.solvedToday; s.yesterday = r.yesterday; s.ch = r.ch; s.me = r.me; s.people = r.people; S.nick = r.me;   // (1.28.0) ch(챌린지 요약)도 합침 — 엣지로 시작하면 빠져서 연속 · 오늘 완료 인원이 안 보이던 것
-    var L = S.L, my = r.my;
+    var T = today_();   // (1.30.1) 서버 확인은 느리게(1~2초+) 와서, 그 사이 연습을 시작했으면 S.srv · S.L 은 연습 판임 → 반드시 오늘 판(T)에 합침 (예전엔 연습 판이 오늘 기록으로 덮여 '실제 꼬맨틀 화면'이 나오고 연습 추측이 사라졌음)
+    if (r.day !== T.srv.day) { dayCacheClear(); return bootFull(); }   // 날짜가 바뀜 → 새 표 (진행 중 추측은 판마다 따로 저장돼 있음)
+    var s = T.srv; s.my = r.my; s.kd = r.kd; s.stats = r.stats; s.solvedToday = r.solvedToday; s.yesterday = r.yesterday; s.ch = r.ch; s.me = r.me; s.people = r.people; S.nick = r.me;   // (1.28.0) ch(챌린지 요약)도 합침 — 엣지로 시작하면 빠져서 연속 · 오늘 완료 인원이 안 보이던 것
+    var L = T.L, my = r.my, inTd = S.ctx === 'td';
     S.recVer = !!my;   // (1.28.2) 내 기록까지 받았을 때만 '확인됨'
     mergeServer(L, my);
     if (!L.done && L.g.length === 0) L.rec = !!(S.nick && my && my.state !== '완료');
     else if (S.nick && my && my.state === '완료' && L.rec && !L.res) L.rec = false;   // 다른 기기에서 이미 기록함
-    if (L.rec && my && my.state === '진행중' && !L.nonce) ensureStart();
-    saveLocal(); render();
-    if (L.pend) retryPending();
+    if (inTd) {   // ensureStart · retryPending · saveLocal 은 지금 화면(S.L)을 씀 — 연습 중이면 오늘 판으로 돌아왔을 때 하게 둠
+      if (L.rec && my && my.state === '진행중' && !L.nonce) ensureStart();
+      saveLocal();
+    } else { if (S.nick) L.nick = S.nick; lsSet(LS.play, JSON.stringify(L)); }   // 연습 중에도 오늘 판은 이 기기에 저장
+    render();
+    if (inTd && L.pend) retryPending();
   }
   function bootFull() {
     S.loading = true; S.optimistic = false;
