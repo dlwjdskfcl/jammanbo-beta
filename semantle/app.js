@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.29.0';
+  var VER = '1.29.1';
   var CFG = window.JMB_CONFIG || {};
   var ENV = CFG.env || 'prod';
   function kstDay() { return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); }
@@ -626,7 +626,7 @@
       '<p>매일 하나의 <b>비밀 단어</b>가 정해져요. 아무 단어나 입력하면 비밀 단어와 <b>뜻이 얼마나 가까운지</b>(유사도)를 알려 줘요. 철자가 아니라 <b>쓰임새·의미</b>가 비슷해야 점수가 높아요.</p>' +
       '<ul><li>유사도는 -100 ~ 100. 높을수록 가까워요.</li><li><b>1000위 안</b>에 들면 순위가 보여요. (1위 = 비밀 단어와 가장 가까운 단어)</li><li>같은 문맥에 같이 나올 법한 단어를 떠올려 보세요. 반대말도 의외로 가까울 수 있어요. ‘사랑’과 ‘증오’는 뜻은 반대지만 같은 문맥에 자주 나와서 비슷해요. ‘밤’처럼 뜻이 여럿인 단어(어두운 밤 · 먹는 밤)는 어느 쪽인지도 생각해 보세요.</li><li>정답을 맞힌 뒤에도 추측을 계속할 수 있어요. 맞힌 뒤에 보이는 <b>가까운 단어 1000개</b>를 살펴보면 유사도를 이해하는 데 도움이 돼요. 정답은 한국 시간 자정에 바뀌고, 어제 정답과 가까운 단어도 볼 수 있어요.</li><li>비밀 단어는 명사 · 동사 · 형용사 등 모든 품사의 <b>기본형</b>이고 <b>두 글자 이상</b>이에요. 예) 행복, 기쁘다, 사랑하다. 추측은 한 글자 단어도 할 수 있어요.</li></ul>' +
       '<h4>🏆 점수와 순위</h4>' +
-      '<ul><li><b>정답 점수</b> = ' + BASE_PTS + ' − 추측 횟수 − 힌트 × ' + HINT_COST + ' (최소 0점) — 힌트를 안 쓰고 적게 추측할수록 높아요. 힌트 하나가 꽤 아파요. 일찍 푼다고 더 받지는 않아요</li><li><b>연속 보너스</b> 이틀째부터 연속 정답 하루마다 +5 (최대 +30) — <b>11월 16일부터는 없어져요</b> (연속 기록 · 배지는 그대로)</li><li><b>힌트</b>는 처음엔 못 써요. 추측 <b>5번마다 하나씩</b> 생기고 개수 제한은 없어요. 하나당 −' + HINT_COST + '점. 지금까지 찾은 가장 가까운 단어보다 더 가까운 단어를 알려 줘요</li><li>포기하면 0점 · 연속 기록이 끊겨요</li><li>하루에 한 번만 기록돼요. 정답을 맞힌 뒤에도 계속 연습할 수 있어요.</li><li>순위는 오늘(점수 순) · 이번 주 · 시즌(분기) · 연속 정답 · 레이팅이 있어요. <b>다른 사람에게는 힌트 수와 점수만 보여요</b> (추측 횟수 · 걸린 시간은 나만 봐요).</li>' + (/jammanbo-beta/.test(location.pathname) ? '<li>🟩 <b>꼬들</b> 점수(정답 100 − 추측당 10 · 연속 보너스)도 주간 · 시즌 · 누적 점수에 더해져요. 정답 횟수 · 평균 · 연속 · 레이팅은 꼬맨틀만 셈</li>' : '') + '<li><b>레이팅</b>은 그 날 푼 사람끼리 추측 횟수를 겨루는 점수예요 (처음 1500점). 적게 맞히면 오르고 많이 맞히면 내려가요. 같으면 무승부, 포기는 꼴찌, 힌트 1개는 추측 5번으로 쳐요. 분기마다 새로 시작하고 3일 이상 참여하면 순위에 올라요.</li><li>순위에서 이름을 누르면 그 사람의 기록과 나와의 비교를 볼 수 있어요.</li></ul>' +
+      '<ul><li><b>정답 점수</b> = ' + BASE_PTS + ' − 추측 횟수 − 힌트 × ' + HINT_COST + ' (최소 0점) — 힌트를 안 쓰고 적게 추측할수록 높아요. 힌트 하나가 꽤 아파요. 일찍 푼다고 더 받지는 않아요</li><li><b>연속 보너스</b> 이틀째부터 연속 정답 하루마다 +5 (최대 +30) — <b>11월 16일부터는 없어져요</b> (연속 기록 · 배지는 그대로)</li><li><b>힌트</b>는 처음엔 못 써요. 추측 <b>5번마다 하나씩</b> 생기고 개수 제한은 없어요. 하나당 −' + HINT_COST + '점. 지금까지 찾은 가장 가까운 단어보다 더 가까운 단어를 알려 줘요</li><li>포기하면 0점 · 연속 기록이 끊겨요</li><li>하루에 한 번만 기록돼요. 정답을 맞힌 뒤에도 계속 연습할 수 있어요.</li><li>순위는 오늘(점수 순) · 이번 주 · 시즌(분기) · 연속 정답 · 레이팅이 있어요. <b>다른 사람에게는 힌트 수와 점수만 보여요</b> (추측한 단어 · 걸린 시간은 나만 봐요. 점수로 추측 횟수를 짐작할 수는 있어요).</li>' + (/jammanbo-beta/.test(location.pathname) ? '<li>🟩 <b>꼬들</b> 점수(정답 100 − 추측당 10 · 연속 보너스)도 주간 · 시즌 · 누적 점수에 더해져요. 정답 횟수 · 평균 · 연속 · 레이팅은 꼬맨틀만 셈</li>' : '') + '<li><b>레이팅</b>은 그 날 푼 사람끼리 추측 횟수를 겨루는 점수예요 (처음 1500점). 적게 맞히면 오르고 많이 맞히면 내려가요. 같으면 무승부, 포기는 꼴찌, 힌트 1개는 추측 5번으로 쳐요. 분기마다 새로 시작하고 3일 이상 참여하면 순위에 올라요.</li><li>순위에서 이름을 누르면 그 사람의 기록과 나와의 비교를 볼 수 있어요.</li></ul>' +
       '<h4>📚 출처</h4><p class="hint">단어의 의미 거리는 Facebook FastText 한국어 벡터(CC-BY-SA 3.0), 단어 목록 일부는 국립국어원 한국어기초사전(CC BY-SA 2.0 KR)을 바탕으로 했어요.</p>' +
       '<h4>📱 팁</h4><p>한글 단어만 입력할 수 있어요 (영어 · 숫자는 안 돼요). ‘먹었다’ · ‘학교에서’ · ‘웃다’ 처럼 사전에 없는 꼴은 사전에 있는 가까운 꼴(‘먹다’ · ‘학교’ · ‘웃는’)로 바꿔 찾아요. 점수는 컴퓨터가 웹 · 위키백과 글에서 단어가 함께 쓰인 정도를 학습해 계산한 뜻 거리라서, 학습한 글에 따라 편향이 있거나 가끔 이상한 점수가 나올 수 있어요. 웃고 넘겨 주세요 😄</p><p class="hint">단어 벡터 출처: 페이스북(메타) 패스트텍스트, CC BY-SA 3.0 · 게임 방식은 뉴스젤리 꼬맨틀을 참고했어요.</p>' +
       '<div class="btns"><button type="button" class="btn pri" data-x>알겠어요</button></div>');
@@ -670,7 +670,7 @@
   var kodleP = null;
   function loadKodle() {
     if (window.JMB_KODLE) return Promise.resolve();
-    if (!kodleP) kodleP = new Promise(function (res, rej) { var s = document.createElement('script'); s.src = '../kodle/app.js?v=1.19.1'; s.onload = res; s.onerror = function () { kodleP = null; rej(new Error('꼬들 파일을 못 받았어요')); }; document.head.appendChild(s); });
+    if (!kodleP) kodleP = new Promise(function (res, rej) { var s = document.createElement('script'); s.src = '../kodle/app.js?v=1.19.2'; s.onload = res; s.onerror = function () { kodleP = null; rej(new Error('꼬들 파일을 못 받았어요')); }; document.head.appendChild(s); });
     return kodleP;
   }
   /** 꼬들이 보이는 화면인가: 🟩 꼬들 탭, 또는 연습 · 내 기록 탭에서 '꼬들' 을 고른 경우 */
@@ -754,7 +754,7 @@
     if (!KODLE_ON || (S.L && S.L.prac)) return '';
     var c = chalState(), n = c.ch && c.ch.cd;
     if (c.k.done) return '<div class="card next"><h3>🏆 오늘의 챌린지 완료!</h3><p>꼬맨틀 + 꼬들을 모두 끝냈어요.' + (c.ch && c.ch.st ? ' 🔥 연속 ' + c.ch.st + '일' : '') + (c.ch && c.ch.bon && c.ch.bp ? ' 🎁 완료 보너스 +' + c.ch.bp + '점' : '') + '</p><div class="btns"><button type="button" class="btn pri" data-go="rank">' + xe('🏆 순위 보기') + '</button><button type="button" class="btn" data-go="chal">' + xe('🏁 챌린지 보기') + '</button></div></div>';
-    return '<div class="card next"><h3>🏁 오늘의 챌린지 1/2 — STEP 01 완료!</h3><p>다음은 <b>STEP 02. 꼬들</b> — 글자와 위치를 추리해 정답을 맞히는 짧은 퍼즐이에요. 꼬들까지 끝내면 챌린지 완료!' + (n ? '<br>오늘 <b>' + n + '명</b>이 챌린지를 완료했어요 — 몇 번 만에 풀었는지는 아무도 몰라요 🙂' : '') + '</p><div class="btns"><button type="button" class="btn pri" data-go="kodle">' + xe('다음 게임으로 · 꼬들 →') + '</button><button type="button" class="btn" data-go="chal">' + xe('🏁 챌린지 보기') + '</button></div></div>';
+    return '<div class="card next"><h3>🏁 오늘의 챌린지 1/2 — STEP 01 완료!</h3><p>다음은 <b>STEP 02. 꼬들</b> — 글자와 위치를 추리해 정답을 맞히는 짧은 퍼즐이에요. 꼬들까지 끝내면 챌린지 완료!' + (n ? '<br>오늘 <b>' + n + '명</b>이 챌린지를 완료했어요 — 추측한 단어는 본인만 볼 수 있어요 🙂' : '') + '</p><div class="btns"><button type="button" class="btn pri" data-go="kodle">' + xe('다음 게임으로 · 꼬들 →') + '</button><button type="button" class="btn" data-go="chal">' + xe('🏁 챌린지 보기') + '</button></div></div>';
   }  /** 오늘 꼬맨틀을 끝냈는지(맞힘 · 포기 모두) — 연습 중이어도 오늘 판 상태를 봄 */
   function semDoneToday() { var td = S.ctx === 'td' ? S : S.hold.td; if (!td) return false; var my = td.srv && td.srv.my; return !!((my && my.state === '완료') || (td.L && td.L.done)); }
   function kodleLocked() { return KODLE_ON && kstDay() >= KODLE_LOCK_FROM && !semDoneToday(); }
@@ -1009,7 +1009,7 @@
     if (tab === 'board') {   // (1.18.0) 현황: 사람마다 오늘 꼬맨틀 · 꼬들 성공 여부 + 오늘을 뺀 누적 성공 횟수 (추측 횟수 · 시간은 공개 안 함)
       h += '<div class="seg sm" id="rkTabs">' + tabs.map(function (t) { return '<button type="button" data-t="' + t[0] + '" class="' + (t[0] === tab ? 'on' : '') + '">' + t[1] + '</button>'; }).join('') + '</div>' +
         '<div class="card"><h3>📋 오늘 현황 <small>' + R.day + ' · 성공 횟수는 오늘 제외</small></h3>' + rkBoard(R) + '</div>' +
-        '<p class="hint">✅ 성공 · ❌ 아쉽게 실패 · – 아직. 몇 번 만에 풀었는지 · 걸린 시간은 나만 볼 수 있어요. 순위는 1분마다 갱신돼요.</p>';
+        '<p class="hint">✅ 성공 · ❌ 아쉽게 실패 · – 아직. 추측한 단어 · 걸린 시간은 나만 볼 수 있어요 (점수로 횟수를 짐작할 수는 있어요). 순위는 1분마다 갱신돼요.</p>';
       $('view').innerHTML = h; return;
     }
     var title = tab === 'today' ? '오늘의 참여자 <small>' + R.day + ' · 오늘 점수 순 (꼬맨틀 + 꼬들)</small>' : tab === 'week' ? '이번 주 포인트 <small>' + R.week + '(월)~</small>' : tab === 'season' ? '시즌 포인트 <small>' + R.season + '</small>' : tab === 'rate' ? '레이팅 <small>' + R.season + ' · 3일 이상 참여</small>' : tab === 'chal' ? '오늘의 챌린지 연속 <small>꼬맨틀 + 꼬들을 둘 다 끝낸 날이 이어진 일 수</small>' : '연속 정답 <small>지금 이어가는 중</small>';

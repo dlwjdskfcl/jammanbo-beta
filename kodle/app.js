@@ -4,7 +4,7 @@
  * 오늘 문제는 카카오 로그인한 회원이면 서버(Kodle.js)에 기록돼 점수가 꼬맨틀 주간 · 시즌 · 누적 점수에 더해짐 (정답은 서버가 확인). 연습 판 · 로그인 안 한 판은 이 기기에만 저장. */
 (function () {
   'use strict';
-  var VER = '1.19.1', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 12), LOGMAX = 400;
+  var VER = '1.19.2', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 12), LOGMAX = 400;
   var CFG = window.JMB_CONFIG || {}, ENV = CFG.env || 'prod', SFX = ENV !== 'prod' ? '_' + ENV : '';
   var KEY = 'jmb_kodle_v1' + SFX, KLOG = 'jmb_kodle_log' + SFX, KST = 'jmb_kodle_st' + SFX, KHELP = 'jmb_kodle_help', KAUTH = 'jmb_kakao_v2' + SFX;
   var CH = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
@@ -125,6 +125,7 @@
     if (!token()) return Promise.resolve();
     return api('kodleToday', [token()]).then(function (r) {
       if (r.loginRequired) { SV.today = null; return; }
+      SV.clockOff = !!(r.day && r.day !== dayOf());   // (1.19.2) 기기 날짜가 서버와 다름
       SV.today = r; SV.tryN = 0; SV.ok = r.ak === listKey(); SV.err = SV.ok ? '' : 'list';
       if (SV.ok && ready) reconcile(r);
     }).catch(function (e) {
@@ -242,6 +243,7 @@
   }
   function bannerHTML() {
     if (!token()) return '<div class="note">🔑 로그인하면 꼬들 점수가 <b>꼬맨틀 순위</b>에 합산돼요. <button type="button" class="btn sm pri" id="kdBnLogin">카카오 로그인</button></div>';
+    if (SV.clockOff && GM.play && !GM.play.done) return '<div class="note warn">⚠️ 이 기기의 날짜가 서버와 달라요 (서버 ' + esc(String(SV.today && SV.today.day || '').slice(5)) + '). 기기 날짜 · 시간을 \'자동\'으로 맞춘 뒤 다시 열어 주세요 — 지금은 다른 날 단어라 기록이 안 될 수 있어요.</div>';   // (1.19.2)
     if (SV.startErr && GM.play && !GM.play.done && !/먼저 끝내/.test(SV.startErr)) return '<div class="note warn">⚠️ 서버 연결이 불안정해요. 자동으로 다시 시도 중이에요 — 계속 안 되면 이 판은 이 기기에만 기록될 수 있어요.</div>';
     if (SV.err && SV.err !== 'list' && !SV.today && !SV.startErr && GM.play && !GM.play.done) return '<div class="note warn">⚠️ 서버 확인이 아직 안 됐어요 — 풀 수는 있고, 연결되면 이 판이 기록돼요. <button type="button" class="btn sm" id="kdSrvRetry">다시 확인</button></div>';   // (1.19.0)
     if (SV.err === 'list') return '<div class="note warn">⚠️ 점수 연동을 점검 중이에요. 풀 수는 있지만 이번 판은 기록되지 않아요.</div>';
