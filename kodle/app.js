@@ -4,7 +4,7 @@
  * 오늘 문제는 카카오 로그인한 회원이면 서버(Kodle.js)에 기록돼 점수가 꼬맨틀 주간 · 시즌 · 누적 점수에 더해짐 (정답은 서버가 확인). 연습 판 · 로그인 안 한 판은 이 기기에만 저장. */
 (function () {
   'use strict';
-  var VER = '1.20.0', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 12), LOGMAX = 400;
+  var VER = '1.21.0', TRIES = 6, LEN = 6, START = Date.UTC(2026, 10, 12), LOGMAX = 400;
   var CFG = window.JMB_CONFIG || {}, ENV = CFG.env || 'prod', SFX = ENV !== 'prod' ? '_' + ENV : '';
   var KEY = 'jmb_kodle_v1' + SFX, KLOG = 'jmb_kodle_log' + SFX, KST = 'jmb_kodle_st' + SFX, KHELP = 'jmb_kodle_help', KAUTH = 'jmb_kakao_v2' + SFX;
   var CH = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
@@ -41,13 +41,18 @@
   function session() { var s = load(KAUTH); return s && s.token ? s : null; }
   function token() { var s = session(); return s ? s.token : ''; }
   function nick() { var a = load(KAUTH); return a && a.user && a.user.nickname ? String(a.user.nickname) : ''; }
-  function api(fn, args) {
+  function api(fn, args, ms) {
     if (!API) return Promise.reject(new Error('설정 파일(config.js)을 읽지 못했어요'));
-    var ctl = typeof AbortController === 'function' ? new AbortController() : null, timer = ctl ? setTimeout(function () { ctl.abort(); }, 25000) : 0;
+    var ctl = typeof AbortController === 'function' ? new AbortController() : null, timer = ctl ? setTimeout(function () { ctl.abort(); }, ms || 25000) : 0;
     return fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, cache: 'no-store', signal: ctl ? ctl.signal : undefined, body: JSON.stringify({ fn: fn, args: args || [], env: ENV !== 'prod' ? 'beta' : undefined }) })
       .then(function (r) { if (!r.ok) throw new Error('서버 응답 오류 (' + r.status + ')'); return r.json(); })
-      .then(function (j) { clearTimeout(timer); if (!j || !j.ok) { var er = new Error((j && j.e) || '알 수 없는 오류'); er.server = true; throw er; } return j.r; }, function (e) { clearTimeout(timer); throw e; });
+      .then(function (j) { clearTimeout(timer); if (!j || !j.ok) { var er = new Error((j && j.e) || '알 수 없는 오류'); er.server = true; throw er; } return j.r; },
+        function (e) { clearTimeout(timer); throw e && e.name === 'AbortError' ? new Error('응답이 너무 늦어요') : e instanceof TypeError ? new Error('인터넷 연결을 확인해 주세요') : e; });   // (1.21.0) 알아볼 수 있는 말로
   }
+  /** (1.21.0) 다시 보내면 될 수 있는 오류인가 — 연결 끊김 · 응답 없음 · 서버 락 대기 · 요청 과다 (꼬맨틀 transientErr 와 같은 기준). 서버가 규칙으로 거절한 것은 아님 */
+  function transient(e) { var m = String((e && e.message) || ''); return !e || !e.server || /lock|Lock|too many|바빠|잠시 후|시간이 초과|Timeout|timeout|서버 응답 오류/.test(m); }
+  function kstMs(s) { var m = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/.exec(String(s || '')); return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4] - 9, +m[5], +m[6]) : 0; }   // 서버 시각 글자(한국 시각) → ms
+  function minMs(n) { return (3 + 1.5 * n) * 1000 + 2000; }   // 서버 KODLE_CFG_ MIN_SEC_BASE · MIN_SEC_PER_GUESS + 여유 2초
   function startLogin() {
     if (!CFG.kakaoRestKey) return toast('카카오 로그인 설정을 찾지 못했어요', true);
     var st; try { st = [].slice.call(crypto.getRandomValues(new Uint32Array(4))).join(''); } catch (e) { st = String(Math.random()).slice(2) + Date.now(); }
@@ -100,10 +105,10 @@
     if (prac) { var last = GM.prac && GM.prac.aw; do { w = A[Math.floor(Math.random() * A.length)]; } while (A.length > 1 && w === last); }
     else w = A[((dayNo() % A.length) + A.length) % A.length];
     var m = { ans: jamo(w), aw: w, prac: !!prac, guesses: [], done: false, win: false, no: prac ? 0 : dayNo(), day: prac ? '' : dayOf(), t0: 0 };
-    if (!prac) { var sv = load(KEY); if (sv && sv.day === m.day) { m.guesses = (sv.guesses || []).filter(function (x) { return typeof x === 'string' && x.length === LEN; }); m.done = !!sv.done; m.win = !!sv.win; m.t0 = sv.t0 || 0; } }
+    if (!prac) { var sv = load(KEY); if (sv && sv.day === m.day) { m.guesses = (sv.guesses || []).filter(function (x) { return typeof x === 'string' && x.length === LEN; }); m.done = !!sv.done; m.win = !!sv.win; m.t0 = sv.t0 || 0; m.who = sv.who || ''; } }
     return m;
   }
-  function persist(m) { if (!m.prac) save(KEY, { day: m.day, guesses: m.guesses, done: m.done, win: m.win, t0: m.t0 }); }
+  function persist(m) { if (!m.prac) save(KEY, { day: m.day, guesses: m.guesses, done: m.done, win: m.win, t0: m.t0, who: m.who || '' }); }   // who: 이 판을 푼 닉네임(로그인 상태로 풀었을 때) — 서버에 못 올라간 판을 나중에 같은 사람만 올리게
   /** 한 판이 끝날 때마다 기록(로그)을 남김: 날짜 · 오늘/연습 · 결과 · 횟수 · 걸린 시간 · 정답 · 추측 목록 */
   function logPlay(m) {
     var L = load(KLOG) || [];
@@ -141,13 +146,18 @@
       if (!m.done || m.guesses.length !== g.length) { m.guesses = g; m.done = true; m.win = my.result === '정답'; persist(m); }
       SV.res = { win: m.win, guesses: my.guesses, points: my.points, streak: my.streak, parts: my.parts, final: true };
     } else if (m.done && my.state === '진행중' && !SV.sending && !SV.res) srvSubmit(m);   // 이 기기에서 끝났는데 서버에는 진행 중으로 남아 있으면 다시 보냄
-    else if (m.done && my.state === 'ready' && !SV.res) SV.res = { failed: true, msg: '로그인 전이거나 서버에 연결되지 않은 상태에서 푼 판이에요. 내일 판부터는 정상으로 기록돼요' };
+    else if (m.done && my.state === 'ready' && !SV.res && !SV.sending) {
+      // (1.21.0) 로그인한 채로 풀었는데 서버에 시작조차 못 올라간 판(연결 문제) → 지금 시작 · 등록을 시도. 로그인 전에 푼 판 · 다른 사람이 푼 판은 올리지 않음
+      if (m.who && m.who === nick()) srvSubmit(m);
+      else SV.res = { failed: true, msg: '로그인 전에 푼 판이에요. 내일 판부터는 정상으로 기록돼요' };
+    }
     else if (my.state === '진행중' && !m.done && g.length > m.guesses.length) { m.guesses = g; persist(m); }
     render();
   }
   function ensureStarted() {
     if (SV.nonce) return Promise.resolve(SV.nonce);
-    if (!SV.starting) SV.starting = api('kodleStart', [token()]).then(function (r) { SV.nonce = r.nonce; return r.nonce; }, function (e) { SV.starting = null; throw e; });
+    // (1.21.0) 12초에 끊음(서버가 답 없이 멈추는 일이 있음 — 다시 불러도 같은 판을 이어 줌). startAt = 서버 기준 시작 시각(이어 하는 판은 서버 값)
+    if (!SV.starting) SV.starting = api('kodleStart', [token()], 12000).then(function (r) { SV.nonce = r.nonce; SV.startAt = r.resumed ? kstMs(r.start) : Date.now(); return r.nonce; }, function (e) { SV.starting = null; throw e; });
     return SV.starting;
   }
   /** (1.15.0) 서버에 판을 시작하지 못했을 때: 조용히 넘기지 않고 알리고(안내 띠 + 알림) 몇 번 자동으로 다시 시도 — 연결이 돌아오면 지금까지 추측도 저장 */
@@ -171,13 +181,31 @@
     }
   }
   function srvSave(m) { if (m.prac || !srvOn()) return; ensureStarted().then(function (n) { return api('kodleSave', [token(), n, m.guesses.join('|')]); }).catch(function () {}); }
+  /** 결과 등록. (1.21.0) 일시 오류(연결 끊김 · 응답 없음 · 서버 바쁨)는 자동으로 다시 보냄 — 4 · 8 · 12 · 16초 뒤, 그 뒤 30초마다(모두 24번 · 약 10분). 예전엔 한 번 실패하면 [다시 시도]를 직접 눌러야 했음.
+   *  서버는 시작 뒤 '3초 + 추측당 1.5초'가 지나야 정답을 받으므로, 시작이 늦게 된 판(연결 문제)은 그만큼 기다렸다 보냄(한 번). 그래도 '너무 빨리'면 한 번 더 기다려 다시 */
+  var subT = 0, subN = 0, subWaited = false, subTf = false;
   function srvSubmit(m) {
-    if (m.prac || !srvOn()) return;
-    SV.sending = true; render();
-    ensureStarted().then(function (n) { return api('kodleSubmit', [token(), n, { win: m.win, g: m.guesses }]); }).then(function (r) {
-      SV.sending = false; SV.res = { win: r.win, guesses: r.guesses, points: r.points, streak: r.streak, parts: r.parts, final: true }; SV.err = '';
+    if (m.prac || !srvOn() || SV.sending) return;
+    clearTimeout(subT);
+    SV.sending = true; SV.res = null; render();
+    var again = function (ms, msg) { SV.res = { failed: true, retrying: true, msg: msg }; subT = setTimeout(function () { if (SV.res && SV.res.retrying && GM.play === m) srvSubmit(m); }, ms); };
+    ensureStarted().then(function (n) {
+      var need = m.win && SV.startAt && !subWaited ? Math.min(minMs(m.guesses.length), minMs(m.guesses.length) - (Date.now() - SV.startAt)) : 0;
+      if (need <= 0) return n;
+      subWaited = true;
+      return new Promise(function (res) { setTimeout(function () { res(n); }, need); });
+    }).then(function (n) { return api('kodleSubmit', [token(), n, { win: m.win, g: m.guesses }]); }).then(function (r) {
+      SV.sending = false; subN = 0; SV.res = { win: r.win, guesses: r.guesses, points: r.points, streak: r.streak, parts: r.parts, final: true }; SV.err = ''; SV.startErr = '';
       srvToday().then(function () { render(); }); render();
-    }, function (e) { SV.sending = false; SV.res = { failed: true, msg: e.message }; render(); });
+    }, function (e) {
+      SV.sending = false;
+      var msg = (e && e.message) || '연결 실패';
+      if (e && e.server && /기록할 판을 찾을 수 없/.test(msg)) { SV.res = null; SV.nonce = ''; SV.starting = null; srvToday().then(function () { if (!SV.res) SV.res = { failed: true, msg: msg }; render(); }); }   // 이미 등록됐을 수 있음(응답만 끊겼던 경우) → 서버 기록을 가져와 맞춤
+      else if (e && e.server && /너무 빨리/.test(msg) && !subTf) { subTf = true; again(minMs(m.guesses.length), '등록 대기 중'); }
+      else if (transient(e) && subN < 24) { subN++; again(subN <= 4 ? 4000 * subN : 30000, msg); }
+      else SV.res = { failed: true, msg: msg };
+      render();
+    });
   }
 
   /* ── 화면 ── */
@@ -232,6 +260,7 @@
     if (!token()) return '<p class="hint">로그인하면 이 결과가 꼬맨틀 순위 점수에 합산돼요. <a href="#" id="kdResLogin">카카오 로그인</a></p>';
     if (SV.err === 'list') return '<p class="hint">⚠️ 점수 연동 점검 중이라 이번 판은 이 기기에만 기록돼요.</p>';
     var r = SV.res;
+    if (r && r.retrying) return '<p class="hint">⏳ 서버 연결이 불안정해요 — 기록을 자동으로 다시 보내는 중이에요 (' + esc(r.msg) + '). 이 화면을 열어 두세요. <button type="button" class="btn sm" id="kdRetry">지금 다시</button></p>';
     if (r && r.failed) return '<p class="hint">⚠️ 이 판이 서버에 저장되지 않았어요 (' + esc(r.msg) + '). 이 기기의 \'내 기록\'에는 남아 있어요. ' + (/너무 빨리|정답이 달라|기록할 판을 찾을 수 없/.test(r.msg) ? '' : '<button type="button" class="btn sm" id="kdRetry">다시 시도</button>') + '</p>';
     if (r && r.final) {
       if (!r.win) return '<p class="hint">0점 — 내일 다시 도전! (기록은 서버에 저장됐어요)</p>';
@@ -351,7 +380,7 @@
     var s = $('kdShare'); if (s) s.onclick = function () { shareResult(shareText(GM[view])); };
     var br = $('kdBrag'); if (br) br.onclick = function () { shareResult(bragText(GM[view])); };
     var p = $('kdNext'); if (p) p.onclick = function () { GM.prac = newGame(true); CUR.prac = ''; render(); };
-    var rt = $('kdRetry'); if (rt) rt.onclick = function () { SV.res = null; srvSubmit(GM[view]); };
+    var rt = $('kdRetry'); if (rt) rt.onclick = function () { SV.res = null; subN = 0; srvSubmit(GM[view]); };
     var g = $('kdGoPrac'); if (g) g.onclick = function () { go('prac'); };
     var sr = $('kdSrvRetry'); if (sr) sr.onclick = function () { SV.tryN = 0; srvToday().then(function () { render(); }); };
     ['kdBnLogin', 'kdResLogin'].forEach(function (id) { var b = $(id); if (b) b.onclick = function (e) { e.preventDefault(); startLogin(); }; });
@@ -383,6 +412,7 @@
       if (!G[cur]) { msg('목록에 없는 단어예요', true); return shake(m); }
       if (m.guesses.indexOf(cur) >= 0) { msg('이미 쓴 단어예요', true); return shake(m); }
       if (!m.t0) m.t0 = Date.now();
+      if (!m.prac && srvOn() && nick()) m.who = nick();
       m.guesses.push(cur); CUR[view] = '';
       if (!m.prac && srvOn()) ensureStarted().catch(startFail);   // 첫 추측 때 서버 기록을 시작 (시작 시각 = 첫 추측) — 실패하면 알리고 다시 시도
       if (cur === m.ans) finish(m, true); else if (m.guesses.length >= TRIES) finish(m, false); else srvSave(m);

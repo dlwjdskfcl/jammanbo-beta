@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.31.0';
+  var VER = '1.32.0';
   var LATE_FROM = '2026-11-16', LATE_AT = '23:30', LATE_PTS = 10;   // (1.31.0) 밤 23:30 에 톡방에 정답이 공개됨 → 그 뒤 정답은 고정 점수 (서버 SEM_CFG_ LATE_* 와 같게 — 점수는 서버가 정함, 여기는 안내용)
   function lateNow() { var t = new Date(Date.now() + 9 * 3600e3).toISOString(); return t.slice(0, 10) >= LATE_FROM && t.slice(11, 16) >= LATE_AT; }
   var CFG = window.JMB_CONFIG || {};
@@ -181,11 +181,11 @@
   };
 
   /* ================= 서버 ================= */
-  function api(fn, args, ms) {
+  function api(fn, args, ms, keep) {
     if (!API) return Promise.reject(new Error('설정 파일(config.js)을 읽지 못했어요'));
     var ctl = typeof AbortController === 'function' ? new AbortController() : null;
     var timer = ctl ? setTimeout(function () { ctl.abort(); }, ms || 25000) : 0;
-    return fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, cache: 'no-store', signal: ctl ? ctl.signal : undefined,
+    return fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, cache: 'no-store', keepalive: !!keep, signal: ctl ? ctl.signal : undefined,
       body: JSON.stringify({ fn: fn, args: args || [], env: ENV !== 'prod' ? 'beta' : undefined }) })
       .then(function (r) { if (!r.ok) throw new Error('서버 응답 오류 (' + r.status + ')'); return r.text().then(function (t) { try { return JSON.parse(t); } catch (x) { throw new Error('서버가 바빠요. 잠시 후 다시 시도해 주세요'); } }); })
       .then(function (j) {
@@ -375,8 +375,17 @@
   function ensureStart() {
     if (!S.L.rec || S.L.nonce) return Promise.resolve();
     if (S.startP) return S.startP;
-    S.startP = api('semStart', [token()]).then(function (r) { S.L.nonce = r.nonce; S.L.startAt = Date.now(); S.startWarn = false; saveLocal(); }, function (e) {
-      if (transientErr(e)) { if (!S.startWarn) { S.startWarn = true; toast('서버 연결이 불안정해요. 계속 풀 수 있고, 연결되면 이 판이 기록돼요', true); } return; }   // (1.29.0) 기록 판 유지 · 다음 추측 때 다시 시도
+    // (1.32.0) 12초에 끊고(서버가 답 없이 멈추는 일이 있음 — 다시 불러도 같은 판을 이어 줌) 풀고 있는 동안 뒤에서 스스로 다시 시도 → 다음 추측을 기다리지 않음
+    S.startP = api('semStart', [token()], 12000).then(function (r) {
+      S.L.nonce = r.nonce; S.L.startAt = r.resumed ? kstMs(r.start) : Date.now();   // 이어 하는 판은 서버의 시작 시각(다른 기기 · 응답만 끊겼던 시작)
+      S.startWarn = false; S.startTry = 0; saveLocal();
+      if (S.L.g.length && !S.L.done) scheduleSave();
+    }, function (e) {
+      if (transientErr(e)) {   // (1.29.0) 기록 판 유지
+        if (!S.startWarn) { S.startWarn = true; toast('서버 연결이 불안정해요. 계속 풀 수 있고, 연결되면 이 판이 기록돼요', true); }
+        if ((S.startTry = (S.startTry || 0) + 1) <= 15) { clearTimeout(S.startT); S.startT = setTimeout(function () { if (S.L && recordable() && !S.L.nonce && S.ctx === 'td') ensureStart(); }, 2500); }
+        return;
+      }
       S.L.rec = false; saveLocal();
       toast(/이미 했어요|더 할 수 없어요/.test(e.message) ? '오늘 기록은 이미 했어요. 연습으로 계속 풀 수 있어요' : e.message, true); render();
     }).then(function () { S.startP = null; });
@@ -546,34 +555,63 @@
   }
   function submit(isWin, word) {
     if (S.busy) return Promise.resolve();   // 두 번 누르거나 겹쳐도 한 번만 보냄
-    S.busy = true; render();
+    S.busy = true;
+    // (1.32.0) 보내기 전에 '보낼 기록 있음'을 먼저 기기에 적음 — 답을 기다리는 사이 화면이 닫히거나(공유하러 카톡으로 넘어감) 멈춰도 다음에 열 때 이어서 보냄.
+    // 예전엔 실패 응답을 받은 뒤에야 적어서, 그 전에 화면이 닫히면 아무 표시 없이 기록이 빠졌음 (2026-11-17 흑당 사례)
+    if (S.L.rec) { S.L.pend = { win: isWin, word: word }; saveLocal(); }
+    render();
     return ensureStart().then(function () {
       if (S.L.rec && !S.L.nonce) {   // (1.29.0) 시작이 아직 안 됐으면(연결 문제) 조용히 넘기지 않고 기록 대기로 두고 다시 시도
         S.busy = false; S.L.pend = { win: isWin, word: word }; saveLocal(); toast('기록을 보내지 못했어요. 연결되면 다시 보낼게요', true); render();
-        if ((S.pendTry = (S.pendTry || 0) + 1) <= 4) setTimeout(retryPending, 4000 * S.pendTry);
+        pendLater();
         return;
       }
-      if (!S.L.rec) { S.busy = false; render(); return; }
+      if (!S.L.rec) { S.busy = false; S.L.pend = false; saveLocal(); render(); return; }
       clearTimeout(saveT);
       var payload = { win: isWin, guesses: Math.max(isWin ? 1 : 0, S.L.n), hints: S.L.hints, cho: S.L.cho ? 1 : 0, answer: word, g: gString().slice(0, 11000) };
-      return api('semSubmit', [token(), S.L.nonce, payload]).then(function (r) {
-        S.L.res = r; S.L.pend = false; S.pendTry = 0; saveLocal(); S.busy = false; lsSet(LS.pend, null);
+      // (1.32.0) 서버는 시작 뒤 '5초 + 추측당 1.2초'가 지나야 정답을 받음(MIN_SEC_*). 연결 문제로 시작이 늦게 된 판은 바로 보내면 '너무 빨리'로 영영 거절되므로 그만큼 기다렸다 보냄
+      var need = isWin && S.L.startAt && !S.L.waited ? Math.min(minMs(payload.guesses), minMs(payload.guesses) - (Date.now() - S.L.startAt)) : 0;   // 한 번만 기다림(기기 시계가 틀려도 끝없이 기다리지 않게 — 그래도 거절되면 아래 '너무 빨리' 처리)
+      if (need > 0) {
+        S.busy = false; S.L.waited = 1; S.L.pend = { win: isWin, word: word }; S.L.waitTo = Date.now() + need; saveLocal(); render();
+        clearTimeout(S.pendT); S.pendT = setTimeout(retryPending, need);
+        return;
+      }
+      return api('semSubmit', [token(), S.L.nonce, payload], 25000, true).then(function (r) {   // keepalive: 화면을 닫는 순간에도 요청이 끝까지 가게
+        S.L.res = r; S.L.pend = false; S.L.waitTo = 0; S.pendTry = 0; saveLocal(); S.busy = false; lsSet(LS.pend, null);
         S.rank = null; loadMine(); render();
       }, function (e) {
         S.busy = false;
         if (e.server && /기록할 판을 찾을 수 없/.test(e.message)) {   // (1.29.0) 이미 등록됐을 수 있음(응답만 끊겼던 경우) → 서버 기록을 가져와 맞춤
           S.L.pend = false; saveLocal(); verifyRec(false, true).then(function () { if (!S.L.res) { S.L.res = { error: e.message }; S.L.rec = false; saveLocal(); toast(e.message, true); } render(); });
-        } else if (e.server && !transientErr(e)) { S.L.res = { error: e.message }; S.L.rec = false; saveLocal(); toast(e.message, true); }   // 서버가 규칙으로 거절 — 다시 보내도 같음
-        else {   // 연결 문제 · 서버가 잠깐 바쁨 → 기록 대기, 자동으로 몇 번 다시 보냄
+        } else if (e.server && /너무 빨리/.test(e.message) && !S.L.tf) {   // (1.32.0) 시작 시각을 이 기기가 잘못 알고 있었을 때(다른 기기에서 시작 · 시계 차이) — 필요한 시간만큼 기다려 한 번만 다시
+          S.L.tf = 1; S.L.pend = { win: isWin, word: word }; S.L.waitTo = Date.now() + minMs(payload.guesses); saveLocal();
+          clearTimeout(S.pendT); S.pendT = setTimeout(retryPending, minMs(payload.guesses));
+        } else if (e.server && !transientErr(e)) { S.L.res = { error: e.message }; S.L.rec = false; S.L.pend = false; saveLocal(); toast(e.message, true); }   // 서버가 규칙으로 거절 — 다시 보내도 같음
+        else {   // 연결 문제 · 서버가 잠깐 바쁨 → 기록 대기, 자동으로 다시 보냄
           S.L.pend = { win: isWin, word: word }; saveLocal(); toast('기록을 보내지 못했어요. 연결되면 다시 보낼게요 (' + e.message + ')', true);
-          if ((S.pendTry = (S.pendTry || 0) + 1) <= 4) setTimeout(retryPending, 4000 * S.pendTry);
+          pendLater();
         }
         render();
       });
     });
   }
+  function minMs(guesses) { return (5 + 1.2 * guesses) * 1000 + 2000; }   // 서버 SEM_CFG_ MIN_SEC_BASE · MIN_SEC_PER_GUESS + 여유 2초
+  function kstMs(s) { var m = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/.exec(String(s || '')); return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4] - 9, +m[5], +m[6]) : 0; }   // 서버 시각 글자(한국 시각) → ms. 못 읽으면 0(기다리지 않고 보냄)
+  /** (1.32.0) 못 보낸 기록 다시 보내기 예약: 처음 4번은 4 · 8 · 12 · 16초 뒤, 그 뒤로는 30초마다 20번(약 10분) — 예전엔 4번 뒤 멈춰서 직접 눌러야 했음. 화면으로 돌아올 때 · 인터넷이 돌아올 때도 보냄 */
+  function pendLater() {
+    var n = S.pendTry = (S.pendTry || 0) + 1;
+    if (n <= 24) { clearTimeout(S.pendT); S.pendT = setTimeout(retryPending, n <= 4 ? 4000 * n : 30000); }
+  }
+  /** (1.32.0) 끝난 판인데 결과도 '보낼 기록'도 없는 상태(1.31 까지: 보내는 도중 화면이 닫힘)를 '보낼 기록 있음'으로 되살림 — 판을 불러온 뒤 서버에 완료 기록이 없을 때 부름 */
+  function recoverPend(L) {
+    if (!L || L.prac || !L.done || !L.rec || L.res || L.pend) return;
+    var real = L.g.filter(function (x) { return !x.h; }), word = L.win && real.length ? real[real.length - 1].w : '';
+    if (L.win && !word) return;
+    L.pend = { win: !!L.win, word: word };
+  }
   function retryPending() {
-    if (!S.L || !S.L.pend || !S.L.rec) return;   // (1.29.0) nonce 가 없으면 submit 이 먼저 시작을 시도
+    if (!S.L || !S.L.pend || !S.L.rec || S.ctx !== 'td') return;   // (1.29.0) nonce 가 없으면 submit 이 먼저 시작을 시도
+    if (S.L.waitTo && S.L.waitTo - Date.now() > 300) { clearTimeout(S.pendT); S.pendT = setTimeout(retryPending, S.L.waitTo - Date.now()); return; }   // 아직 기다리는 중
     submit(S.L.pend.win, S.L.pend.word);
   }
   /* loadMine: semToday 세 번째 인자 1 = 표 없이 기록 · 통계만 받음 (큰 표를 다시 받지 않음) */
@@ -711,7 +749,7 @@
   var kodleP = null;
   function loadKodle() {
     if (window.JMB_KODLE) return Promise.resolve();
-    if (!kodleP) kodleP = new Promise(function (res, rej) { var s = document.createElement('script'); s.src = '../kodle/app.js?v=1.20.0'; s.onload = res; s.onerror = function () { kodleP = null; rej(new Error('꼬들 파일을 못 받았어요')); }; document.head.appendChild(s); });
+    if (!kodleP) kodleP = new Promise(function (res, rej) { var s = document.createElement('script'); s.src = '../kodle/app.js?v=1.21.0'; s.onload = res; s.onerror = function () { kodleP = null; rej(new Error('꼬들 파일을 못 받았어요')); }; document.head.appendChild(s); });
     return kodleP;
   }
   /** 꼬들이 보이는 화면인가: 🟩 꼬들 탭, 또는 연습 · 내 기록 탭에서 '꼬들' 을 고른 경우 */
@@ -827,7 +865,8 @@
           (r.parts.streak ? '<span class="chip hot">🔥 ' + r.streak + '일 연속 <b>+' + r.parts.streak + '</b></span>' : '') + (r.parts.hint ? '<span class="chip">힌트 <b>' + r.parts.hint + '</b></span>' : '') + '<span class="chip">⏱ ' + mmss(r.sec) + '</span></div>';
       } else h += '<p class="hint">0점 · 연속 기록이 끊겼어요. 내일 다시 도전!</p>';
     } else if (r && r.error) h += '<div class="note bad" style="margin-top:10px">기록하지 못했어요: ' + esc(r.error) + '</div>';
-    else if (L.pend) h += '<div class="note warn" style="margin-top:10px">기록을 아직 못 보냈어요. <button type="button" class="btn sm" id="retry">다시 보내기</button></div>';
+    else if (L.pend && L.waitTo > Date.now()) h += '<div class="note warn" style="margin-top:10px">⏳ 서버 연결이 늦게 돼서 기록 등록을 잠깐 기다리는 중이에요 — 약 ' + Math.ceil((L.waitTo - Date.now()) / 1000) + '초 뒤 자동으로 등록돼요. 이 화면을 열어 두세요.</div>';
+    else if (L.pend) h += '<div class="note warn" style="margin-top:10px">기록을 아직 못 보냈어요. 자동으로 다시 보내는 중이에요. <button type="button" class="btn sm" id="retry">지금 다시 보내기</button></div>';
     else if (!L.rec) h += '<p class="hint">연습이라 기록은 없어요.</p>';
     h += '<div class="heat">' + L.g.slice(0, L.cnt).map(function (x) { return HEAT[tier(x.w)]; }).join('') + '</div>' +
       semTagsHTML() + '<div class="btns"><button type="button" class="btn pri" id="share">' + xe('📤 카톡으로 공유') + '</button>' + (L.win ? '<button type="button" class="btn" id="brag" title="몇 번 만에 풀었는지도 함께 공개돼요">' + xe('🏅 자랑하기') + '</button>' : '') + '<button type="button" class="btn" id="topbtn">가까운 단어 1000개 보기</button>' +
@@ -1207,7 +1246,7 @@
   };
   $('toast').addEventListener('click', function () { this.className = 'toast'; });   // 알림을 누르면 바로 닫힘
   window.addEventListener('online', retryPending);
-  document.addEventListener('visibilitychange', function () { if (document.hidden) flushSave(); });
+  document.addEventListener('visibilitychange', function () { if (document.hidden) flushSave(); else if (S.L && S.L.pend && !S.busy) retryPending(); });   // (1.32.0) 화면으로 돌아오면 못 보낸 기록부터
   window.addEventListener('pagehide', flushSave);
   document.addEventListener('visibilitychange', function () { var T = today_(); if (!document.hidden && T && T.srv && T.srv.ready && T.L && T.L.day && T.srv.day !== todayKST()) location.reload(); });   // 연습 중에도 오늘 판 기준으로 날짜 확인
   function todayKST() { return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); }
@@ -1263,6 +1302,7 @@
     mergeServer(L, my);
     if (!L.done && L.g.length === 0) L.rec = !!(S.nick && my && my.state !== '완료');
     else if (S.nick && my && my.state === '완료' && L.rec && !L.res) L.rec = false;   // 다른 기기에서 이미 기록함
+    if (my) recoverPend(L);   // (1.32.0) 서버 확인을 받았는데 이 기기에서 끝낸 판이 서버에 완료로 없으면 다시 보냄
     if (inTd) {   // ensureStart · retryPending · saveLocal 은 지금 화면(S.L)을 씀 — 연습 중이면 오늘 판으로 돌아왔을 때 하게 둠
       if (L.rec && my && my.state === '진행중' && !L.nonce) ensureStart();
       saveLocal();
@@ -1331,6 +1371,7 @@
       if (!L.done && L.g.length === 0) L.rec = !!(S.nick && my && my.state !== '완료');
       else if (S.nick && my && my.state === '완료' && L.rec && !L.res) { L.rec = false; }   // 다른 기기에서 이미 기록함
       if (L.rec && my && my.state === '진행중' && !L.nonce) ensureStart();   // 다른 기기/새로고침: 이어 하기 (서버가 확인값을 다시 줌)
+      if (my) recoverPend(L);   // (1.32.0)
       saveLocal();
       if (S.view === 'play' && lsGet(LS.help) !== '1') setTimeout(help, 400);
       render(); flushQueue();
