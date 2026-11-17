@@ -2,7 +2,7 @@
  * 기기 저장: jmb_mighty_save(진행 중인 게임) · jmb_mighty_set(설정) · jmb_mighty_stats(전적) */
 (function () {
   'use strict';
-  var VER = '1.0.4';
+  var VER = '1.0.5';
   var E = window.MightyEngine, AI = window.MightyAI, FX = window.JMB_FX, ARC = window.JMB_ARCADE;
   var ROOT = (function () { var seg = location.pathname.split('/')[1] || ''; return /\.github\.io$/.test(location.hostname) && seg ? '/' + seg + '/' : '/'; })();
   var LS = { save: 'jmb_mighty_save', set: 'jmb_mighty_set', stats: 'jmb_mighty_stats' };
@@ -25,7 +25,7 @@
   if (SET.sound == null) SET.sound = 1;
   if (SET.oneTap == null) SET.oneTap = 0;
   var STATS = lsGet(LS.stats, null) || { n: 0, win: 0, d: 0, dw: 0, f: 0, fw: 0, o: 0, ow: 0, sum: 0, best: 0 };
-  if (!(STATS.streak >= 0)) STATS.streak = 0;   // 랭킹용 연승 (AI 고수 · 힌트 없이 이긴 판)
+  if (!(STATS.streak >= 0)) STATS.streak = 0;   // 랭킹용 연승 (내 편이 이긴 판 — 1.0.5~ AI 실력 · 힌트와 상관없이)
   var G = null;                      // 진행 중인 게임 {v, st, scores, rounds, roundNo, starter, mult, hold, notice, recorded}
   var UI = { view: 'home', sel: [], pend: null, bn: 13, bs: 0, kg: null, fr: null, hintCard: -1, anim: '', turnKey: '' };
   var T = 0, toastT = 0, selfPop = 0, modalHist = false;
@@ -200,15 +200,14 @@
     render(); showResult();
   }
 
-  /* ---------- 모임 랭킹 (오락실 arcade.js): AI 고수 · 힌트 없이 한 판만 ---------- */
-  function ranked() { return G.rlv === 3 && SET.level === 3 && !G.hinted; }
+  /* ---------- 모임 랭킹 (오락실 arcade.js): 카카오 로그인 회원이면 끝난 판을 모두 보냄 (1.0.5~ — 예전엔 AI 고수 · 힌트 없이 이긴 판만).
+   * 한 판 점수는 이기든 지든, 연승은 이긴 판에. AI 실력(그 판에서 가장 낮았던 값) · 힌트 사용은 기록 옆 메모에 적음. 로그인 안 했으면 기기 기록만 ---------- */
   function rankRound(r, role, won) {
-    var ok = ranked(), sc = r.delta[ME];
-    if (!ok || !won) { STATS.streak = 0; G.rank = { ok: ok, streak: 0 }; return; }
-    STATS.streak++;
-    G.rank = { ok: true, streak: STATS.streak, score: sc };
+    var sc = r.delta[ME], lv = Math.min(G.rlv || SET.level, SET.level);
+    STATS.streak = won ? STATS.streak + 1 : 0;
+    G.rank = { v: 2, streak: STATS.streak, score: sc, on: !!(ARC && NICK) };
     if (!ARC) return;
-    var note = ((role === 'd' ? '주공 ' : role === 'f' ? '프렌드 ' : '야당 ') + (r.giruda === NT ? 'NT' : E.SUIT_CH[r.giruda]) + r.bid + (r.tags.length ? ' ' + r.tags.join(' ') : '')).slice(0, 40);
+    var note = (LEVELS[lv] + (G.hinted ? '·힌트 ' : ' ') + (role === 'd' ? '주공 ' : role === 'f' ? '프렌드 ' : '야당 ') + (r.giruda === NT ? 'NT' : E.SUIT_CH[r.giruda]) + r.bid + (r.tags.length ? ' ' + r.tags.join(' ') : '')).slice(0, 40);
     var told = false;
     function sent(o) {   // 못 올라갔으면 눈에 보이게 (기기에 적어 두었다가 다시 보냄)
       if (!o || !o.error || told) return;
@@ -216,7 +215,7 @@
       toast(o.queued ? '🏆 랭킹 전송이 아직 안 됐어요 (' + o.error + ') — 기기에 보관했다가 다시 보내요' : '🏆 랭킹에 올리지 못했어요: ' + o.error, 5200);
     }
     // 두 기록 모두 바로 맡김 — arcade.js 가 먼저 기기에 적고 3초 간격으로 차례로 보냄 (보내는 중에 화면을 닫아도 다음에 열 때 이어서)
-    try { ARC.report('mighty', 'streak', STATS.streak, note).then(sent, sent); } catch (e) {}
+    if (won) try { ARC.report('mighty', 'streak', STATS.streak, note).then(sent, sent); } catch (e) {}
     try { ARC.report('mighty', 'score', sc, note, { quiet: true }).then(sent, sent); } catch (e) {}
   }
   function abandon() {   // 판 도중에 새 게임으로 버리면 연승이 끊김 (유리한 판만 남기지 못하게)
@@ -295,10 +294,11 @@
       (sv ? '<button type="button" class="mode main" data-a="resume"><span class="ic">▶</span><span><b>이어하기</b><small>' + sv.roundNo + '번째 판 · 내 점수 ' + sign(sv.scores[0]) + '</small></span></button>' : '') +
       '<button type="button" class="mode' + (sv ? '' : ' main') + '" data-a="new"><span class="ic">🃏</span><span><b>새 게임</b><small>나 + AI 4명 · 여러 판 누적 점수</small></span></button>' +
       (ARC ? '<button type="button" class="mode" data-a="board"><span class="ic">🏆</span><span><b>모임 랭킹</b><small>한 판 최고 점수 · 연속 승리' + (STATS.streak ? ' (지금 ' + STATS.streak + '연승)' : '') + (ARC.pending && ARC.pending() ? ' · 아직 못 올린 기록 ' + ARC.pending() + '건(자동으로 다시 보내요)' : '') + '</small></span></button>' : '') +
+      (ARC && !NICK ? '<button type="button" class="mode" data-a="login"><span class="ic">🔑</span><span><b>' + (ARC.session() ? '닉네임 연결하기' : '카카오 로그인') + '</b><small>' + (ARC.session() ? '잠만보에서 모임 닉네임을 연결하면' : '로그인하면') + ' 내 기록이 모임 랭킹에 남아요 · 안 해도 게임은 할 수 있어요</small></span></button>' : '') +
       '<div class="two"><button type="button" class="mode" data-a="tour" data-v="0"><span class="ic">👋</span><span><b>빠른 안내</b><small>30초</small></span></button>' +
       '<button type="button" class="mode" data-a="help"><span class="ic">📖</span><span><b>규칙</b><small>자세히</small></span></button></div></div>' +
       '<div class="box"><h3>AI 실력</h3><div class="seg" id="lvSeg">' + [1, 2, 3].map(function (l) { return '<button type="button" data-a="level" data-v="' + l + '" class="' + (SET.level === l ? 'on' : '') + '">' + LEVELS[l] + '</button>'; }).join('') + '</div>' +
-      '<p class="hint">쉬움 — 가끔 실수하고 공약이 소극적 · 보통 — 기본기 · 고수 — 남은 카드를 따져 여러 경우를 굴려 봄. 게임 중에도 설정에서 바꿀 수 있어요.' + (ARC ? '<br>🏆 모임 랭킹에는 <b>고수</b>로 <b>힌트 없이</b> 이긴 판만 올라가요 (쉬움 · 보통 · 힌트를 쓴 판은 안 올라가고 연승도 끊겨요).' : '') + '</p></div>' +
+      '<p class="hint">쉬움 — 가끔 실수하고 공약이 소극적 · 보통 — 기본기 · 고수 — 남은 카드를 따져 여러 경우를 굴려 봄. 게임 중에도 설정에서 바꿀 수 있어요.' + (ARC ? '<br>🏆 ' + (NICK ? '<b>' + esc(NICK) + '</b> 님으로 로그인돼 있어요 — 끝난 판은 모두' : '카카오로 로그인하면 끝난 판이 모두') + ' 모임 랭킹에 기록돼요 (AI 실력 · 힌트를 썼는지는 기록 옆에 표시).' : '') + '</p></div>' +
       '<div class="box"><h3>내 전적<small>이 기기에 저장</small></h3><div class="stats">' +
       '<div><b>' + STATS.n + '</b><small>판</small></div><div><b>' + p(STATS.win, STATS.n) + '</b><small>승률</small></div><div><b>' + sign(STATS.sum) + '</b><small>누적 점수</small></div>' +
       '<div><b>' + p(STATS.dw, STATS.d) + '</b><small>주공 ' + STATS.d + '판</small></div><div><b>' + p(STATS.fw, STATS.f) + '</b><small>프렌드 ' + STATS.f + '판</small></div><div><b>' + p(STATS.ow, STATS.o) + '</b><small>야당 ' + STATS.o + '판</small></div>' +
@@ -465,9 +465,8 @@
     level: function (el) {
       var lv = +el.getAttribute('data-v');
       if (lv === SET.level) return;
-      if (lv < 3 && SET.level === 3 && STATS.streak > 0 && !confirm('고수가 아닌 판은 랭킹에 안 올라가고 ' + STATS.streak + '연승도 끊겨요. 바꿀까요?')) return;
       SET.level = lv; lsSet(LS.set, SET);
-      if (G) { G.rlv = Math.min(G.rlv || 0, lv); save(); }   // 하던 판은 가장 낮았던 실력으로 침 (첫 화면에서 바꿔도 — 쉬움으로 두다가 끝에만 고수로 돌리지 못하게)
+      if (G) { G.rlv = Math.min(G.rlv || lv, lv); save(); }   // 하던 판은 가장 낮았던 실력으로 적음 (첫 화면에서 바꿔도 — 쉬움으로 두다가 끝에만 고수로 돌리지 못하게)
       if ($('modal').innerHTML) showSettings(); render();
     },
     speed: function (el) { SET.speed = +el.getAttribute('data-v'); lsSet(LS.set, SET); showSettings(); },
@@ -522,6 +521,7 @@
     tour: function (el) { var v = el.getAttribute('data-v'); if (v === 'end') closeModal(); else showTour(+v); },
     reset: function () { if (!confirm('점수표를 지우고 새 게임을 시작할까요?' + cutNote())) return; closeModal(); newGameStart(); },
     end: function () { endGame(); },
+    login: function () { save(); if (ARC) ARC.login(); },   // 카카오 로그인 뒤 잠만보 시작 페이지가 이 화면으로 돌려보냄 (하던 판은 저장돼 있음)
     result: function () { closeModal(); showResult(); }
   };
   function newGameStart() { abandon(); enterGame(); newGame(); }
@@ -552,12 +552,10 @@
   function doHint() {
     var st = G.st, a;
     if (!myTurn()) return;
-    var first = !G.hinted && ranked();   // 랭킹에 올라갈 수 있던 판의 첫 힌트
-    if (first && STATS.streak > 0 && !confirm('힌트를 보면 이 판은 랭킹에 안 올라가고 ' + STATS.streak + '연승도 끊겨요. 볼까요?')) return;
     try { a = AI.choose(st, ME, 3); } catch (e) { a = null; }
     if (!a) return toast('지금은 힌트를 낼 수 없어요');
-    if (!G.hinted) { G.hinted = 1; save(); }   // 힌트를 쓴 판은 랭킹에 안 올림
-    var why = (a.why ? ' — ' + a.why : '') + (first ? ' (힌트를 쓴 판은 랭킹 제외)' : '');
+    if (!G.hinted) { G.hinted = 1; save(); }   // 힌트를 쓴 판은 랭킹 메모에 '힌트' 표시
+    var why = a.why ? ' — ' + a.why : '';
     if (a.t === 'pass') toast('💡 추천: 패스' + why, 4200);
     else if (a.t === 'bid') { UI.bs = a.s; UI.bn = a.n; toast('💡 추천: 공약 ' + bidTxt(a.n, a.s) + why, 4200); }
     else if (a.t === 'discard') { UI.sel = a.cards.slice(); UI.kg = a.giruda == null ? st.giruda : a.giruda; toast('💡 추천: ' + a.cards.map(cardTxt).join(' ') + ' 버리기' + why, 4200); }
@@ -630,7 +628,7 @@
   function showSettings() {
     var hp = FX ? FX.hapticOn() : false;
     modal('설정', '<div class="opt"><div class="l">진행 속도<small>AI 가 내는 속도 · 트릭 보여 주는 시간</small></div>' + segH('speed', SET.speed, [[0, '느림'], [1, '보통'], [2, '빠름']]) + '</div>' +
-      '<div class="opt"><div class="l">AI 실력<small>바로 적용 · 랭킹은 고수만</small></div>' + segH('level', SET.level, [[1, '쉬움'], [2, '보통'], [3, '고수']]) + '</div>' +
+      '<div class="opt"><div class="l">AI 실력<small>바로 적용 · 랭킹 기록 옆에 표시</small></div>' + segH('level', SET.level, [[1, '쉬움'], [2, '보통'], [3, '고수']]) + '</div>' +
       '<div class="opt"><div class="l">카드 내기<small>한 번 누르면 바로 / 두 번 눌러 확인</small></div>' + segH('tog', SET.oneTap, [[0, '두 번'], [1, '한 번']], ' data-k="oneTap"') + '</div>' +
       '<div class="opt"><div class="l">소리</div>' + segH('tog', SET.sound, [[1, '켬'], [0, '끔']], ' data-k="sound"') + '</div>' +
       '<div class="opt"><div class="l">진동</div>' + segH('tog', hp ? 1 : 0, [[1, '켬'], [0, '끔']], ' data-k="haptic"') + '</div>',
@@ -657,8 +655,10 @@
     var mineWon = sideWon(r), myR = r.declarer === ME || r.friendSeat === ME;
     var calc = r.win ? '(' + r.made + ' − ' + r.bid + ') + (' + r.bid + ' − 13) × 2 = <b>' + r.base + '</b>' : r.bid + ' − ' + r.made + ' = <b>' + r.base + '</b>';
     if (r.mult > 1) calc += ' · ' + r.tags.join(' · ') + ' → × ' + r.mult + ' = <b>' + r.base * r.mult + '</b>';
-    var rk = G.rank, rankLine = !rk ? '' : rk.ok && rk.streak ? '🏆 랭킹 기록 — <b>' + rk.streak + '연승</b> · 이 판 <b>' + sign(rk.score) + '점</b>' + (NICK ? '' : '<br>잠만보에 로그인하면 모임 랭킹에 올라가요') :
-      rk.ok ? '🏆 졌어요 — 연승이 0 으로 돌아갔어요' : '🏆 모임 랭킹은 <b>AI 고수 · 힌트 없이</b> 한 판만 올라가요';
+    // 랭킹 줄: 로그인 회원이면 '기록했어요', 아니면 로그인 안내 (rk.v 가 없으면 1.0.4 까지의 판 — 그때 규칙으로 안 보냈을 수 있어 말하지 않음)
+    var rk = G.rank, rankLine = !ARC || !rk || rk.v !== 2 ? '' :
+      rk.on ? '🏆 모임 랭킹에 올려요 — 이 판 <b>' + sign(rk.score) + '점</b> · ' + (rk.streak ? '<b>' + rk.streak + '연승</b>' : '연승 0') :
+      '🏆 ' + (ARC.session() ? '모임 닉네임을 연결하면' : '카카오로 로그인하면') + ' 기록이 모임 랭킹에 남아요 <button type="button" class="sbtn" data-a="login">' + (ARC.session() ? '연결하기' : '로그인') + '</button>';
     var rows = [0, 1, 2, 3, 4].map(function (s) {
       return '<div class="rowp' + (s === ME ? ' me' : '') + '">' + av(s, 28) + '<span class="t">' + esc(NAMES[s]) + ' ' + roleTag(r, s) + '<span class="pts">' + st.taken[s].length + '</span></span><span class="dv ' + (r.delta[s] > 0 ? 'plus' : 'minus') + '">' + sign(r.delta[s]) + '</span><span class="tot">합계 ' + sign(G.scores[s]) + '</span></div>';
     }).join('');
