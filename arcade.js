@@ -1,8 +1,9 @@
-/* 잠만보 오락실 공용 arcade.js v1 — 서버 없는 미니게임의 '내 기록 + 모임 랭킹' 을 한 줄로 붙이는 도구 (외부 라이브러리 없음)
+/* 잠만보 오락실 공용 arcade.js v4 —서버 없는 미니게임의 '내 기록 + 모임 랭킹' 을 한 줄로 붙이는 도구 (외부 라이브러리 없음)
  * 미니게임 index.html 에서 ../config.js 다음에 넣음: <script src="../arcade.js?v=1"></script>  (이 파일을 바꾸면 그 숫자도 올리기)
  *
  *   JMB_ARCADE.report(game, mode, score, note, opt)  판이 끝났을 때 — 이 기기 최고 기록을 고치고, 카카오 로그인 회원이면 서버(메인 GAS Arcade.gs)에 보냄
  *        → Promise<{ best(기기 최고 갱신), prev, error · queued(보내기 실패 · 나중에 다시 보냄), server: {best, rank, of, weekBest, allRank} | null }> · 순위 알림은 알아서 띄움 (opt.quiet 면 안 띄움)
+ *        (v4) 이미 올라간 '이번 주 내 최고'보다 좋지 않은 기록은 안 보냄 → { skip: true, weekBest, weekRank }. 못 보낸 기록은 게임 · 모드마다 가장 좋은 것 하나만 보관
  *        보낼 기록은 먼저 기기에 적어 두고 한 번에 하나씩(서버 3초 간격) 보냄 — 여러 번 이어 불러도 됨. 화면을 닫거나 실패해도 다음에 열 때 이어서 보냄
  *   JMB_ARCADE.pending()               아직 서버에 못 올라간 내 기록 수
  *   JMB_ARCADE.openBoard(game, mode)   랭킹 창 (이번 주 · 역대, 모드 탭, 내 순위) — 로그인 안 했으면 로그인 안내
@@ -19,7 +20,7 @@
   // config.js 를 안 읽는 페이지(룰렛 · 타이머 · 사운드보드 — 최근에 한 게임만 남김)에서는 주소로 환경을 고름 (config.js 와 같은 규칙)
   var ENV = CFG.env || (!/github\.io$/.test(location.hostname) ? 'local' : /^\/jammanbo\//.test(location.pathname) ? 'prod' : 'beta'), SFX = ENV !== 'prod' ? '_' + ENV : '';
   var ROOT = (function () { var seg = location.pathname.split('/')[1] || ''; return /\.github\.io$/.test(location.hostname) && seg ? '/' + seg + '/' : '/'; })();
-  var LS = { auth: 'jmb_kakao_v2' + SFX, state: 'jmb_kakao_state' + SFX, log: 'jmb_arcade_log', best: 'jmb_arcade_best', q: 'jmb_arcade_q' + SFX };
+  var LS = { auth: 'jmb_kakao_v2' + SFX, state: 'jmb_kakao_state' + SFX, log: 'jmb_arcade_log', best: 'jmb_arcade_best', q: 'jmb_arcade_q' + SFX, ack: 'jmb_arcade_ack' + SFX };
   // low: 작을수록 좋은 기록. unit: 점수 뒤에 붙는 말
   var BOARDS = {
     jumprope: { name: '단체 줄넘기', emoji: '🪢', modes: [{ id: 'solo', name: '혼자 하기', unit: '번' }, { id: 'coop', name: '다 같이', unit: '번' }] },
@@ -88,7 +89,18 @@
   /* 보낼 기록은 먼저 기기(jmb_arcade_q)에 적고 → 한 번에 하나씩 보내고 → 서버가 받으면 지움.
    * 보내는 도중 화면을 닫거나 인터넷이 끊겨도 다음에 어느 미니게임이든 열면 이어서 보냄 (같은 기록이 두 번 가도 서버는 그 주 최고만 남기므로 안전) */
   var GAP_MS = 3400, RETRY_MS = [20000, 60000, 180000], KEEP_MS = 6 * 86400000, FAIL_MAX = 8;
-  var mem = [], waiters = {}, busy = false, lastDone = 0, retryN = 0, retryT = 0;
+  var mem = [], waiters = {}, busy = false, curId = '', lastDone = 0, retryN = 0, retryT = 0;
+  /* (v4) 서버가 받아 준 '이번 주 내 최고'(jmb_arcade_ack) — 서버는 그 주 최고만 남기므로 이보다 좋지 않은 기록은 보내지 않음(서버 부담 · 대기 줄이기).
+   * 주(월요일, 한국 시각)나 사람이 바뀌면 버리고, 12시간이 지난 값은 믿지 않고 다시 보냄(운영진이 시트에서 그 줄을 지웠을 수도 있으므로) */
+  var ACK_MS = 12 * 3600000;
+  function weekKey() { var d = new Date(Date.now() + 9 * 3600000); d.setUTCDate(d.getUTCDate() - (d.getUTCDay() + 6) % 7); return d.toISOString().slice(0, 10); }
+  function ackGet(k, g, m) { var a = lsJSON(LS.ack, null), o = a && a.k === k && a.w === weekKey() && a.v ? a.v[g + ':' + m] : null; return o && isFinite(o.s) && Date.now() - o.t < ACK_MS ? o : null; }
+  function ackSet(k, g, m, r) {
+    var a = lsJSON(LS.ack, null), w = weekKey();
+    if (!a || a.k !== k || a.w !== w || !a.v) a = { k: k, w: w, v: {} };
+    a.v[g + ':' + m] = { s: Number(r.weekBest), t: Date.now(), rank: r.rank || null, of: r.of || null };
+    lsSet(LS.ack, JSON.stringify(a));
+  }
   function qid(o) { return o.id || (o.t + ':' + o.g + ':' + o.m); }
   function queue() {   // 기기에 적힌 것 + (기기에 못 적었으면) 이 화면이 들고 있는 것
     var q = lsJSON(LS.q, []), ids = {}, i;
@@ -100,26 +112,32 @@
   }
   function qSave(q) { lsSet(LS.q, q.length ? JSON.stringify(q.slice(-30)) : null); }
   function qDrop(id) { mem = mem.filter(function (o) { return qid(o) !== id; }); qSave(queue().filter(function (o) { return qid(o) !== id; })); }
-  function settle(id, res) { var w = waiters[id]; if (w) { delete waiters[id]; w(res); } return !!w; }
+  function settle(id, res) { var w = waiters[id]; if (w) { delete waiters[id]; w.forEach(function (f) { f(res); }); } return !!w; }   // 한 기록을 여러 report() 가 기다릴 수 있음(합쳐진 기록)
   function rankMsg(r) { return (r.best ? '🏆 이번 주 내 최고! ' : '🏆 ') + '모임 랭킹 이번 주 ' + r.rank + '위' + (r.of > 1 ? ' · ' + r.of + '명 중' : ''); }
   function flush() {
     clearTimeout(retryT);
     var me = nick();
     if (busy || !me) return;
     var q = queue(), keep = q.filter(function (o) { return o.k === me && Date.now() - o.t < KEEP_MS; });   // 오래됐거나 다른 사람 것은 버림
-    if (keep.length !== q.length) { mem = mem.filter(function (o) { return keep.indexOf(o) >= 0; }); qSave(keep); }
+    keep = keep.filter(function (o) {   // (v4) 그 사이 더 좋은 기록이 올라갔으면 보낼 필요 없음
+      var a = ackGet(me, o.g, o.m), def = modeDef(o.g, o.m);
+      if (!a || !def || better(def, o.s, a.s)) return true;
+      settle(qid(o), { skip: a }); return false;
+    });
+    if (keep.length !== q.length) { mem = mem.filter(function (o) { return keep.some(function (x) { return qid(x) === qid(o); }); }); qSave(keep); }
     var it = keep[0];
     if (!it) return;
-    busy = true;
+    busy = true; curId = qid(it);   // 보내는 중인 기록은 report() 가 고치지 않음
     setTimeout(function () {   // 서버가 한 사람당 3초 간격을 요구 → 앞 전송이 끝난 뒤 간격을 두고
       send(it.g, it.m, it.s, it.n).then(function (r) { done(it, null, r); }, function (e) { done(it, e || new Error('오류'), null); });
     }, Math.max(0, lastDone + GAP_MS - Date.now()));
   }
   function done(it, e, r) {
-    busy = false; lastDone = Date.now();
+    busy = false; curId = ''; lastDone = Date.now();
     var id = qid(it);
     if (!e) {
       qDrop(id); retryN = 0;
+      if (r && isFinite(r.weekBest)) ackSet(it.k, it.g, it.m, r);
       if (!settle(id, { r: r }) && r && r.rank) pill('🏆 보관해 둔 기록을 올렸어요 · 이번 주 ' + r.rank + '위', it.g, it.m);
       return flush();
     }
@@ -143,15 +161,30 @@
     var all = lsJSON(LS.best, {}), g = all[game] || (all[game] = {}), prev = g[mode] || null, isBest = !prev || better(def, score, prev.s);
     if (isBest) { g[mode] = { s: score, at: Date.now(), note: note || '' }; lsSet(LS.best, JSON.stringify(all)); }
     var out = { best: isBest, prev: prev ? prev.s : null, server: null };
-    if (!nick()) return Promise.resolve(out);
-    var it = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8), g: game, m: mode, s: score, n: note || '', t: Date.now(), k: nick() };
-    mem.push(it); qSave(queue());   // 먼저 적어 두고 보냄
+    var me = nick();
+    if (!me) return Promise.resolve(out);
+    // (v4) 이미 올라간 이번 주 최고보다 좋지 않으면 보내지 않음 → out.skip · out.weekBest(· weekRank)
+    var ack = ackGet(me, game, mode);
+    if (ack && !better(def, score, ack.s)) { out.skip = true; out.weekBest = ack.s; out.weekRank = ack.rank; return Promise.resolve(out); }
+    // (v4) 같은 게임 · 모드의 아직 못 보낸 기록이 있으면 더 좋은 쪽 하나만 남김 (보내는 중인 것은 그대로 두고 새로 적음)
+    var q = queue(), it = null;
+    q.forEach(function (o) { if (!it && o.k === me && o.g === game && o.m === mode && qid(o) !== curId) it = o; });
+    if (it) {
+      if (better(def, score, it.s)) { it.s = score; it.n = note || ''; it.t = Date.now(); delete it.f; }
+      mem.forEach(function (o) { if (qid(o) === qid(it)) { o.s = it.s; o.n = it.n; o.t = it.t; } });
+      qSave(q);
+    } else {
+      it = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8), g: game, m: mode, s: score, n: note || '', t: Date.now(), k: me };
+      mem.push(it); qSave(queue());   // 먼저 적어 두고 보냄
+    }
+    var id = qid(it);
     return new Promise(function (res) {
-      waiters[it.id] = function (o) {
+      (waiters[id] || (waiters[id] = [])).push(function (o) {
         if (o.r) { out.server = o.r; if (!opt.quiet && o.r.rank) pill(rankMsg(o.r), game, mode); }
+        else if (o.skip) { out.skip = true; out.weekBest = o.skip.s; out.weekRank = o.skip.rank; }
         else { out.error = (o.e && o.e.message) || '오류'; if (o.queued) out.queued = true; }
         res(out);
-      };
+      });
       flush();
     });
   }

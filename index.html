@@ -85,10 +85,12 @@ function lsPutJSON(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } c
 /* 데이터 요청: {v, r} 또는 {same:true, v} — 화면 코드의 load() 가 사용 */
 window.JMB_GETDATA = function (pw, fresh, ver) {
   var viaGas = function () {
-    return fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: 'getData', args: [pw || '', !!fresh, ver || ''], env: API_ENV || undefined }) })
+    // (1.7.48) 30초 안에 답이 없으면 끊음 (Apps Script 가 답 없이 2분을 끄는 일이 있음 — 읽기라 다시 눌러도 안전)
+    var gc = typeof AbortController === 'function' ? new AbortController() : null, gt = gc ? setTimeout(function () { gc.abort(); }, 30000) : 0;
+    return fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, signal: gc ? gc.signal : undefined, body: JSON.stringify({ fn: 'getData', args: [pw || '', !!fresh, ver || ''], env: API_ENV || undefined }) })
       .then(function (r) { if (!r.ok) throw new Error('서버 응답 오류 (' + r.status + ')'); return r.json(); })
-      .then(function (j) { if (!j || !j.ok) throw new Error((j && j.e) || '알 수 없는 오류'); return j.same ? { same: true, v: j.v } : { v: j.v, r: j.r }; },
-            function (e) { throw (e instanceof TypeError) ? new Error('인터넷 연결을 확인해 주세요') : e; });
+      .then(function (j) { clearTimeout(gt); if (!j || !j.ok) throw new Error((j && j.e) || '알 수 없는 오류'); return j.same ? { same: true, v: j.v } : { v: j.v, r: j.r }; },
+            function (e) { clearTimeout(gt); throw (e && e.name === 'AbortError') ? new Error('서버가 응답하지 않아요. 잠시 후 다시 시도해 주세요') : (e instanceof TypeError) ? new Error('인터넷 연결을 확인해 주세요') : e; });
   };
   // 엣지: ↻(fresh)와 비밀번호 방식 운영진은 늘 Apps Script 로 (방금 저장한 내용을 바로 봐야 해서). 엣지가 실패하면 Apps Script 로 폴백
   var off = 0; try { off = +localStorage.getItem('jmb_edge_off_until') || 0; } catch (x) {}   // 이 기기에서 방금 저장했으면(6분) 엣지를 건너뜀 — 엣지는 최대 5분 늦어 방금 한 저장이 안 보일 수 있어서
@@ -165,10 +167,12 @@ function shim(API, STORE, ENV) {
   function call(fn, args) {
     var stop = prepare(fn, args);
     if (stop) return Promise.reject(new Error(stop));
-    return fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: fn, args: args, env: ENV || undefined, slim: (window.JMB_SLIM_OK && /^(addPost|addPlays|toggleWish|toggleOwner|rateGame)$/.test(fn)) ? 1 : undefined }) })
+    // (1.7.48) 30초 안에 답이 없으면 끊음 — Apps Script 가 가끔 답 없이 2분을 끄는 일이 있어서. 다시 보내지는 않음(서버가 이미 처리했을 수도 있어 두 번 저장될 수 있음)
+    var ctl = typeof AbortController === 'function' ? new AbortController() : null, timer = ctl ? setTimeout(function () { ctl.abort(); }, 30000) : 0;
+    return fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, signal: ctl ? ctl.signal : undefined, body: JSON.stringify({ fn: fn, args: args, env: ENV || undefined, slim: (window.JMB_SLIM_OK && /^(addPost|addPlays|toggleWish|toggleOwner|rateGame)$/.test(fn)) ? 1 : undefined }) })
       .then(function (r) { if (!r.ok) throw new Error('서버 응답 오류 (' + r.status + ')'); return r.json(); })
-      .then(function (j) { if (!j || !j.ok) throw new Error((j && j.e) || '알 수 없는 오류'); return j.r; },
-            function (e) { throw (e instanceof TypeError) ? new Error('인터넷 연결을 확인해 주세요') : e; });
+      .then(function (j) { clearTimeout(timer); if (!j || !j.ok) throw new Error((j && j.e) || '알 수 없는 오류'); return j.r; },
+            function (e) { clearTimeout(timer); throw (e && e.name === 'AbortError') ? new Error('서버가 응답하지 않아요. 새로고침(↻)으로 반영됐는지 확인한 뒤 다시 시도해 주세요') : (e instanceof TypeError) ? new Error('인터넷 연결을 확인해 주세요') : e; });
   }
   function runner(ok, fail) {
     return new Proxy({}, { get: function (_, k) {
@@ -233,7 +237,11 @@ function fetchShell(ver, direct) {
     if (!j || !j.ok) throw new Error((j && j.e) || '화면 코드를 받지 못했어요');
     return j.same ? null : { html: j.r.html, title: j.r.title, v: j.v };
   };
-  var viaGas = function () { return fetch(API + '?api=page&v=' + encodeURIComponent(ver || '')).then(function (r) { return r.json(); }).then(parse); };
+  var viaGas = function () {   // (1.7.48) 30초 안에 답이 없으면 끊음 — ↻ 는 저장된 화면으로, 처음 방문은 '다시 시도' 안내로
+    var sc = typeof AbortController === 'function' ? new AbortController() : null, st = sc ? setTimeout(function () { sc.abort(); }, 30000) : 0;
+    return fetch(API + '?api=page&v=' + encodeURIComponent(ver || ''), { signal: sc ? sc.signal : undefined }).then(function (r) { return r.json(); })
+      .then(function (j) { clearTimeout(st); return parse(j); }, function (e) { clearTimeout(st); throw (e && e.name === 'AbortError') ? new Error('서버가 응답하지 않아요. 잠시 후 다시 시도해 주세요') : e; });
+  };
   if (!DATA_EDGE || direct) return viaGas();   // direct: ↻ 새로고침은 엣지(최대 5분 늦음)를 건너뛰고 Apps Script 에서 바로
   var ctl = typeof AbortController === 'function' ? new AbortController() : null, timer = ctl ? setTimeout(function () { ctl.abort(); }, 5000) : 0;
   return fetch(DATA_EDGE + '/shell?v=' + encodeURIComponent(ver || '') + '&env=' + encodeURIComponent(API_ENV || ''), { cache: 'no-store', signal: ctl ? ctl.signal : undefined })
@@ -256,14 +264,17 @@ function handleKakaoRedirect() {
   var saved = lsGetJSON(AUTH_STATE);
   try { localStorage.removeItem(AUTH_STATE); } catch (e) {}
   if (!saved || saved.s !== p.get('state') || Date.now() - saved.t > 10 * 60 * 1000) { msg('로그인 요청이 올바르지 않아요. 다시 시도해 주세요.'); return Promise.resolve(); }
-  return fetch(CFG.kakaoApi, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: 'kakaoLogin', args: [code, REDIRECT] }) })
+  // (1.7.48) 25초 안에 답이 없으면 끊고 안내 — 답 없이 2분을 기다리게 하지 않음. 카카오 코드는 한 번만 쓸 수 있어 다시 보내지 않고 처음부터 다시 로그인
+  var kc = typeof AbortController === 'function' ? new AbortController() : null, kt = kc ? setTimeout(function () { kc.abort(); }, 25000) : 0;
+  return fetch(CFG.kakaoApi, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, signal: kc ? kc.signal : undefined, body: JSON.stringify({ fn: 'kakaoLogin', args: [code, REDIRECT] }) })
     .then(function (r) { return r.json(); })
     .then(function (j) {
+      clearTimeout(kt);
       if (!j || !j.ok) throw new Error((j && j.e) || '로그인에 실패했어요');
       lsPutJSON(AUTH_STORE, { token: j.r.token, user: j.r.user, fresh: true });
       try { sessionStorage.removeItem('jmb_link_prompt'); } catch (e) {}
     })
-    .catch(function (e) { msg(e && e.message ? e.message : '로그인에 실패했어요'); });
+    .catch(function (e) { clearTimeout(kt); msg(e && e.name === 'AbortError' ? '로그인 서버가 응답하지 않아요. 잠시 후 다시 로그인해 주세요.' : e && e.message ? e.message : '로그인에 실패했어요'); });
 }
 
 function start() {

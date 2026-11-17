@@ -2,7 +2,7 @@
  * 기기 저장: jmb_mighty_save(진행 중인 게임) · jmb_mighty_set(설정) · jmb_mighty_stats(전적) */
 (function () {
   'use strict';
-  var VER = '1.0.5';
+  var VER = '1.0.6';
   var E = window.MightyEngine, AI = window.MightyAI, FX = window.JMB_FX, ARC = window.JMB_ARCADE;
   var ROOT = (function () { var seg = location.pathname.split('/')[1] || ''; return /\.github\.io$/.test(location.hostname) && seg ? '/' + seg + '/' : '/'; })();
   var LS = { save: 'jmb_mighty_save', set: 'jmb_mighty_set', stats: 'jmb_mighty_stats' };
@@ -205,8 +205,19 @@
   function rankRound(r, role, won) {
     var sc = r.delta[ME], lv = Math.min(G.rlv || SET.level, SET.level);
     STATS.streak = won ? STATS.streak + 1 : 0;
-    G.rank = { v: 2, streak: STATS.streak, score: sc, on: !!(ARC && NICK) };
+    G.rank = { v: 2, streak: STATS.streak, score: sc, on: !!(ARC && NICK), st: 'send' };   // st: send 보내는 중 → ok 올라감 · wait 보관 중 · fail 거절 (결과 창 랭킹 줄이 따라 바뀜)
     if (!ARC) return;
+    var no = G.roundNo, left = won ? 2 : 1, res = {};
+    function pick(o) { return !o ? null : o.server ? { s: o.server.weekBest, rank: o.server.rank, up: !!o.server.best } : o.skip ? { s: o.weekBest, rank: o.weekRank } : null; }
+    function got(mode, o) {   // 보낸 기록이 모두 끝나면(성공 · 건너뜀 · 실패) 결과 창의 랭킹 줄을 실제 결과로 바꿈
+      res[mode] = o || {};
+      if (--left > 0 || !G || G.roundNo !== no || !G.rank) return;
+      var bad = [res.streak, res.score].filter(function (x) { return x && x.error; })[0];
+      G.rank.st = bad ? (bad.queued ? 'wait' : 'fail') : 'ok';
+      G.rank.err = bad ? bad.error : '';
+      G.rank.wk = { score: pick(res.score), streak: pick(res.streak) };
+      save(); rankPaint();
+    }
     var note = (LEVELS[lv] + (G.hinted ? '·힌트 ' : ' ') + (role === 'd' ? '주공 ' : role === 'f' ? '프렌드 ' : '야당 ') + (r.giruda === NT ? 'NT' : E.SUIT_CH[r.giruda]) + r.bid + (r.tags.length ? ' ' + r.tags.join(' ') : '')).slice(0, 40);
     var told = false;
     function sent(o) {   // 못 올라갔으면 눈에 보이게 (기기에 적어 두었다가 다시 보냄)
@@ -214,10 +225,31 @@
       told = true;
       toast(o.queued ? '🏆 랭킹 전송이 아직 안 됐어요 (' + o.error + ') — 기기에 보관했다가 다시 보내요' : '🏆 랭킹에 올리지 못했어요: ' + o.error, 5200);
     }
-    // 두 기록 모두 바로 맡김 — arcade.js 가 먼저 기기에 적고 3초 간격으로 차례로 보냄 (보내는 중에 화면을 닫아도 다음에 열 때 이어서)
-    if (won) try { ARC.report('mighty', 'streak', STATS.streak, note).then(sent, sent); } catch (e) {}
-    try { ARC.report('mighty', 'score', sc, note, { quiet: true }).then(sent, sent); } catch (e) {}
+    // 두 기록 모두 바로 맡김 — arcade.js 가 먼저 기기에 적고 3초 간격으로 차례로 보냄 (보내는 중에 화면을 닫아도 다음에 열 때 이어서).
+    // 이미 올라간 이번 주 최고보다 좋지 않으면 arcade.js 가 안 보냄(skip). 순위는 결과 창 랭킹 줄에 보여 주므로 알림(pill)은 끔
+    function go(mode, v) {
+      var f = function (o) { sent(o); got(mode, o); };
+      try { ARC.report('mighty', mode, v, note, { quiet: true }).then(f, f); } catch (e) { got(mode, { error: '오류' }); }
+    }
+    rankLive = no;
+    if (won) go('streak', STATS.streak);
+    go('score', sc);
   }
+  var rankLive = 0;   // 서버 답을 기다리는 판 번호 (새로고침하면 0 — 그때 'send' 로 남은 판은 보관 수로 판단)
+  function rankLineH(rk) {
+    if (!ARC || !rk || rk.v !== 2) return '';   // rk.v 가 없으면 1.0.4 까지의 판 — 그때 규칙으로 안 보냈을 수 있어 말하지 않음
+    if (!rk.on) return '🏆 ' + (ARC.session() ? '모임 닉네임을 연결하면' : '카카오로 로그인하면') + ' 기록이 모임 랭킹에 남아요 <button type="button" class="sbtn" data-a="login">' + (ARC.session() ? '연결하기' : '로그인') + '</button>';
+    var st = rk.st || 'ok', mine = '이 판 <b>' + sign(rk.score) + '점</b> · ' + (rk.streak ? '<b>' + rk.streak + '연승</b>' : '연승 0');
+    if (st === 'send' && rankLive !== G.roundNo) st = ARC.pending && ARC.pending() ? 'wait' : 'ok';
+    if (st === 'send') return '🏆 모임 랭킹에 보내는 중… — ' + mine;
+    if (st === 'wait') return '🏆 아직 못 올렸어요' + (rk.err ? ' (' + esc(rk.err) + ')' : '') + ' — 기기에 보관했다가 자동으로 다시 보내요<br>' + mine;
+    if (st === 'fail') return '🏆 랭킹에 올리지 못했어요' + (rk.err ? ': ' + esc(rk.err) : '') + '<br>' + mine;
+    var w = rk.wk || {}, parts = [], up = (w.score && w.score.up) || (w.streak && w.streak.up);
+    if (w.score && isFinite(w.score.s)) parts.push('한 판 최고 <b>' + sign(w.score.s) + '점</b>' + (w.score.rank ? ' (' + w.score.rank + '위)' : ''));
+    if (w.streak && isFinite(w.streak.s)) parts.push('연승 최고 <b>' + w.streak.s + '</b>' + (w.streak.rank ? ' (' + w.streak.rank + '위)' : ''));
+    return '🏆 ' + (up ? '이번 주 내 최고 기록을 새로 올렸어요' : '모임 랭킹에 기록돼 있어요') + ' — ' + mine + (parts.length ? '<br>이번 주 내 기록: ' + parts.join(' · ') : '');
+  }
+  function rankPaint() { var el = $('rankln'); if (el && G && G.rank) el.innerHTML = rankLineH(G.rank); }
   function abandon() {   // 판 도중에 새 게임으로 버리면 연승이 끊김 (유리한 판만 남기지 못하게)
     var g = load();
     if (g && g.st.phase !== 'done' && STATS.streak) { STATS.streak = 0; lsSet(LS.stats, STATS); }
@@ -655,17 +687,14 @@
     var mineWon = sideWon(r), myR = r.declarer === ME || r.friendSeat === ME;
     var calc = r.win ? '(' + r.made + ' − ' + r.bid + ') + (' + r.bid + ' − 13) × 2 = <b>' + r.base + '</b>' : r.bid + ' − ' + r.made + ' = <b>' + r.base + '</b>';
     if (r.mult > 1) calc += ' · ' + r.tags.join(' · ') + ' → × ' + r.mult + ' = <b>' + r.base * r.mult + '</b>';
-    // 랭킹 줄: 로그인 회원이면 '기록했어요', 아니면 로그인 안내 (rk.v 가 없으면 1.0.4 까지의 판 — 그때 규칙으로 안 보냈을 수 있어 말하지 않음)
-    var rk = G.rank, rankLine = !ARC || !rk || rk.v !== 2 ? '' :
-      rk.on ? '🏆 모임 랭킹에 올려요 — 이 판 <b>' + sign(rk.score) + '점</b> · ' + (rk.streak ? '<b>' + rk.streak + '연승</b>' : '연승 0') :
-      '🏆 ' + (ARC.session() ? '모임 닉네임을 연결하면' : '카카오로 로그인하면') + ' 기록이 모임 랭킹에 남아요 <button type="button" class="sbtn" data-a="login">' + (ARC.session() ? '연결하기' : '로그인') + '</button>';
+    var rk = G.rank, rankLine = rankLineH(rk);   // 랭킹 줄: 로그인 회원이면 전송 상태(서버 답이 오면 rankPaint 가 바꿈), 아니면 로그인 안내
     var rows = [0, 1, 2, 3, 4].map(function (s) {
       return '<div class="rowp' + (s === ME ? ' me' : '') + '">' + av(s, 28) + '<span class="t">' + esc(NAMES[s]) + ' ' + roleTag(r, s) + '<span class="pts">' + st.taken[s].length + '</span></span><span class="dv ' + (r.delta[s] > 0 ? 'plus' : 'minus') + '">' + sign(r.delta[s]) + '</span><span class="tot">합계 ' + sign(G.scores[s]) + '</span></div>';
     }).join('');
     modal(G.roundNo + '번째 판 결과', '<div class="res"><div class="em">' + (mineWon ? '🎉' : '😵') + '</div><h2>' + (r.win ? '여당 공약 성공' : '여당 공약 실패') + ' — ' + (mineWon ? '내 편 승리!' : '내 편 패배') + '</h2>' +
       '<p>공약 ' + bidH(r.bid, r.giruda) + ' · 여당이 먹은 점수 카드 <b>' + r.made + '</b>장 · 나는 ' + (myR ? '여당' : '야당') + '</p>' +
       '<div class="calc">' + calc + '<br>주공 ' + (r.friendSeat < 0 ? '×4' : '×2 · 프렌드 ×1') + ' · 야당 각 ×1</div></div>' + rows +
-      (rankLine ? '<p class="rankln">' + rankLine + '</p>' : '') + '<p class="hint">주공이 버린 카드: <span class="mini" style="display:inline-flex;vertical-align:middle">' + st.discards.map(function (c) { return cardH(c, { sm: 1 }); }).join('') + '</span></p>',
+      (rankLine ? '<p class="rankln" id="rankln">' + rankLine + '</p>' : '') + '<p class="hint">주공이 버린 카드: <span class="mini" style="display:inline-flex;vertical-align:middle">' + st.discards.map(function (c) { return cardH(c, { sm: 1 }); }).join('') + '</span></p>',
       '<button type="button" class="btn" data-a="end">끝내기</button><button type="button" class="btn" data-a="tricks">트릭 보기</button>' + (ARC ? '<button type="button" class="btn sm" data-a="board" data-v="' + (rk && rk.streak > 1 ? 'streak' : 'score') + '" aria-label="모임 랭킹">🏆 랭킹</button>' : '') + '<button type="button" class="btn pri" data-a="next">다음 판</button>', true, true);
   }
   function showTricks() {
