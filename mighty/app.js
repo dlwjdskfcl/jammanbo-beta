@@ -2,7 +2,7 @@
  * 기기 저장: jmb_mighty_save(진행 중인 게임) · jmb_mighty_set(설정) · jmb_mighty_stats(전적) */
 (function () {
   'use strict';
-  var VER = '1.0.3';
+  var VER = '1.0.4';
   var E = window.MightyEngine, AI = window.MightyAI, FX = window.JMB_FX, ARC = window.JMB_ARCADE;
   var ROOT = (function () { var seg = location.pathname.split('/')[1] || ''; return /\.github\.io$/.test(location.hostname) && seg ? '/' + seg + '/' : '/'; })();
   var LS = { save: 'jmb_mighty_save', set: 'jmb_mighty_set', stats: 'jmb_mighty_stats' };
@@ -361,7 +361,7 @@
     if (G.hold) return st.phase === 'done' ? '판이 끝났어요' : '';
     if (st.phase === 'done') return '판이 끝났어요';
     if (st.turn !== ME) return esc(NAMES[st.turn]) + ' 님 차례…';
-    if (st.phase === 'bid') return '공약을 부르거나 패스하세요';
+    if (st.phase === 'bid') return '공약을 부르거나 패스';   // 폰 폭에서 한 줄에 들어가게
     if (st.phase === 'kitty') return '버릴 카드 3장 고르기 (' + UI.sel.length + '/3)';
     if (st.phase === 'friend') return '프렌드를 정하세요';
     if (!st.trick.length) return st.trickNo === 0 && st.giruda !== NT ? '내가 선 — 첫 트릭은 기루다를 낼 수 없어요' : '내가 선 — 낼 카드를 고르세요';
@@ -521,9 +521,33 @@
     board: function (el) { if (ARC) ARC.openBoard('mighty', el.getAttribute('data-v') || 'score'); },
     tour: function (el) { var v = el.getAttribute('data-v'); if (v === 'end') closeModal(); else showTour(+v); },
     reset: function () { if (!confirm('점수표를 지우고 새 게임을 시작할까요?' + cutNote())) return; closeModal(); newGameStart(); },
+    end: function () { endGame(); },
     result: function () { closeModal(); showResult(); }
   };
   function newGameStart() { abandon(); enterGame(); newGame(); }
+  /* 게임 끝내기: 최종 순위를 보여 주고 저장한 게임(점수표)을 지움 → 첫 화면. 하던 판은 버림(새 게임처럼 연승이 끊김) */
+  function endGame() {
+    var g = G || load();
+    if (!g) return;
+    if (G && UI.view === 'game' && G.st.phase === 'done' && !G.recorded) { clearTimeout(T); G.hold = null; closeModal(); finishRound(); return; }   // 마지막 트릭을 보여 주는 중 — 결과부터 (거기서 끝내기)
+    var mid = g.st.phase !== 'done' || !g.recorded;
+    if (!confirm('게임을 끝낼까요?\n최종 순위를 보여 주고 점수표를 지워요.' + (mid ? '\n하던 판은 점수에 들어가지 않아요.' : '') + cutNote())) return;
+    abandon();
+    G = null; lsDel(LS.save);
+    if (UI.view === 'game') goHome(); else { closeModal(); render(); }   // 첫 화면의 설정에서 끝낸 경우 — 창만 닫음
+    if (g.roundNo - (mid ? 1 : 0) > 0) showFinal(g, mid); else toast('게임을 끝냈어요');
+  }
+  function showFinal(g, mid) {
+    var n = g.roundNo - (mid ? 1 : 0), w = 0, sc = g.scores;
+    function rankOf(s) { var k = 1; for (var i = 0; i < 5; i++) if (sc[i] > sc[s]) k++; return k; }
+    g.rounds.forEach(function (r) { if ((r.d === ME || r.f === ME) ? r.win : !r.win) w++; });
+    var rows = [0, 1, 2, 3, 4].sort(function (a, b) { return sc[b] - sc[a] || a - b; }).map(function (s) {
+      return '<div class="rowp' + (s === ME ? ' me' : '') + '"><span class="dv" style="min-width:30px;text-align:left">' + rankOf(s) + '위</span>' + av(s, 28) + '<span class="t">' + esc(NAMES[s]) + '</span><span class="dv ' + (sc[s] > 0 ? 'plus' : sc[s] < 0 ? 'minus' : '') + '">' + sign(sc[s]) + '</span></div>';
+    }).join('');
+    modal('최종 결과', '<div class="res"><div class="em">' + (rankOf(ME) === 1 ? '🏆' : '🃏') + '</div><h2>' + n + '판 · 나는 ' + rankOf(ME) + '위</h2>' +
+      '<p>내 점수 ' + sign(sc[ME]) + (g.rounds.length === n ? ' · 내 편 승리 ' + w + '판' : '') + '</p></div>' + rows,
+      '<button type="button" class="btn" data-a="new">새 게임</button><button type="button" class="btn pri" data-a="close">확인</button>');
+  }
   function goHome(fromPop) { clearTimeout(T); var n = hs() === 'modal' ? 2 : hs() === 'game' ? 1 : 0; closeModal(true); UI.view = 'home'; save(); render(); if (fromPop !== true) hback(n); }
   function doHint() {
     var st = G.st, a;
@@ -610,7 +634,8 @@
       '<div class="opt"><div class="l">카드 내기<small>한 번 누르면 바로 / 두 번 눌러 확인</small></div>' + segH('tog', SET.oneTap, [[0, '두 번'], [1, '한 번']], ' data-k="oneTap"') + '</div>' +
       '<div class="opt"><div class="l">소리</div>' + segH('tog', SET.sound, [[1, '켬'], [0, '끔']], ' data-k="sound"') + '</div>' +
       '<div class="opt"><div class="l">진동</div>' + segH('tog', hp ? 1 : 0, [[1, '켬'], [0, '끔']], ' data-k="haptic"') + '</div>',
-      UI.view === 'game' ? '<button type="button" class="btn" data-a="home">첫 화면으로</button><button type="button" class="btn" data-a="reset">새 게임</button>' : '');
+      UI.view === 'game' ? '<button type="button" class="btn" data-a="home">첫 화면으로</button><button type="button" class="btn" data-a="reset">새 게임</button><button type="button" class="btn" data-a="end">게임 끝내기</button>' :
+        load() ? '<button type="button" class="btn" data-a="end">하던 게임 끝내기</button>' : '');
   }
   function showFriendPick() {
     var st = G.st, own = st.hands[ME].concat(st.discards), h = '', s, r;
@@ -641,7 +666,7 @@
       '<p>공약 ' + bidH(r.bid, r.giruda) + ' · 여당이 먹은 점수 카드 <b>' + r.made + '</b>장 · 나는 ' + (myR ? '여당' : '야당') + '</p>' +
       '<div class="calc">' + calc + '<br>주공 ' + (r.friendSeat < 0 ? '×4' : '×2 · 프렌드 ×1') + ' · 야당 각 ×1</div></div>' + rows +
       (rankLine ? '<p class="rankln">' + rankLine + '</p>' : '') + '<p class="hint">주공이 버린 카드: <span class="mini" style="display:inline-flex;vertical-align:middle">' + st.discards.map(function (c) { return cardH(c, { sm: 1 }); }).join('') + '</span></p>',
-      '<button type="button" class="btn" data-a="tricks">트릭 보기</button>' + (ARC ? '<button type="button" class="btn sm" data-a="board" data-v="' + (rk && rk.streak > 1 ? 'streak' : 'score') + '" aria-label="모임 랭킹">🏆 랭킹</button>' : '') + '<button type="button" class="btn pri" data-a="next">다음 판</button>', true, true);
+      '<button type="button" class="btn" data-a="end">끝내기</button><button type="button" class="btn" data-a="tricks">트릭 보기</button>' + (ARC ? '<button type="button" class="btn sm" data-a="board" data-v="' + (rk && rk.streak > 1 ? 'streak' : 'score') + '" aria-label="모임 랭킹">🏆 랭킹</button>' : '') + '<button type="button" class="btn pri" data-a="next">다음 판</button>', true, true);
   }
   function showTricks() {
     var st = G.st, back = st.phase === 'done', h = '<div class="tk"><div class="h"><b>먹은 점수 카드</b></div>';
@@ -662,7 +687,7 @@
       h += '<tr><td>' + r.no + ' <small>' + suitH(r.g) + r.bid + (r.win ? ' ○' : ' ✕') + '</small></td>' + r.delta.map(function (v, s) { return '<td>' + (s === r.d ? '<b>' : '') + sign(v) + (s === r.d ? '</b>' : s === r.f ? '<small>ᶠ</small>' : '') + '</td>'; }).join('') + '</tr>';
     }
     h += '</table>' + (G.rounds.length ? '<p class="hint">굵은 숫자 = 주공 · ᶠ = 프렌드 · ○ 공약 성공 ✕ 실패</p>' : '<p class="hint">아직 끝난 판이 없어요.</p>');
-    modal('점수표', h, '<button type="button" class="btn" data-a="reset">새 게임</button>' + (ARC ? '<button type="button" class="btn" data-a="board">🏆 랭킹</button>' : '') + '<button type="button" class="btn pri" data-a="close">닫기</button>');
+    modal('점수표', h, '<button type="button" class="btn" data-a="reset">새 게임</button><button type="button" class="btn" data-a="end">끝내기</button>' + (ARC ? '<button type="button" class="btn" data-a="board">🏆 랭킹</button>' : '') + '<button type="button" class="btn pri" data-a="close">닫기</button>');
   }
 
   /* ---------- 이벤트 ---------- */
