@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.33.0';
+  var VER = '1.33.1';
   var LATE_FROM = '2026-11-16', LATE_AT = '23:30', LATE_PTS = 10;   // (1.31.0) 밤 23:30 에 톡방에 정답이 공개됨 → 그 뒤 정답은 고정 점수 (서버 SEM_CFG_ LATE_* 와 같게 — 점수는 서버가 정함, 여기는 안내용)
   function lateNow() { var t = new Date(Date.now() + 9 * 3600e3).toISOString(); return t.slice(0, 10) >= LATE_FROM && t.slice(11, 16) >= LATE_AT; }
   var CFG = window.JMB_CONFIG || {};
@@ -1054,7 +1054,7 @@
     return list.map(function (o) {
       var me = S.nick && o.nick === S.nick, sub, v;
       if (kind === 'today') {   // (1.20.0) 꼬맨틀 + 꼬들 오늘 점수 합. 포기 · 실패한 사람도 한 게임이라도 했으면 나옴
-        var ps = []; if (o.s) ps.push('🔤 ' + (o.s === '진행중' ? '진행 중' : o.s === '정답' ? (o.h ? '힌트 ' + o.h + '개' : '힌트 없이') : '포기'));   // (1.33.0) 진행 중은 결과 없이 표시만 if (KODLE_ON && o.k) ps.push('🟩 ' + (o.k === '정답' ? '성공' : '실패'));
+        var ps = []; if (o.s) ps.push('🔤 ' + (o.s === '진행중' ? '진행 중' : o.s === '정답' ? (o.h ? '힌트 ' + o.h + '개' : '힌트 없이') : '포기')); if (KODLE_ON && o.k) ps.push('🟩 ' + (o.k === '정답' ? '성공' : '실패'));   // (1.33.0) 꼬맨틀 진행 중은 결과 없이 표시만
         sub = ps.join(' · ') || '참여'; v = '+' + (o.pts || 0) + '점'; }
       else if (kind === 'streak') { sub = '최고 ' + o.best + '일'; v = '🔥 ' + o.v + '일'; }
       else if (kind === 'chal') { sub = '완료 ' + o.n + '회 · 최고 ' + o.best + '일'; v = '🏁 ' + o.v + '일'; }   // (1.28.0) 챌린지 연속 순위
