@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.32.0';
+  var VER = '1.33.0';
   var LATE_FROM = '2026-11-16', LATE_AT = '23:30', LATE_PTS = 10;   // (1.31.0) 밤 23:30 에 톡방에 정답이 공개됨 → 그 뒤 정답은 고정 점수 (서버 SEM_CFG_ LATE_* 와 같게 — 점수는 서버가 정함, 여기는 안내용)
   function lateNow() { var t = new Date(Date.now() + 9 * 3600e3).toISOString(); return t.slice(0, 10) >= LATE_FROM && t.slice(11, 16) >= LATE_AT; }
   var CFG = window.JMB_CONFIG || {};
@@ -1054,7 +1054,7 @@
     return list.map(function (o) {
       var me = S.nick && o.nick === S.nick, sub, v;
       if (kind === 'today') {   // (1.20.0) 꼬맨틀 + 꼬들 오늘 점수 합. 포기 · 실패한 사람도 한 게임이라도 했으면 나옴
-        var ps = []; if (o.s) ps.push('🔤 ' + (o.s === '정답' ? (o.h ? '힌트 ' + o.h + '개' : '힌트 없이') : '포기')); if (KODLE_ON && o.k) ps.push('🟩 ' + (o.k === '정답' ? '성공' : '실패'));
+        var ps = []; if (o.s) ps.push('🔤 ' + (o.s === '진행중' ? '진행 중' : o.s === '정답' ? (o.h ? '힌트 ' + o.h + '개' : '힌트 없이') : '포기'));   // (1.33.0) 진행 중은 결과 없이 표시만 if (KODLE_ON && o.k) ps.push('🟩 ' + (o.k === '정답' ? '성공' : '실패'));
         sub = ps.join(' · ') || '참여'; v = '+' + (o.pts || 0) + '점'; }
       else if (kind === 'streak') { sub = '최고 ' + o.best + '일'; v = '🔥 ' + o.v + '일'; }
       else if (kind === 'chal') { sub = '완료 ' + o.n + '회 · 최고 ' + o.best + '일'; v = '🏁 ' + o.v + '일'; }   // (1.28.0) 챌린지 연속 순위
@@ -1066,7 +1066,7 @@
   }
   /** 현황 표: 오늘 꼬맨틀 · 꼬들 결과 + 오늘을 뺀 성공 횟수 */
   function rkBoard(R) {
-    var L = R.board || [], mark = function (r) { return r === '정답' ? '<span class="bk ok">✅</span>' : r ? '<span class="bk no">❌</span>' : '<span class="bk">–</span>'; };
+    var L = R.board || [], mark = function (r) { return r === '정답' ? '<span class="bk ok">✅</span>' : r === '진행중' ? '<span class="bk" title="진행 중">⏳</span>' : r ? '<span class="bk no">❌</span>' : '<span class="bk">–</span>'; };
     if (!L.length) return '<div class="empty">아직 기록이 없어요</div>';
     return '<div class="tablewrap"><table class="stt"><thead><tr><th class="l">닉네임</th><th>오늘<br>꼬맨틀</th>' + (KODLE_ON ? '<th>오늘<br>꼬들</th>' : '') + '<th>꼬맨틀<br>성공</th>' + (KODLE_ON ? '<th>꼬들<br>성공</th>' : '') + '</tr></thead><tbody>' +
       L.map(function (o) { return '<tr' + (o.nick === R.me ? ' class="me"' : '') + '><td class="l">' + esc(o.nick) + (o.nick === R.me ? ' <small>(나)</small>' : '') + '</td><td>' + mark(o.ts) + '</td>' + (KODLE_ON ? '<td>' + mark(o.tk) + '</td>' : '') + '<td class="num">' + o.sx + '</td>' + (KODLE_ON ? '<td class="num">' + o.kx + '</td>' : '') + '</tr>'; }).join('') + '</tbody></table></div>';
@@ -1093,13 +1093,13 @@
     if (tab === 'board') {   // (1.18.0) 현황: 사람마다 오늘 꼬맨틀 · 꼬들 성공 여부 + 오늘을 뺀 누적 성공 횟수 (추측 횟수 · 시간은 공개 안 함)
       h += '<div class="seg sm" id="rkTabs">' + tabs.map(function (t) { return '<button type="button" data-t="' + t[0] + '" class="' + (t[0] === tab ? 'on' : '') + '">' + t[1] + '</button>'; }).join('') + '</div>' +
         '<div class="card"><h3>📋 오늘 현황 <small>' + R.day + ' · 성공 횟수는 오늘 제외</small></h3>' + rkBoard(R) + '</div>' +
-        '<p class="hint">✅ 성공 · ❌ 아쉽게 실패 · – 아직. 추측한 단어 · 걸린 시간은 나만 볼 수 있어요 (점수로 횟수를 짐작할 수는 있어요). 순위는 1분마다 갱신돼요.</p>';
+        '<p class="hint">✅ 성공 · ❌ 아쉽게 실패 · ⏳ 진행 중 · – 아직. 추측한 단어 · 걸린 시간은 나만 볼 수 있어요 (점수로 횟수를 짐작할 수는 있어요). 순위는 1분마다 갱신돼요.</p>';
       $('view').innerHTML = h; return;
     }
     var title = tab === 'today' ? '오늘의 참여자 <small>' + R.day + ' · 오늘 점수 순 (꼬맨틀 + 꼬들)</small>' : tab === 'week' ? '이번 주 포인트 <small>' + R.week + '(월)~</small>' : tab === 'season' ? '시즌 포인트 <small>' + R.season + '</small>' : tab === 'rate' ? '레이팅 <small>' + R.season + ' · 3일 이상 참여</small>' : tab === 'chal' ? '오늘의 챌린지 연속 <small>꼬맨틀 + 꼬들을 둘 다 끝낸 날이 이어진 일 수</small>' : '연속 정답 <small>지금 이어가는 중</small>';
     h += '<div class="seg sm" id="rkTabs">' + tabs.map(function (t) { return '<button type="button" data-t="' + t[0] + '" class="' + (t[0] === tab ? 'on' : '') + '">' + t[1] + '</button>'; }).join('') + '</div>' +
       '<div class="card"><h3>' + title + '</h3>' + rkRows(list, tab === 'week' || tab === 'season' ? 'pts' : tab) +
-      (tab === 'today' ? '<div class="hint">오늘 꼬맨틀 ' + R.solvedToday + '명 정답 · 오늘 한 사람 ' + (R.today || []).length + '명 · 누적 참여 회원 ' + (typeof R.total === 'number' ? R.total : typeof R.people === 'number' ? R.people : Object.keys(R.people || {}).length) + '명</div>' : '') +
+      (tab === 'today' ? '<div class="hint">오늘 꼬맨틀 ' + R.solvedToday + '명 정답 · 오늘 한 사람 ' + (R.today || []).filter(function (o) { return o.s !== '진행중' || o.k; }).length + '명 · 누적 참여 회원 ' + (typeof R.total === 'number' ? R.total : typeof R.people === 'number' ? R.people : Object.keys(R.people || {}).length) + '명</div>' : '') +
       (tab === 'chal' ? '<div class="hint">맞히든 포기하든 그날 꼬맨틀과 꼬들을 둘 다 끝내면 하루 완료예요. 완료 보너스는 ' + md_(CH_BONUS_FROM) + '부터 점수에 더해져요 (하루 ' + CH_BASE + '점 · 11월 15일까지는 연속일수에 따라 최대 ' + CH_MAXB + '점).</div>' : '') +
       (tab === 'rate' ? '<div class="hint">그 날 푼 사람끼리 추측 횟수를 겨루는 점수 (처음 1500점). 오늘 결과는 잠정이라 사람이 더 풀면 조금 바뀌어요.</div>' : '') + '</div>' + pendingCard(R) +
       '<p class="hint">순위는 1분마다 갱신돼요. 시즌은 분기(1 · 4 · 7 · 10월)마다 새로 시작해요.</p>';
