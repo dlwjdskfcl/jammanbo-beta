@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#101418">
+<link rel="icon" href="data:,">
+<title>여러 장 합성 카메라 (시험)</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #101418; color: #e8edf2; font: 15px/1.5 system-ui, -apple-system, "Malgun Gothic", sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 12px 12px 48px; }
+  h1 { font-size: 18px; margin: 4px 0 2px; }
+  .sub { color: #9aa7b4; font-size: 13px; margin: 0 0 10px; }
+  .box { background: #182028; border: 1px solid #26323e; border-radius: 12px; padding: 10px; margin-bottom: 10px; }
+  video { width: 100%; max-height: 56vh; background: #000; border-radius: 8px; display: block; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+  label.sel { display: flex; flex-direction: column; font-size: 12px; color: #9aa7b4; flex: 1 1 90px; min-width: 0; }
+  label.sel select { width: 100%; }
+  html, body { overflow-x: hidden; }
+  select, button, .filebtn { font: inherit; color: inherit; background: #26323e; border: 1px solid #3a4a5a; border-radius: 8px; padding: 9px 10px; min-height: 42px; }
+  button, .filebtn { cursor: pointer; flex: 1 1 auto; text-align: center; }
+  button.primary { background: #2f7de1; border-color: #2f7de1; font-weight: 700; }
+  button:disabled { opacity: .45; cursor: default; }
+  button.on { background: #b9651b; border-color: #b9651b; }
+  #status { min-height: 22px; margin-top: 8px; font-size: 14px; }
+  #bar { height: 6px; background: #26323e; border-radius: 3px; overflow: hidden; margin-top: 6px; display: none; }
+  #bar i { display: block; height: 100%; width: 0; background: #2f7de1; }
+  #wrap { overflow: auto; max-height: 78vh; border-radius: 8px; background: #000; }
+  #out { display: block; width: 100%; height: auto; }
+  .sl { display: grid; grid-template-columns: 92px 1fr 46px; gap: 8px; align-items: center; margin-top: 8px; font-size: 13px; }
+  .sl input { width: 100%; }
+  #log { white-space: pre-wrap; font: 12px/1.5 ui-monospace, Consolas, monospace; color: #9aa7b4; margin: 8px 0 0; max-height: 220px; overflow: auto; }
+  .hide { display: none; }
+  .tag { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 10px; background: #26323e; margin-left: 6px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>여러 장 합성 카메라 <span class="tag">시험</span></h1>
+  <p class="sub">같은 곳을 연달아 여러 장 찍어 한 장으로 합칩니다. 잡음이 줄고(오래 노출한 것처럼), 손떨림으로 생긴 미세한 어긋남을 이용해 해상도를 올립니다. 찍는 동안 폰을 최대한 가만히, 움직이지 않는 대상으로.</p>
+
+  <div class="box">
+    <video id="v" playsinline muted autoplay class="hide"></video>
+    <div class="row">
+      <label class="sel">찍을 장수<select id="selN"><option>8</option><option selected>16</option><option>24</option><option>32</option></select></label>
+      <label class="sel">출력 크기<select id="selS"><option value="1">1배 (잡음만 줄임)</option><option value="1.5">1.5배</option><option value="2" selected>2배</option></select></label>
+      <label class="sel">카메라 해상도<select id="selR"><option value="1920x1080" selected>FHD</option><option value="3840x2160">최대 (느림)</option><option value="1280x720">HD (빠름)</option></select></label>
+    </div>
+    <div class="row">
+      <button id="btnCam">카메라 켜기</button>
+      <button id="btnShot" class="primary" disabled>찍어서 합성</button>
+      <label class="filebtn">사진 여러 장 고르기<input id="file" type="file" accept="image/*" multiple class="hide"></label>
+    </div>
+    <div id="status"></div>
+    <div id="bar"><i></i></div>
+  </div>
+
+  <div class="box hide" id="resBox">
+    <div id="wrap"><canvas id="out"></canvas></div>
+    <div class="row">
+      <button id="btnCmp">원본 1장 보기</button>
+      <button id="btnZoom">확대</button>
+      <button id="btnSave" class="primary">저장</button>
+    </div>
+    <div class="sl"><span>밝기</span><input id="slEv" type="range" min="-1" max="3" step="0.1" value="0"><span id="vEv">0</span></div>
+    <div class="sl"><span>어두운 곳 밝게</span><input id="slSh" type="range" min="0" max="1.5" step="0.05" value="0"><span id="vSh">0</span></div>
+    <div class="sl"><span>선명도</span><input id="slUs" type="range" min="0" max="2" step="0.05" value="0.5"><span id="vUs">0.5</span></div>
+    <pre id="log"></pre>
+  </div>
+  <p class="sub" id="ver"></p>
+</main>
+<script src="stack.js?v=0.1.0"></script>
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var video = $('v'), out = $('out'), octx = out.getContext('2d', { willReadFrequently: true });
+  var stream = null, busy = false, A = null, outImg = null, refBmp = null, cmp = false, zoom = false;
+  $('ver').textContent = 'v' + Stack.VER + ' · 계산은 모두 이 기기 안에서 하고 사진은 어디에도 보내지 않습니다.';
+
+  function status(t) { $('status').textContent = t; }
+  function bar(p) { $('bar').style.display = p == null ? 'none' : 'block'; if (p != null) $('bar').firstChild.style.width = Math.round(p * 100) + '%'; }
+  function log(t) { $('log').textContent += t + '\n'; }
+  function tick() { return new Promise(function (r) { setTimeout(r, 0); }); }
+  function setBusy(b) { busy = b; $('btnShot').disabled = b || !stream; $('btnCam').disabled = b; $('file').disabled = b; }
+
+  /* ----- 카메라 ----- */
+  function stopCam() { if (stream) stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }
+  function startCam() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { status('이 브라우저에서는 카메라를 쓸 수 없어요 (https 주소로, 카톡 안 브라우저 말고 크롬 · 사파리로 열어 주세요). 사진 파일 고르기는 됩니다.'); return Promise.resolve(); }
+    stopCam();
+    var r = $('selR').value.split('x');
+    status('카메라 여는 중…');
+    return navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: +r[0] }, height: { ideal: +r[1] } } }).then(function (s) {
+      stream = s; video.srcObject = s; video.classList.remove('hide');
+      return video.play().catch(function () {});
+    }).then(function () {
+      return new Promise(function (res) { if (video.videoWidth) res(); else video.onloadedmetadata = function () { res(); }; });
+    }).then(function () {
+      $('btnCam').textContent = '카메라 다시 켜기'; $('btnShot').disabled = busy;
+      status('카메라 ' + video.videoWidth + '×' + video.videoHeight + ' — [찍어서 합성]을 누르고 다 찍힐 때까지 가만히 들고 계세요');
+    }).catch(function (e) { stream = null; status('카메라를 못 열었어요: ' + (e && e.name === 'NotAllowedError' ? '카메라 권한을 허용해 주세요' : (e && e.message) || e)); });
+  }
+  function nextVideoFrame() {
+    return new Promise(function (r) { if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(function () { r(); }); else setTimeout(r, 70); });
+  }
+  function grab(src, w, h) {   // 그 순간의 그림을 따로 떼어 둠
+    if (window.createImageBitmap && w === (src.videoWidth || src.width) ) return createImageBitmap(src);
+    var c = document.createElement('canvas'); c.width = w; c.height = h; c.getContext('2d').drawImage(src, 0, 0, w, h); return Promise.resolve(c);
+  }
+  function shoot() {
+    if (busy || !stream) return;
+    var w = video.videoWidth, h = video.videoHeight, n = +$('selN').value, frames = [];
+    var maxN = Math.max(4, Math.floor(420e6 / (w * h * 4)));   // 찍어 둔 사진이 메모리를 너무 쓰지 않게
+    if (n > maxN) n = maxN;
+    setBusy(true); bar(0);
+    var i = 0;
+    function one() {
+      if (i >= n) return Promise.resolve();
+      return nextVideoFrame().then(function () { return grab(video, w, h); }).then(function (b) { frames.push(b); i++; status('찍는 중 ' + i + ' / ' + n + ' — 가만히'); bar(i / n * 0.15); return one(); });
+    }
+    one().then(function () { return process(frames, w, h); }).catch(fail).then(function () { setBusy(false); });
+  }
+  function fail(e) { console.error(e); bar(null); status('실패: ' + ((e && e.message) || e) + ' — 장수 · 출력 크기를 줄여 다시 해 보세요'); }
+
+  /* ----- 사진 파일 ----- */
+  function loadFiles(files) {
+    if (busy || !files.length) return;
+    if (files.length < 2) { status('같은 곳을 찍은 사진을 2장 이상 골라 주세요'); return; }
+    setBusy(true); bar(0); status('사진 읽는 중…');
+    var list = Array.prototype.slice.call(files, 0, 32), bmps = [];
+    list.reduce(function (p, f) {
+      return p.then(function () { return window.createImageBitmap ? createImageBitmap(f) : loadImg(f); }).then(function (b) { bmps.push(b); });
+    }, Promise.resolve()).then(function () {
+      var w = bmps[0].width, h = bmps[0].height, k = Math.min(1, 2560 / Math.max(w, h));   // 긴 변 2560 까지
+      w = Math.round(w * k); h = Math.round(h * k);
+      return process(bmps, w, h);
+    }).catch(fail).then(function () { setBusy(false); $('file').value = ''; });
+  }
+  function loadImg(f) { return new Promise(function (res, rej) { var im = new Image(); im.onload = function () { res(im); }; im.onerror = function () { rej(new Error('사진을 못 읽음')); }; im.src = URL.createObjectURL(f); }); }
+
+  /* ----- 합성 ----- */
+  function process(frames, w, h) {
+    var n = frames.length, t0 = Date.now(), work = document.createElement('canvas'), wctx, sm = document.createElement('canvas'), sctx;
+    work.width = w; work.height = h; wctx = work.getContext('2d', { willReadFrequently: true });
+    sm.width = 256; sm.height = Math.max(8, Math.round(256 * h / w)); sctx = sm.getContext('2d', { willReadFrequently: true });
+    function pixels(b) { wctx.drawImage(b, 0, 0, w, h); return wctx.getImageData(0, 0, w, h).data; }
+    $('log').textContent = ''; cmp = false; $('btnCmp').classList.remove('on'); $('btnCmp').textContent = '원본 1장 보기';
+    if (refBmp && refBmp.close) refBmp.close();
+    A = null; outImg = null; refBmp = null;
+
+    // 1) 가장 또렷한 사진을 기준으로
+    var sharp = frames.map(function (b) { sctx.drawImage(b, 0, 0, sm.width, sm.height); return Stack.sharpness(sctx.getImageData(0, 0, sm.width, sm.height).data, sm.width, sm.height); });
+    var ri = 0, i; for (i = 1; i < n; i++) if (sharp[i] > sharp[ri]) ri = i;
+    var scale = Math.max(1, Math.min(+$('selS').value, Math.floor(Math.sqrt(12e6 / (w * h)) * 100) / 100));   // 결과는 1,200만 화소까지
+    var ref, used = 0, order = [];
+    for (i = 0; i < n; i++) if (i !== ri) order.push(i);
+    status('기준 사진 준비 중…');
+    return tick().then(function () {
+      var px = pixels(frames[ri]);
+      ref = Stack.prepareRef(px, w, h); A = Stack.createAcc(ref, scale); Stack.accumulate(A, ref, px, null, 1);
+      refBmp = frames[ri];
+      log('사진 ' + n + '장 · ' + w + '×' + h + ' → ' + A.W + '×' + A.H + ' (' + scale + '배) · 기준 = ' + (ri + 1) + '번째 · 잡음 ' + ref.sigma.toFixed(1));
+      var k = 0;
+      function step() {
+        if (k >= order.length) return Promise.resolve();
+        var idx = order[k++];
+        status('합성 중 ' + (k + 1) + ' / ' + n); bar(0.15 + 0.8 * k / order.length);
+        return tick().then(function () {
+          var px = pixels(frames[idx]), al = Stack.alignFrame(ref, px), fw = Math.max(0.2, Math.min(1, sharp[idx] / sharp[ri]));
+          var u = Stack.accumulate(A, ref, px, al, fw); used += u * fw;
+          log((idx + 1 < 10 ? ' ' : '') + (idx + 1) + '번: 이동 ' + al.medx.toFixed(2) + ', ' + al.medy.toFixed(2) + 'px · 쓰인 비율 ' + Math.round(u * 100) + '% · 또렷함 ' + Math.round(fw * 100) + '% · 맞춘 칸 ' + Math.round(al.relFrac * 100) + '%');
+          if (frames[idx].close) frames[idx].close();
+          return step();
+        });
+      }
+      return step();
+    }).then(function () {
+      status('마무리 중…'); bar(0.97); return tick();
+    }).then(function () {
+      Stack.finish(A);
+      out.width = A.W; out.height = A.H; outImg = octx.createImageData(A.W, A.H);
+      $('resBox').classList.remove('hide'); draw();
+      var eff = 1 + used;
+      log('사진 ' + eff.toFixed(1) + '장 분량이 합쳐짐 → 잡음 약 1/' + Math.sqrt(eff).toFixed(1) + ' (노출을 ' + eff.toFixed(1) + '배 길게 한 효과) · ' + ((Date.now() - t0) / 1000).toFixed(1) + '초');
+      bar(null); status('끝 — [원본 1장 보기]로 비교해 보세요 (' + ((Date.now() - t0) / 1000).toFixed(1) + '초)');
+      $('resBox').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+  function opt() { return { ev: +$('slEv').value, shadows: +$('slSh').value, sharp: +$('slUs').value }; }
+  function draw() {
+    if (!A || !outImg) return;
+    if (cmp) {   // 기준 사진 한 장을 같은 크기로 키우고 같은 밝기만 입힘
+      octx.imageSmoothingEnabled = true; octx.imageSmoothingQuality = 'high'; octx.drawImage(refBmp, 0, 0, A.W, A.H);
+      var id = octx.getImageData(0, 0, A.W, A.H); Stack.tone(id.data, opt()); octx.putImageData(id, 0, 0);
+    } else { Stack.render(A, outImg.data, opt()); octx.putImageData(outImg, 0, 0); }
+  }
+  ['slEv', 'slSh', 'slUs'].forEach(function (id) {
+    var lab = { slEv: 'vEv', slSh: 'vSh', slUs: 'vUs' }[id];
+    $(id).addEventListener('input', function () { $(lab).textContent = (id === 'slEv' && +this.value > 0 ? '+' : '') + this.value; });
+    $(id).addEventListener('change', draw);
+  });
+  $('btnCmp').onclick = function () { cmp = !cmp; this.classList.toggle('on', cmp); this.textContent = cmp ? '합성 결과 보기 (지금: 원본 1장)' : '원본 1장 보기'; draw(); };
+  $('btnZoom').onclick = function () {
+    zoom = !zoom; this.classList.toggle('on', zoom); this.textContent = zoom ? '화면에 맞추기' : '확대';
+    out.style.width = zoom ? Math.round(out.width * 2 / (window.devicePixelRatio || 1)) + 'px' : '100%';   // 사진 1픽셀 = 화면 2픽셀
+  };
+  $('btnSave').onclick = function () {
+    out.toBlob(function (b) {
+      if (!b) { status('저장 실패'); return; }
+      var d = new Date(), p = function (v) { return (v < 10 ? '0' : '') + v; }, a = document.createElement('a');
+      a.href = URL.createObjectURL(b); a.download = 'stack_' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '_' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()) + (cmp ? '_1장' : '') + '.jpg';
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 20000);
+    }, 'image/jpeg', 0.95);
+  };
+  $('btnCam').onclick = startCam;
+  $('btnShot').onclick = shoot;
+  $('selR').onchange = function () { if (stream && !busy) startCam(); };
+  $('file').onchange = function () { loadFiles(this.files); };
+  window.addEventListener('pagehide', stopCam);
+})();
+</script>
+</body>
+</html>
