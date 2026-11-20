@@ -294,6 +294,6 @@
     return n ? s / n : 0;
   }
 
-  var S = { prepareRef: prepareRef, alignFrame: alignFrame, createAcc: createAcc, accumulate: accumulate, finish: finish, render: render, tone: tone, sharpness: sharpness, VER: '0.1.0' };
+  var S = { prepareRef: prepareRef, alignFrame: alignFrame, createAcc: createAcc, accumulate: accumulate, finish: finish, render: render, tone: tone, sharpness: sharpness, VER: '0.2.0' };
   if (typeof module !== 'undefined' && module.exports) module.exports = S; else root.Stack = S;
 })(this);
