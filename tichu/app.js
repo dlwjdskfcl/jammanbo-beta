@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.25.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.25.1';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
   var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay', LS_THEME = 'tichu_theme', LS_THEME_TIP = 'tichu_theme_tip', LS_BOTLV = 'tichu_botlv', LS_PRACT = 'tichu_practice';
@@ -619,12 +619,15 @@
       if (r.theme !== curTheme()) { setTheme(r.theme, true); if (S.route && S.route.name === 'lobby' && !S.modal) renderLobby(); }
     }, function () {});
   }
-  // 할로윈 기간(10/24~11/1)엔 모두 한 번 할로윈으로 바꿈 (해마다 한 번, 그 뒤에 바꾼 테마는 그대로)
+  // 할로윈 기간(10/24~11/1)엔 모두 한 번 할로윈으로, 겨울(11/20~2월 말)엔 한 번 겨울로 바꿈 (해마다 한 번, 그 뒤에 바꾼 테마는 그대로)
   function seasonTheme() {
-    var d = new Date(), md = (d.getMonth() + 1) * 100 + d.getDate(), tag = 'halloween' + d.getFullYear();
-    if (md < 1024 || md > 1101 || lsGet(LS_THEME_SEASON) === tag) return;
+    var d = new Date(), y = d.getFullYear(), md = (d.getMonth() + 1) * 100 + d.getDate(), id, tag;
+    if (md >= 1024 && md <= 1101) { id = 'halloween'; tag = id + y; }
+    else if (md >= 1120 || md <= 229) { id = 'winter'; tag = id + (md <= 229 ? y - 1 : y); }   // 1~2월은 지난해 겨울과 같은 표시
+    else return;
+    if (lsGet(LS_THEME_SEASON) === tag) return;
     lsSet(LS_THEME_SEASON, tag);
-    if (curTheme() !== 'halloween') setTheme('halloween');
+    if (curTheme() !== id) setTheme(id);
   }
   function themeRows() {
     var cur = curTheme();
