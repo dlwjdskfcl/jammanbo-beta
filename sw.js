@@ -54,7 +54,7 @@ self.addEventListener('fetch', function (e) {
   if (url.origin !== self.location.origin) return;                    // Apps Script · 카카오는 그대로 통과
   if (/[?&](code|error|state|reset)=?/.test(url.search)) return;      // 카카오 로그인 복귀 · 초기화는 캐시 안 씀
   var rel = url.pathname.indexOf(SCOPE) === 0 ? url.pathname.slice(SCOPE.length) : '';
-  if (SKIP_DIRS.some(function (d) { return rel.indexOf(d) === 0; })) return;   // 미니게임: 따로 동작
+  if (SKIP_DIRS.some(function (d) { return rel.indexOf(d) === 0; }) || rel === 'stack') return;   // 미니게임: 따로 동작 ('stack' = 끝 / 없이 연 시험 페이지)
 
   var nav = req.mode === 'navigate';
   // 화면 이동(주소창 입력·새로고침)은 어느 탭 주소든 앱 첫 화면 하나(./)로 처리 — 탭은 router.js 가 주소를 보고 엶
