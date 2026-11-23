@@ -355,6 +355,7 @@ body.ingame .toasts { top: auto; bottom: calc(var(--ch) + 150px); }
 .seat.lead .av { box-shadow: 0 0 0 3px var(--gold), 0 0 14px rgba(245,179,1,.55); }
 .seat.lead .nm { color: var(--gold2) !important; }
 .tag.lead { background: var(--gold); color: #1d1600; border-color: var(--gold); }
+.tag.dog { background: #ffe9b8; color: #4a2b00; border-color: #e0a64a; }
 .topwho { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; padding: 3px 10px; border-radius: 999px; background: rgba(0,0,0,.4); font-size: 12px; font-weight: 800; color: #fff; max-width: 70vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .topwho .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 .topwho.A .dot { background: var(--teamA); } .topwho.B .dot { background: var(--teamB); }

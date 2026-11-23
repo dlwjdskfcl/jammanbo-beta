@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.25.1';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.26.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
   var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay', LS_THEME = 'tichu_theme', LS_THEME_TIP = 'tichu_theme_tip', LS_BOTLV = 'tichu_botlv', LS_PRACT = 'tichu_practice';
@@ -1277,6 +1277,13 @@
       var key = r.matchId;
       if (S.seqMatch !== key) { S.seqMatch = key; S.lastSeq = fresh || !prev ? g.seq : 0; }
       var evs = g.log.filter(function (e) { return e.n > S.lastSeq; });
+      // 3등이 마지막 패를 내고 라운드가 끝났으면: 그 패를 테이블에 잠깐 보여 준 뒤 결과 화면 (2026-11-23 제보)
+      var endKey = key + ':' + g.round;
+      S.holdMs = 0;
+      if (S.lastSeq && (g.phase === 'roundEnd' || g.phase === 'gameEnd') && S.resultShown !== endKey && evs.some(function (e) { return e.k === 'out' && e.place === 3; })) {
+        for (var li = g.log.length - 1; li >= 0 && g.log[li].k !== 'play'; li--);
+        if (li >= 0) { S.holdMs = END_HOLD_MS; S.endHold = { n: g.log[li].n, until: Date.now() + END_HOLD_MS }; setTimeout(render, END_HOLD_MS + 50); }
+      }
       if (S.lastSeq) effects(evs, r, mine);
       S.lastSeq = g.seq;
       // 선택 정리
@@ -1285,7 +1292,7 @@
       if (g.phase !== 'exchange' || S.exRound !== g.round) { if (g.phase === 'exchange') S.exRound = g.round; S.exch = [null, null, null]; S.exSlot = 0; }
       S.exch = S.exch.map(function (c) { return c && hand.indexOf(c) >= 0 ? c : null; });
       // 라운드 결과 · 게임 끝
-      if ((g.phase === 'roundEnd' || g.phase === 'gameEnd') && S.resultShown !== key + ':' + g.round) { S.resultShown = key + ':' + g.round; setTimeout(function () { showResult(); }, 700); }
+      if ((g.phase === 'roundEnd' || g.phase === 'gameEnd') && S.resultShown !== key + ':' + g.round) { S.resultShown = key + ':' + g.round; setTimeout(function () { showResult(); }, 700 + S.holdMs); }
       if (g.phase === 'grand' && S.modal && S.modal.result) closeModal();
       // 받은 카드 안내
       if (g.phase === 'play' && g.recv && me >= 0 && !g.played[me] && S.recvShown !== key + ':' + g.round) {
@@ -1315,9 +1322,11 @@
     // 한 번에 라운드 끝까지 온 경우(내가 나간 뒤 봇끼리 마저 친 판 등): 그 사이 카드 소리·음성은 건너뛰고 결과만
     var endAt = -1;
     evs.forEach(function (e, i) { if (endAt < 0 && (e.k === 'round' || e.k === 'gameEnd')) endAt = i; });
+    var holdAt = -1;   // 결과를 늦추는 판: 마지막 패를 낸 이벤트는 소리 · 움직임을 살림
+    if (S.holdMs) evs.forEach(function (e, i) { if (e.k === 'play') holdAt = i; });
     if (endAt >= 0) hush();
     evs.forEach(function (e, i) {
-      var at = order * 0.28, quiet = endAt >= 0 && i < endAt;
+      var at = order * 0.28, quiet = endAt >= 0 && i < endAt && i !== holdAt;
       if (quiet) {
         if (e.k === 'out') toast((e.place === 1 ? '🥇 ' : '') + seatName(e.s) + ' ' + e.place + '등으로 나감!');
         return;
@@ -1331,8 +1340,8 @@
       else if (e.k === 'closing') { if (me >= 0 && myBombs().length) { sfx('turn', at); say('폭탄 기회', at); } }
       else if (e.k === 'trick' && me >= 0 && team(e.to) === team(me)) sfx('trickUs', at + 0.1);
       else if (e.k === 'out' && e.place === 1) sfx('out', at + 0.15);
-      else if (e.k === 'round') { sfx(e.res && e.res.dbl ? 'onetwo' : 'round', at + 0.3); if (e.res && e.res.dbl) say('원투', at + 0.3); }
-      else if (e.k === 'gameEnd') sfx(me < 0 || team(me) === e.winner ? 'win' : 'lose', at + 0.6);
+      else if (e.k === 'round') { sfx(e.res && e.res.dbl ? 'onetwo' : 'round', at + 0.3 + S.holdMs / 1000); if (e.res && e.res.dbl) say('원투', at + 0.3); }
+      else if (e.k === 'gameEnd') sfx(me < 0 || team(me) === e.winner ? 'win' : 'lose', at + 0.6 + S.holdMs / 1000);
       if (e.k === 'wish') toast('🐦 ' + seatName(e.s) + ': 참새 콜 [' + TE.rankLabel(e.r) + ']');
       else if (e.k === 'wishDone') toast('참새 콜 [' + TE.rankLabel(e.r) + '] 완료 (' + seatName(e.s) + ')');
       else if (e.k === 'out') toast((e.place === 1 ? '🥇 ' : '') + seatName(e.s) + ' ' + e.place + '등으로 나감!');
@@ -1561,6 +1570,16 @@
     else if (g.phase === 'dragon' && g.dragon) p.push(g.dragon.seat);
     return p;
   }
+  // 개로 선을 받은 사람 (그 사람이 낼 때까지). 아니면 -1
+  function dogLead(g) {
+    if (!g || g.phase !== 'play' || g.trick.plays.length) return -1;
+    for (var i = g.log.length - 1; i >= 0; i--) {
+      var e = g.log[i];
+      if (e.k === 'dog') return e.to === g.turn ? e.to : -1;
+      if (e.k === 'play' || e.k === 'trick') return -1;
+    }
+    return -1;
+  }
   // 현재 트릭에서 각 자리의 마지막 행동 (낸 카드 / 패스)
   function trickState(g) {
     var st = {}, start = 0;
@@ -1584,12 +1603,27 @@
   // 관전자가 보는 자리 (누구 시점) — 방이 바뀌면 처음 자리로
   function watchSeat(r) { return S.wvRoom === r.id ? S.wv : 0; }
   function setWatchSeat(s) { S.wv = s; S.wvRoom = S.room.id; render(); if (S.peekOpen) renderPeekAll(); }
+  // 3등이 나가 라운드가 끝난 직후 잠깐(END_HOLD_MS): 마지막 트릭을 끝나기 직전 모습(phase play)으로 되돌려 테이블에 보여 줌
+  var END_HOLD_MS = 2500;
+  function holdView(g, n) {
+    var v = {}, k;
+    for (k in g) v[k] = g[k];
+    v.log = g.log.filter(function (e) { return e.n <= n; });
+    var start = 0, plays = [];
+    for (var i = v.log.length - 1; i >= 0; i--) { k = v.log[i].k; if (k === 'trick' || k === 'dog' || k === 'exchDone' || k === 'deal' || k === 'round') { start = i + 1; break; } }
+    for (i = start; i < v.log.length; i++) if (v.log[i].k === 'play') plays.push({ s: v.log[i].s, c: v.log[i].c });
+    v.phase = 'play'; v.turn = -1;
+    v.trick = { plays: plays, last: plays.length ? plays[plays.length - 1].s : -1, passes: 0 };
+    return v;
+  }
   function renderGame() {
     var r = S.room, g = r.g, me = r.me, view = me < 0 ? watchSeat(r) : me;
     if (!g) return;
+    var held = S.endHold && S.endHold.until > Date.now() && (g.phase === 'roundEnd' || g.phase === 'gameEnd');
+    var gt = held ? holdView(g, S.endHold.n) : g;   // 테이블(낸 카드 칸)만 이 모습으로 그림
     var pend = pendingSeats(g), myTeam = team(view);
-    var top = g.trick.plays.length ? g.trick.plays[g.trick.plays.length - 1] : null;
-    var ts = trickState(g), op = S.optim, closing = isClosing(g);
+    var top = gt.trick.plays.length ? gt.trick.plays[gt.trick.plays.length - 1] : null;
+    var ts = trickState(gt), op = S.optim, closing = isClosing(g);
     if (op && me >= 0 && op.k === 'play' && op.c) { ts[me] = { play: op.c }; S.flash[me] = 0; top = { s: me, c: op.c }; }
     if (op && me >= 0 && op.k === 'pass') { ts[me] = { pass: 1 }; S.flash[me] = 0; }
     var myTurn = me >= 0 && g.phase === 'play' && g.turn === me;
@@ -1608,12 +1642,12 @@
 
     // 테이블
     h += '<div class="felt">';
-    S.topSeat = top && (g.phase === 'play' || g.phase === 'dragon') ? top.s : -1;
+    S.topSeat = top && (gt.phase === 'play' || gt.phase === 'dragon') ? top.s : -1;
     var fronts = ['', '', '', ''];
     for (var s = 0; s < 4; s++) {
       var p = pos(s, view), st = r.seats[s];
       if (p !== 0) h += seatHTML(g, s, p, st, pend);
-      fronts[p] = frontHTML(g, s, p, ts[s], top && top.s === s, pend.indexOf(s) >= 0 && !closing && (g.phase === 'play' || g.phase === 'dragon') && !(op && s === me));
+      fronts[p] = frontHTML(gt, s, p, ts[s], top && top.s === s, pend.indexOf(s) >= 0 && !closing && (g.phase === 'play' || g.phase === 'dragon') && !(op && s === me));
     }
     // 낸 카드 판: 위(맞은편) · 왼쪽 · 오른쪽 · 가운데 안내 · 아래(나) — 네 사람 카드가 서로 겹치지 않게 칸을 나눔
     h += '<div class="board">' + fronts[2] + fronts[3] + fronts[1] + '<div class="center">' + centerHTML(g, me, pend) + '</div>' + fronts[0] + '</div>';
@@ -1712,6 +1746,7 @@
     if (st && !st.on) tags += '<span class="tag afk">끊김</span>';
     else if (awayText(st)) tags += '<span class="tag afk">📱 나감</span>';
     if (s === S.topSeat) tags = '<span class="tag lead">👑 최고</span>' + tags;
+    if (s === dogLead(g)) tags = '<span class="tag dog">🐕 개로 턴</span>' + tags;
     return '<div class="seat p' + p + (s === S.topSeat ? ' lead' : '') + (isPend && (g.phase === 'play' || g.phase === 'dragon') ? ' turn' : '') + '" data-seat="' + s + '"><div class="av ' + t + (isPend ? ' turn' : '') + (st && !st.on ? ' off' : '') + '">' + initial(st ? st.name : '?') +
       (isPend ? ringSVG() : '') + (st && st.bot ? '<span class="bot">🤖</span>' : '') + '</div>' +
       '<div class="nm ' + (t === 'A' ? 'tA' : 'tB') + '">' + esc(st ? st.name : '') + '</div><div class="info">' + tags + '</div></div>';
@@ -1738,11 +1773,12 @@
     else if (g.phase === 'exchange') msg = '카드 교환 중 · ' + g.exDone.filter(Boolean).length + '/4';
     else if (g.phase === 'play' && isClosing(g)) {
       var tw = g.trick.plays[g.trick.plays.length - 1].s;
-      msg = '모두 패스 · ' + (tw === me ? '내가' : seatName(tw)) + ' 가져가는 중' + (tw !== me && myBombs().length ? ' · 💣 지금 폭탄 가능!' : '');
+      msg = '모두 패스 · ' + (tw === me ? '내가' : seatName(tw)) + ' 가져가는 중' + (myBombs().length ? ' · 💣 지금 폭탄 가능!' : '');
     }
     else if (g.phase === 'play') {
       isMe = g.turn === me;
       msg = isMe ? (g.trick.plays.length ? '내 차례' : '내 차례 · 선') : seatName(g.turn) + (g.trick.plays.length ? ' 차례' : ' 선');
+      if (dogLead(g) === g.turn) msg = '🐕 개로 턴 받음 · ' + msg;
     } else if (g.phase === 'dragon') { isMe = g.dragon.seat === me; msg = isMe ? '용 트릭을 줄 상대를 고르세요' : seatName(g.dragon.seat) + ': 용 트릭 줄 상대 고르는 중'; }
     else if (g.phase === 'roundEnd') msg = g.round + '라운드 끝';
     else if (g.phase === 'gameEnd') msg = '게임 끝';
@@ -1787,6 +1823,7 @@
     var r = S.room, st = r.seats[me], t = team(me) ? 'B' : 'A', place = g.out.indexOf(me), isPend = pend.indexOf(me) >= 0;
     var tags = '';
     if (S.topSeat === me) tags += '<span class="tag lead">👑 최고</span>';
+    if (dogLead(g) === me) tags += '<span class="tag dog">🐕 개로 턴</span>';
     if (g.tichu[me]) tags += '<span class="tag ' + (g.tichu[me] === 2 ? 'gt">라지' : 'ti">티츄') + '</span>';
     if (place >= 0 && g.phase === 'play') tags += '<span class="tag place">' + (place + 1) + '등</span>';
     var acts = '', wait = '';
@@ -1819,7 +1856,7 @@
     if (!g || me < 0 || g.phase !== 'play' || !g.hand || !g.hand.length || !g.trick.plays.length) return [];
     if (S.optim && S.optim.k === 'play') return [];
     var top = g.trick.plays[g.trick.plays.length - 1];
-    if (top.s === me) return [];   // 내가 최고면 폭탄 낼 이유 없음
+    // 내가 낸 패 위에도 폭탄은 낼 수 있음 (규칙상 합법 · 폭탄만 남았을 때 나가는 유일한 길 — 2026-11-23 제보)
     return TE.plays(g.hand, top.c).filter(TE.isBomb).sort(function (a, b) { return TE.power(a) - TE.power(b); });
   }
   // 💣 버튼 / B 키: 고른 카드가 폭탄이면 그걸, 아니면 가장 약한 폭탄을 바로 냄
