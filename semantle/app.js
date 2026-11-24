@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.33.1';
+  var VER = '1.33.2';
   var LATE_FROM = '2026-11-16', LATE_AT = '23:30', LATE_PTS = 10;   // (1.31.0) 밤 23:30 에 톡방에 정답이 공개됨 → 그 뒤 정답은 고정 점수 (서버 SEM_CFG_ LATE_* 와 같게 — 점수는 서버가 정함, 여기는 안내용)
   function lateNow() { var t = new Date(Date.now() + 9 * 3600e3).toISOString(); return t.slice(0, 10) >= LATE_FROM && t.slice(11, 16) >= LATE_AT; }
   var CFG = window.JMB_CONFIG || {};
@@ -22,6 +22,9 @@
   var LS = { auth: 'jmb_kakao_v2' + ENV_SFX, state: 'jmb_kakao_state' + ENV_SFX, play: 'jmb_sem_play' + ENV_SFX, pend: 'jmb_sem_pend' + ENV_SFX, help: 'jmb_sem_help', tab: 'jmb_sem_tab', sort: 'jmb_sem_sort', xl: 'jmb_sem_xl', rkc: 'jmb_sem_rkc' + ENV_SFX, hsc: 'jmb_sem_hsc' + ENV_SFX };   // rkc · hsc: 순위 · 내 기록을 기기에 저장해 두었다가 먼저 보여 줌 (1.14.0)
   var CHO_AFTER = 3;   // 초성 보기: 단어 힌트를 이만큼 쓴 뒤에 열림, 비용은 힌트 1개(HINT_COST)와 같음 — 서버 힌트 수 검사는 초성 몫 1개를 더 허용 (Semantle.js submit)
   var BASE_PTS = 200, HINT_COST = 40, TOPN = 1000, HINT_EVERY = 5;   // 점수 상수 (서버 SEM_CFG_ BASE · HINT_COST 와 같게 — 1.16.1 에서 150 · 15 → 200 · 40)   // HINT_EVERY: 추측 5번마다 힌트가 하나씩 생김, 개수 제한 없음 (서버 SEM_CFG_.HINT_EVERY 와 같게)
+  // (1.34.0) 힌트 점수는 힌트 단어의 정답 유사도 순위(1 = 가장 가까움)에 따라 달라짐 — HINT_TIER_FROM 날짜 판부터, 그 전 판은 힌트당 HINT_COST. 순위가 아래 표의 앞 값 이상이면 뒤 값만큼 감점, 그보다 가까우면(100위 안) HINT_COST. 🔤 초성은 HINT_COST 고정. 서버 Semantle.js SEM_CFG_.HINT_TIERS · HINT_TIER_FROM 과 같게 (서버가 등록 때 다시 계산해 확정, 여기는 미리 보여 주는 용)
+  var HINT_TIER_FROM = '2026-11-26', HINT_TIERS = [[500, 15], [250, 20], [100, 30]];
+  function hintCost(rank) { for (var i = 0; i < HINT_TIERS.length; i++) if (rank >= HINT_TIERS[i][0]) return HINT_TIERS[i][1]; return HINT_COST; }
   var CH_BONUS_FROM = '2026-11-14', CH_BASE = 20, CH_MAXB = 50;   // 서버 Kodle.js KODLE_CFG_.CH_FROM · CH_BASE · CH_BASE + CH_MAX×CH_STEP 와 같게
   var BADGES = [   // 서버 Semantle.js badgesOf 와 같은 id
     { id: 'first', e: '🥇', n: '선두 주자', d: '그 날 가장 먼저 정답' },
@@ -466,9 +469,18 @@
   }
   /* 힌트는 처음엔 못 씀: 추측 5번마다 하나씩 생김, 개수 제한 없음 (끝난 뒤 연습에서는 바로 씀) */
   function hintsUnlocked() { return Math.floor(realCount() / HINT_EVERY); }
-  function wordHints() { return S.L.hints - (S.L.cho ? 1 : 0); }   // L.hints 는 초성 몫(−40점)까지 센 값 — 단어 힌트 몫만
+  function wordHints() { return S.L.hints - (S.L.cho ? 1 : 0); }   // L.hints 는 초성 몫(−HINT_COST)까지 센 값 — 단어 힌트 몫만
   function hintsLeft() { return hintsUnlocked() - wordHints(); }
   function hintNext() { return HINT_EVERY - realCount() % HINT_EVERY; }
+  /** 이 판의 힌트 감점 합계 (잠정 — 서버가 확정). HINT_TIER_FROM 전 판은 힌트 수 × HINT_COST */
+  function hintPenalty(L) {
+    L = L || S.L;
+    if (!L.hints || !L.day || L.day < HINT_TIER_FROM) return (L.hints || 0) * HINT_COST;
+    var sum = L.cho ? HINT_COST : 0, n = 0;
+    L.g.forEach(function (x) { if (x.h) { sum += hintCost(rankIn(x.w)); n++; } });
+    return sum + Math.max(0, L.hints - (L.cho ? 1 : 0) - n) * HINT_COST;
+  }
+  function tierOn() { return !!(S.L && S.L.day && S.L.day >= HINT_TIER_FROM); }
   function hintInfo() {
     var L = S.L, label, off = false;
     if (L.prac) label = '💡 힌트';   // 연습은 개수 제한 없음 (글자가 두 줄로 꺾이지 않게 짧게)
@@ -482,6 +494,7 @@
     var h = hintInfo();
     return '<button type="button" class="btn" id="hintBtn"' + (h.off ? ' disabled' : '') + '>' + xe(h.label) + '</button>';
   }
+  function hintTierText() { var T = HINT_TIERS; return T.map(function (x, k) { return (k ? x[0] + '~' + (T[k - 1][0] - 1) + '위' : x[0] + '위 이후') + ' −' + x[1]; }).concat(['1~' + (T[T.length - 1][0] - 1) + '위 −' + HINT_COST]).join(' · '); }   // 예: 500위 이후 −15 · 250~499위 −20 · 100~249위 −30 · 1~99위 −40
   function hint() {
     var gated = !S.L.done && !S.L.prac, rec = recordable();   // 연습 판은 힌트 제한 · 점수 없음
     if (gated && hintsLeft() <= 0) return toast(hintNext() + '번 더 추측하면 힌트가 생겨요', true);
@@ -494,7 +507,8 @@
       if (a < TOPN && !have[S.top[a]] && !BLOCK[S.vocab[S.top[a]]]) pick = S.top[a]; else if (b >= 1 && !have[S.top[b]] && !BLOCK[S.vocab[S.top[b]]]) pick = S.top[b];
     }
     if (pick < 0) return toast('더 줄 힌트가 없어요', true);
-    var cost = rec ? ' (−' + HINT_COST + '점)' : '';
+    var pr = S.rankOf.get(pick) || 0, pc = tierOn() ? hintCost(pr) : HINT_COST;   // 이번 힌트 단어의 순위 · 감점 (서버도 등록 때 같은 순위로 계산)
+    var cost = rec ? ' (−' + pc + '점)' : '';
     var use = function () {
       if (S.L.done && gated) return;
       if (gated) S.L.hints++;
@@ -503,7 +517,7 @@
       if (gated && wordHints() === CHO_AFTER && !S.L.cho) setTimeout(function () { if (choAvail()) toast('🔤 이제 초성 보기를 쓸 수 있어요'); }, 2400);
     };
     if (!rec) return use();
-    ask('💡 힌트를 볼까요?', '지금까지 찾은 가장 가까운 단어보다 <b>더 가까운 단어</b> 하나를 알려 줘요.<br>' + (wordHints() + 1) + '번째 힌트 · <b>−' + HINT_COST + '점</b>', '힌트 보기').then(function (ok) { if (ok) use(); });
+    ask('💡 힌트를 볼까요?', '지금까지 찾은 가장 가까운 단어보다 <b>더 가까운 단어</b> 하나를 알려 줘요.<br>' + (wordHints() + 1) + '번째 힌트 · ' + (tierOn() && pr ? '<b>' + pr + '위 단어</b> · ' : '') + '<b>−' + pc + '점</b>' + (tierOn() ? '<br><small>가까운 단어일수록 점수가 더 깎여요 (' + hintTierText() + ')</small>' : ''), '힌트 보기').then(function (ok) { if (ok) use(); });
   }
 
   /* ---------- 🔤 초성 보기 (단어 힌트를 CHO_AFTER 번 쓴 뒤): 정답의 초성(= 글자 수도 보임). 비용은 힌트 1개 — L.hints 에 더하고 L.cho = 1,
@@ -705,7 +719,7 @@
       '<p>매일 하나의 <b>비밀 단어</b>가 정해져요. 아무 단어나 입력하면 비밀 단어와 <b>뜻이 얼마나 가까운지</b>(유사도)를 알려 줘요. 철자가 아니라 <b>쓰임새·의미</b>가 비슷해야 점수가 높아요.</p>' +
       '<ul><li>유사도는 -100 ~ 100. 높을수록 가까워요.</li><li><b>1000위 안</b>에 들면 순위가 보여요. (1위 = 비밀 단어와 가장 가까운 단어)</li><li>같은 문맥에 같이 나올 법한 단어를 떠올려 보세요. 반대말도 의외로 가까울 수 있어요. ‘사랑’과 ‘증오’는 뜻은 반대지만 같은 문맥에 자주 나와서 비슷해요. ‘밤’처럼 뜻이 여럿인 단어(어두운 밤 · 먹는 밤)는 어느 쪽인지도 생각해 보세요.</li><li>정답을 맞힌 뒤에도 추측을 계속할 수 있어요. 맞힌 뒤에 보이는 <b>가까운 단어 1000개</b>를 살펴보면 유사도를 이해하는 데 도움이 돼요. 정답은 한국 시간 자정에 바뀌고, 어제 정답과 가까운 단어도 볼 수 있어요.</li><li>비밀 단어는 명사 · 동사 · 형용사 등 모든 품사의 <b>기본형</b>이고 <b>두 글자 이상</b>이에요. 예) 행복, 기쁘다, 사랑하다. 추측은 한 글자 단어도 할 수 있어요.</li></ul>' +
       '<h4>🏆 점수와 순위</h4>' +
-      '<ul><li><b>정답 점수</b> = ' + BASE_PTS + ' − 추측 횟수 − 힌트 × ' + HINT_COST + ' (최소 0점) — 힌트를 안 쓰고 적게 추측할수록 높아요. 힌트 하나가 꽤 아파요. 일찍 푼다고 더 받지는 않아요</li><li><b>밤 ' + LATE_AT + ' 이후</b>에 맞히면 추측 횟수와 상관없이 <b>' + LATE_PTS + '점</b> — 그 시간에 모임 톡방에 오늘 정답과 순위가 올라와요 (꼬들도 같고, 그날 챌린지 보너스도 없어요)</li><li><b>연속 보너스</b> 이틀째부터 연속 정답 하루마다 +5 (최대 +30) — <b>11월 16일부터는 없어져요</b> (연속 기록 · 배지는 그대로)</li><li><b>힌트</b>는 처음엔 못 써요. 추측 <b>5번마다 하나씩</b> 생기고 개수 제한은 없어요. 하나당 −' + HINT_COST + '점. 지금까지 찾은 가장 가까운 단어보다 더 가까운 단어를 알려 줘요</li><li>포기하면 0점 · 연속 기록이 끊겨요</li><li>하루에 한 번만 기록돼요. 정답을 맞힌 뒤에도 계속 연습할 수 있어요.</li><li>순위는 오늘(점수 순) · 이번 주 · 시즌(분기) · 연속 정답 · 레이팅이 있어요. <b>다른 사람에게는 힌트 수와 점수만 보여요</b> (추측한 단어 · 걸린 시간은 나만 봐요. 점수로 추측 횟수를 짐작할 수는 있어요).</li>' + (/jammanbo-beta/.test(location.pathname) ? '<li>🟩 <b>꼬들</b> 점수(정답 100 − 추측당 10 · 연속 보너스)도 주간 · 시즌 · 누적 점수에 더해져요. 정답 횟수 · 평균 · 연속 · 레이팅은 꼬맨틀만 셈</li>' : '') + '<li><b>레이팅</b>은 그 날 푼 사람끼리 추측 횟수를 겨루는 점수예요 (처음 1500점). 적게 맞히면 오르고 많이 맞히면 내려가요. 같으면 무승부, 포기는 꼴찌, 힌트 1개는 추측 5번으로 쳐요. 분기마다 새로 시작하고 3일 이상 참여하면 순위에 올라요.</li><li>순위에서 이름을 누르면 그 사람의 기록과 나와의 비교를 볼 수 있어요.</li></ul>' +
+      '<ul><li><b>정답 점수</b> = ' + BASE_PTS + ' − 추측 횟수 − 힌트 감점 (최소 0점) — 힌트를 안 쓰고 적게 추측할수록 높아요. 힌트가 꽤 아파요. 일찍 푼다고 더 받지는 않아요</li><li><b>밤 ' + LATE_AT + ' 이후</b>에 맞히면 추측 횟수와 상관없이 <b>' + LATE_PTS + '점</b> — 그 시간에 모임 톡방에 오늘 정답과 순위가 올라와요 (꼬들도 같고, 그날 챌린지 보너스도 없어요)</li><li><b>연속 보너스</b> 이틀째부터 연속 정답 하루마다 +5 (최대 +30) — <b>11월 16일부터는 없어져요</b> (연속 기록 · 배지는 그대로)</li><li><b>힌트</b>는 처음엔 못 써요. 추측 <b>5번마다 하나씩</b> 생기고 개수 제한은 없어요. 감점은 <b>그 힌트 단어의 순위</b>에 따라 달라요: ' + hintTierText() + ' (🔤 초성은 −' + HINT_COST + '). 가까운 단어일수록 더 깎여요 (' + HINT_TIER_FROM.slice(5).replace('-', '월 ').replace(/^0/, '') + '일 판부터, 그 전 판은 하나당 −' + HINT_COST + '). 지금까지 찾은 가장 가까운 단어보다 더 가까운 단어를 알려 줘요</li><li>포기하면 0점 · 연속 기록이 끊겨요</li><li>하루에 한 번만 기록돼요. 정답을 맞힌 뒤에도 계속 연습할 수 있어요.</li><li>순위는 오늘(점수 순) · 이번 주 · 시즌(분기) · 연속 정답 · 레이팅이 있어요. <b>다른 사람에게는 힌트 수와 점수만 보여요</b> (추측한 단어 · 걸린 시간은 나만 봐요. 점수로 추측 횟수를 짐작할 수는 있어요).</li>' + (/jammanbo-beta/.test(location.pathname) ? '<li>🟩 <b>꼬들</b> 점수(정답 100 − 추측당 10 · 연속 보너스)도 주간 · 시즌 · 누적 점수에 더해져요. 정답 횟수 · 평균 · 연속 · 레이팅은 꼬맨틀만 셈</li>' : '') + '<li><b>레이팅</b>은 그 날 푼 사람끼리 추측 횟수를 겨루는 점수예요 (처음 1500점). 적게 맞히면 오르고 많이 맞히면 내려가요. 같으면 무승부, 포기는 꼴찌, 힌트 1개는 추측 5번으로 쳐요. 분기마다 새로 시작하고 3일 이상 참여하면 순위에 올라요.</li><li>순위에서 이름을 누르면 그 사람의 기록과 나와의 비교를 볼 수 있어요.</li></ul>' +
       '<h4>📚 출처</h4><p class="hint">단어의 의미 거리는 Facebook FastText 한국어 벡터(CC-BY-SA 3.0), 단어 목록 일부는 국립국어원 한국어기초사전(CC BY-SA 2.0 KR)을 바탕으로 했어요.</p>' +
       '<h4>📱 팁</h4><p>한글 단어만 입력할 수 있어요 (영어 · 숫자는 안 돼요). ‘먹었다’ · ‘학교에서’ · ‘웃다’ 처럼 사전에 없는 꼴은 사전에 있는 가까운 꼴(‘먹다’ · ‘학교’ · ‘웃는’)로 바꿔 찾아요. 점수는 컴퓨터가 웹 · 위키백과 글에서 단어가 함께 쓰인 정도를 학습해 계산한 뜻 거리라서, 학습한 글에 따라 편향이 있거나 가끔 이상한 점수가 나올 수 있어요. 웃고 넘겨 주세요 😄</p><p class="hint">단어 벡터 출처: 페이스북(메타) 패스트텍스트, CC BY-SA 3.0 · 게임 방식은 뉴스젤리 꼬맨틀을 참고했어요.</p>' +
       '<div class="btns"><button type="button" class="btn pri" data-x>알겠어요</button></div>');
@@ -854,9 +868,9 @@
     var h = '<div class="card res pop"><div class="em">' + (L.win ? '🎉' : '😵') + '</div><h2>' + (L.win ? '정답이에요!' : '아쉬워요') + '</h2>' +
       '<p>' + (L.win ? '<b>' + esc(S.vocab[S.ans]) + '</b> — ' + n + '번 만에 맞혔어요' + (L.hints ? ' · 힌트 ' + L.hints : '') : '정답은 <b>' + esc(S.vocab[S.ans]) + '</b> 였어요') + '</p>';
     if (S.busy && !r) {   // (1.14.0) 서버 확인을 기다리지 않고 결과부터 보여 줌 — 점수는 '잠정'(기본 점수 − 힌트), 서버가 확정하면 연속 보너스까지 반영해 바뀜
-      var lateP = lateNow(), base = !L.win ? 0 : lateP ? LATE_PTS : Math.max(0, BASE_PTS - n - HINT_COST * (L.hints || 0));
+      var lateP = lateNow(), base = !L.win ? 0 : lateP ? LATE_PTS : Math.max(0, BASE_PTS - n - hintPenalty(L));
       h += L.win && lateP ? '<div class="pts">+' + base + '점 <small>(잠정)</small></div><div class="parts"><span class="chip">🌙 밤 ' + LATE_AT + ' 이후 정답</span><span class="chip">기록 확인 중…</span></div>'
-        : L.win ? '<div class="pts">+' + base + '점 <small>(잠정)</small></div><div class="parts"><span class="chip">기본 <b>' + Math.max(0, BASE_PTS - n) + '</b></span>' + (L.hints ? '<span class="chip">힌트 <b>-' + HINT_COST * L.hints + '</b></span>' : '') + '<span class="chip">기록 확인 중…</span></div>'
+        : L.win ? '<div class="pts">+' + base + '점 <small>(잠정)</small></div><div class="parts"><span class="chip">기본 <b>' + Math.max(0, BASE_PTS - n) + '</b></span>' + (L.hints ? '<span class="chip">힌트 <b>-' + hintPenalty(L) + '</b></span>' : '') + '<span class="chip">기록 확인 중…</span></div>'
         : '<p class="hint">기록 확인 중…</p>';
     } else if (r && !r.error) {
       if (r.win) {
