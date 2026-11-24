@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>숲속 마당 관리</title>
+<style>
+:root{--bg:#f4f1ea;--card:#fffdf8;--ink:#2b2a26;--sub:#6f6b60;--line:#e1dccf;--acc:#3f7d4e;--acc2:#e9f3ea;--warn:#b5532a;--warn2:#fbece4;--bar:#7fb88a;--bar2:#d9a441;--bar3:#c8553d;--in:#fff}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#1b1d1a;--card:#242723;--ink:#e8e6df;--sub:#a09c90;--line:#383c35;--acc:#7cc08b;--acc2:#2a3a2d;--warn:#f0966d;--warn2:#3b2a22;--bar:#5f9a6b;--bar2:#c9953a;--bar3:#d4684f;--in:#1b1d1a}}
+:root[data-theme=dark]{--bg:#1b1d1a;--card:#242723;--ink:#e8e6df;--sub:#a09c90;--line:#383c35;--acc:#7cc08b;--acc2:#2a3a2d;--warn:#f0966d;--warn2:#3b2a22;--bar:#5f9a6b;--bar2:#c9953a;--bar3:#d4684f;--in:#1b1d1a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Malgun Gothic",sans-serif}
+.wrap{max-width:880px;margin:0 auto;padding:12px 16px 40px}
+h1{font-size:20px;margin:6px 0 2px}
+h2{font-size:16px;margin:0 0 8px}
+.sub{color:var(--sub);font-size:13px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin:12px 0}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0}
+label{font-size:13px;color:var(--sub)}
+input,select,textarea,button{font:inherit;color:var(--ink)}
+input,select,textarea{background:var(--in);border:1px solid var(--line);border-radius:8px;padding:7px 9px;min-width:0}
+input[type=number]{width:96px}
+input.grow,textarea{flex:1 1 180px}
+textarea{width:100%;resize:vertical}
+button{background:var(--acc);color:#fff;border:0;border-radius:8px;padding:8px 14px;cursor:pointer;min-height:38px}
+button.ghost{background:transparent;color:var(--acc);border:1px solid var(--acc)}
+button.danger{background:var(--warn)}
+button:disabled{opacity:.45;cursor:default}
+.lock{position:sticky;top:0;z-index:5;background:var(--bg);padding:8px 0;border-bottom:1px solid var(--line)}
+.pill{display:inline-block;border-radius:99px;padding:1px 9px;font-size:12px;background:var(--acc2);color:var(--acc)}
+.pill.bad{background:var(--warn2);color:var(--warn)}
+.msg{margin-top:8px;padding:8px 10px;border-radius:8px;background:var(--acc2);font-size:13px;white-space:pre-wrap;word-break:break-word}
+.msg.err{background:var(--warn2);color:var(--warn)}
+.msg:empty{display:none}
+.bars{display:flex;align-items:flex-end;gap:6px;height:130px;margin:8px 0 2px;border-bottom:1px solid var(--line)}
+.bar{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;min-width:0}
+.bar i{display:block;width:100%;max-width:44px;border-radius:5px 5px 0 0;background:var(--bar)}
+.bar i.m{background:var(--bar2)}.bar i.h{background:var(--bar3)}
+.bar b{font-size:11px;font-weight:600;margin-bottom:2px}
+.lbl{display:flex;gap:6px}.lbl span{flex:1;text-align:center;font-size:11px;color:var(--sub);min-width:0}
+.meter{height:12px;border-radius:6px;background:var(--line);overflow:hidden;margin:4px 0}
+.meter i{display:block;height:100%;background:var(--bar)}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{text-align:right;padding:4px 6px;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left}
+.scroll{overflow-x:auto}
+.lim{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:8px 0;border-bottom:1px dashed var(--line);align-items:center}
+.lim .d{grid-column:1/-1;color:var(--sub);font-size:12px}
+.lim .k{font-weight:600}
+.lim .in{display:flex;gap:6px;align-items:center}
+.nlist{list-style:none;margin:6px 0 0;padding:0}
+.nlist li{display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px dashed var(--line)}
+.nlist li span{flex:1;word-break:break-word}
+.st{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;width:100%}
+.st label{display:block}.st input{width:100%}
+dialog{border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);max-width:420px;width:calc(100% - 32px)}
+dialog::backdrop{background:#0008}
+dialog p{white-space:pre-wrap;margin:0 0 14px}
+dialog .row{justify-content:flex-end}
+pre{margin:6px 0 0;padding:8px;background:var(--in);border:1px solid var(--line);border-radius:8px;white-space:pre-wrap;word-break:break-word;font-size:12px;max-height:260px;overflow:auto}
+footer{margin-top:20px;text-align:center;font-size:12px;color:var(--sub)}
+@media (max-width:520px){.st{grid-template-columns:repeat(3,1fr)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>숲속 마당 관리</h1>
+  <div class="sub">운영진 전용 · 관리 키는 이 화면 메모리에만 있고 새로고침하면 사라져요</div>
+
+  <div class="lock card" style="margin-top:10px">
+    <div class="row"><label for="srv">서버</label><input id="srv" class="grow" spellcheck="false" autocomplete="off"></div>
+    <div class="row">
+      <label for="key">관리 키</label><input id="key" class="grow" type="password" autocomplete="off" spellcheck="false" placeholder="x-admin-key">
+      <button id="btnPing" class="ghost">연결 확인</button>
+    </div>
+    <div class="row"><span id="conn" class="pill bad">연결 전</span><span id="ver" class="sub"></span></div>
+  </div>
+
+  <section class="card" id="sUsage">
+    <h2>사용량</h2>
+    <div class="row"><label for="uDays">최근</label><select id="uDays"><option>3</option><option selected>7</option><option>14</option><option>30</option></select><label>일</label><button id="btnUsage">불러오기</button></div>
+    <div id="uBody"></div><div class="msg" id="uMsg"></div>
+  </section>
+
+  <section class="card" id="sLim">
+    <h2>한도</h2>
+    <div class="row"><button id="btnLim" class="ghost">조회</button><span id="limState" class="sub"></span></div>
+    <div id="limList"></div><div class="msg" id="limMsg"></div>
+  </section>
+
+  <section class="card" id="sNotice">
+    <h2>공지</h2>
+    <div class="row"><input id="nText" class="grow" maxlength="200" placeholder="공지 내용 (200자까지)"><button id="btnNotice">추가</button></div>
+    <div class="sub">삭제하려면 번호(id)가 필요해요. 추가하면 아래에 번호가 남아요.</div>
+    <ul class="nlist" id="nList"></ul>
+    <div class="row"><label for="nDel">번호로 삭제</label><input id="nDel" type="number" min="1"><button id="btnDelNotice" class="danger">삭제</button></div>
+    <div class="msg" id="nMsg"></div>
+  </section>
+
+  <section class="card" id="sCfg">
+    <h2>이벤트 · 스킬 · 일하기 한도</h2>
+    <div class="sub">값을 적은 칸만 보내요 (0~100000)</div>
+    <h2 style="margin-top:10px;font-size:14px">이벤트 (eventCfg)</h2>
+    <div class="row" id="evRow"></div><div class="row"><button id="btnEv">적용</button></div>
+    <h2 style="margin-top:10px;font-size:14px">스킬 (skillCap)</h2>
+    <div class="row" id="skRow"></div><div class="row"><button id="btnSk">적용</button></div>
+    <h2 style="margin-top:10px;font-size:14px">일하기 (setCap)</h2>
+    <div class="row" id="wkRow"></div><div class="row"><button id="btnWk">적용</button></div>
+    <div class="msg" id="cfgMsg"></div>
+  </section>
+
+  <section class="card" id="sClean">
+    <h2>정리</h2>
+    <div class="row"><button class="ghost" data-act="clearFx">스킬 효과 치우기</button><label>닉네임(비우면 전체)</label><input id="cFxN" class="grow"></div>
+    <div class="row"><button class="ghost" data-act="resetStructures">건물 치우기</button><label>닉네임(비우면 전체)</label><input id="cStN" class="grow"></div>
+    <div class="row"><button class="ghost" data-act="resetDepleted">고갈된 자원 되살리기</button><button class="ghost" data-act="clearCoins">코인 다시 놓기</button></div>
+    <div class="row"><button class="ghost" data-act="resetQuests">퀘스트 초기화</button><label>n(선택)</label><input id="cQn" class="grow" placeholder="비우면 서버 기본"></div>
+    <div class="msg" id="cMsg"></div>
+  </section>
+
+  <section class="card" id="sGrant">
+    <h2>보상 지급</h2>
+    <div class="row"><label for="gN">닉네임</label><input id="gN" class="grow"><label for="gNit">니트론</label><input id="gNit" type="number" value="0"></div>
+    <div class="st" id="gSt"></div>
+    <div class="row"><label for="gNote">사유 (필수)</label><input id="gNote" class="grow" maxlength="100"></div>
+    <div class="row"><button id="btnGrant">지급</button></div>
+    <div class="msg" id="gMsg"></div>
+  </section>
+
+  <section class="card" id="sRep">
+    <h2>보고</h2>
+    <div class="row"><button class="ghost" id="btnRepView">미리보기</button><button id="btnRepSend">텔레그램으로 보내기</button></div>
+    <pre id="repOut" hidden></pre><div class="msg" id="rMsg"></div>
+  </section>
+
+  <footer>화면 <span id="gver"></span></footer>
+</div>
+
+<dialog id="dlg"><p id="dlgText"></p><div class="row"><button class="ghost" id="dlgNo">취소</button><button id="dlgYes" class="danger">확인</button></div></dialog>
+
+<script>
+(function () {
+  'use strict';
+  var VER = 'v0.1.0';
+  var DEFAULT_API = 'https://jmb-world-beta.dlwjd.workers.dev';
+  var $ = function (id) { return document.getElementById(id); };
+  var KEY = '';   // 메모리에만 보관 (저장 · 로그 금지)
+  var STATS = ['힘', '손재주', '지혜', '매력', '체력'];
+  var TIMES = [['sell_daily', '판매/일'], ['fish_daily', '낚시/일'], ['pick_daily', '줍기/일'], ['fish_cd', '낚시 쿨(초)']];
+  var SKILL = [['person', '인당 동시'], ['world', '전체 동시'], ['daily', '하루 횟수'], ['bonk', '도토리/일']];
+  var WORK = [['gather', '채집'], ['stat', '능력치'], ['craft', '제작'], ['potion', '물약'], ['total', '건물수'], ['acc', '악세서리'], ['structs', '전체 건물']];
+  $('gver').textContent = VER;
+
+  var q = new URLSearchParams(location.search);
+  var api = q.get('api');
+  var local = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+  $('srv').value = (local && api) ? api : DEFAULT_API;
+
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function base() { return $('srv').value.trim().replace(/\/+$/, ''); }
+  function show(id, text, err) { var e = $(id); e.textContent = text || ''; e.className = 'msg' + (err ? ' err' : ''); }
+  function pretty(v) { return typeof v === 'string' ? v : JSON.stringify(v, null, 1).replace(/[\{\}\[\]",]/g, '').replace(/\n\s*\n/g, '\n').trim(); }
+
+  function admin(fn, a) {
+    if (!KEY) return Promise.reject(new Error('관리 키를 먼저 넣어 주세요'));
+    return fetch(base() + '/admin', { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8', 'x-admin-key': KEY }, body: JSON.stringify({ fn: fn, a: a || {} }) })
+      .then(function (r) { return r.json().catch(function () { throw new Error('서버 응답을 읽지 못했어요 (' + r.status + ')'); }); })
+      .then(function (j) { if (!j || !j.ok) throw new Error((j && j.e) || '서버 오류'); return j.r; }, function (e) { throw (e instanceof TypeError ? new Error('서버에 닿지 못했어요 (주소 · 네트워크 확인)') : e); });
+  }
+  function run(btn, msgId, fn, a, done) {
+    if (btn) btn.disabled = true;
+    show(msgId, '처리 중…');
+    return admin(fn, a).then(function (r) { show(msgId, (done ? done(r) : pretty(r))); return r; }, function (e) { show(msgId, e.message, true); }).then(function (r) { if (btn) btn.disabled = false; return r; });
+  }
+  var dlg = $('dlg'), dlgCb = null;
+  function confirmBox(text, cb) {
+    $('dlgText').textContent = text; dlgCb = cb;
+    if (dlg.showModal) dlg.showModal(); else if (window.confirm(text)) cb();
+  }
+  $('dlgNo').onclick = function () { dlgCb = null; dlg.close(); };
+  $('dlgYes').onclick = function () { var f = dlgCb; dlgCb = null; dlg.close(); if (f) f(); };
+  dlg.addEventListener('cancel', function () { dlgCb = null; });
+
+  $('key').addEventListener('input', function () { KEY = this.value.trim(); });
+
+  // ---- 연결 · 버전
+  $('btnPing').onclick = function () {
+    var b = this; b.disabled = true; var t0 = Date.now();
+    fetch(base() + '/ping').then(function (r) { return r.json(); }).then(function (j) {
+      $('conn').textContent = '연결됨 ' + (Date.now() - t0) + 'ms'; $('conn').className = 'pill';
+      $('ver').textContent = '서버 ' + (j.ver || '?');
+    }).catch(function () { $('conn').textContent = '연결 안 됨'; $('conn').className = 'pill bad'; $('ver').textContent = ''; })
+      .then(function () { b.disabled = false; });
+  };
+
+  // ---- 사용량
+  var CAPS = null;
+  function usagePct(row, cap) { return cap ? Math.round(row.total * 1000 / cap) / 10 : 0; }
+  $('btnUsage').onclick = function () {
+    var b = this; b.disabled = true; show('uMsg', '불러오는 중…');
+    admin('usage', { days: Number($('uDays').value) }).then(function (r) {
+      show('uMsg', ''); var cap = (r.state && r.state.limits && r.state.limits.req_cap && r.state.limits.req_cap.value) || 0;
+      var days = (r.days || []).slice().reverse(), max = Math.max.apply(null, days.map(function (d) { return d.total; }).concat([cap ? cap * .1 : 1, 1]));
+      var h = '', today = days[days.length - 1];
+      if (today) {
+        var p = usagePct(today, cap);
+        h += '<div class="sub">오늘(UTC ' + esc(today.day) + ') ' + today.total.toLocaleString() + ' / ' + cap.toLocaleString() + ' (' + p + '%) · 모드 ' + esc(r.state && r.state.level != null ? r.state.level : '-') + '</div>';
+        h += '<div class="meter"><i style="width:' + Math.min(100, p) + '%;background:' + (p >= 80 ? 'var(--bar3)' : p >= 50 ? 'var(--bar2)' : 'var(--bar)') + '"></i></div>';
+      }
+      h += '<div class="bars">' + days.map(function (d) {
+        var p = usagePct(d, cap), hh = Math.max(2, Math.round(d.total / max * 100));
+        return '<div class="bar" title="' + esc(d.day) + ' ' + d.total + '"><b>' + (cap ? p + '%' : d.total) + '</b><i class="' + (p >= 80 ? 'h' : p >= 50 ? 'm' : '') + '" style="height:' + hh + '%"></i></div>';
+      }).join('') + '</div><div class="lbl">' + days.map(function (d) { return '<span>' + esc(String(d.day).slice(5)) + '</span>'; }).join('') + '</div>';
+      h += '<div class="scroll" style="margin-top:10px"><table><tr><th>날짜</th><th>전체</th><th>위치</th><th>내정보</th><th>일하기</th><th>기타</th><th>ping</th><th>관리</th><th>거절</th></tr>' +
+        (r.days || []).map(function (d) { return '<tr><td>' + esc(d.day) + '</td><td>' + d.total + '</td><td>' + d.pos + '</td><td>' + d.me + '</td><td>' + d.work + '</td><td>' + d.other + '</td><td>' + d.ping + '</td><td>' + d.admin + '</td><td>' + d.limited + '</td></tr>'; }).join('') + '</table></div>';
+      if (r.caps) h += '<div class="sub" style="margin-top:6px">무료 한도(계정 하루): 요청 ' + (r.caps.worker || 0).toLocaleString() + ' · D1 읽기 ' + (r.caps.d1read || 0).toLocaleString() + ' · D1 쓰기 ' + (r.caps.d1write || 0).toLocaleString() + '</div>';
+      $('uBody').innerHTML = h; CAPS = r.caps; if (r.state) drawLimits(r.state);
+    }, function (e) { show('uMsg', e.message, true); }).then(function () { b.disabled = false; });
+  };
+
+  // ---- 한도
+  function drawLimits(s) {
+    $('limState').textContent = '모드 ' + (s.level != null ? s.level : '-') + (s.today != null ? ' · 오늘 ' + (typeof s.today === 'object' && s.today ? Number(s.today.total || 0).toLocaleString() : s.today) : '');
+    var h = '';
+    Object.keys(s.limits || {}).forEach(function (k) {
+      var l = s.limits[k], pct = l.def === l.value ? '' : ' <span class="pill">기본 ' + esc(l.def) + '</span>';
+      h += '<div class="lim"><span class="k">' + esc(k) + pct + '</span><span class="in"><input type="number" step="any" data-lk="' + esc(k) + '" value="' + esc(l.value) + '" min="' + esc(l.min) + '" max="' + esc(l.max) + '"><button class="ghost" data-set="' + esc(k) + '">저장</button></span><span class="d">' + esc(l.d) + ' (' + esc(l.min) + '~' + esc(l.max) + ')</span></div>';
+    });
+    $('limList').innerHTML = h || '<div class="sub">한도 정보가 없어요</div>';
+  }
+  $('btnLim').onclick = function () {
+    var b = this; b.disabled = true; show('limMsg', '불러오는 중…');
+    admin('getLimits').then(function (r) { show('limMsg', ''); drawLimits(r); }, function (e) { show('limMsg', e.message, true); }).then(function () { b.disabled = false; });
+  };
+  $('limList').addEventListener('click', function (ev) {
+    var k = ev.target.getAttribute && ev.target.getAttribute('data-set'); if (!k) return;
+    var inp = $('limList').querySelector('[data-lk="' + k + '"]'), v = Number(inp.value);
+    if (inp.value === '' || !isFinite(v)) { show('limMsg', '숫자를 넣어 주세요', true); return; }
+    var go = function () { run(ev.target, 'limMsg', 'setLimit', { key: k, value: v }, function (r) { drawLimits(r); return k + ' = ' + v + ' 로 바꿨어요'; }); };
+    if (k === 'pos_on' || k === 'req_cap') confirmBox(k + ' 를 ' + v + ' 로 바꿀까요?\n모든 사용자에게 바로 적용돼요.', go); else go();
+  });
+
+  // ---- 공지
+  var notices = [];
+  function drawNotices() {
+    $('nList').innerHTML = notices.map(function (n) { return '<li><span class="pill">#' + n.id + '</span><span>' + esc(n.text) + '</span><button class="ghost" data-del="' + n.id + '">삭제</button></li>'; }).join('');
+  }
+  $('btnNotice').onclick = function () {
+    var t = $('nText').value.trim(); if (!t) { show('nMsg', '공지 내용을 적어 주세요', true); return; }
+    confirmBox('모든 사용자에게 보이는 공지를 추가할까요?\n\n' + t, function () {
+      run($('btnNotice'), 'nMsg', 'notice', { text: t }, function (r) { notices.unshift({ id: r.id, text: t }); drawNotices(); $('nText').value = ''; return '공지 #' + r.id + ' 를 추가했어요'; });
+    });
+  };
+  function delNotice(id, btn) {
+    confirmBox('공지 #' + id + ' 를 삭제할까요?', function () {
+      run(btn, 'nMsg', 'delNotice', { id: id }, function () { notices = notices.filter(function (n) { return n.id !== id; }); drawNotices(); return '공지 #' + id + ' 를 삭제했어요'; });
+    });
+  }
+  $('nList').addEventListener('click', function (ev) { var id = ev.target.getAttribute && ev.target.getAttribute('data-del'); if (id) delNotice(Number(id), ev.target); });
+  $('btnDelNotice').onclick = function () { var id = Math.trunc(Number($('nDel').value)); if (!(id > 0)) { show('nMsg', '번호를 넣어 주세요', true); return; } delNotice(id, this); };
+
+  // ---- 한도 칸 (eventCfg · skillCap · setCap)
+  function fields(rowId, defs) {
+    $(rowId).innerHTML = defs.map(function (d) { return '<label>' + esc(d[1]) + '<br><input type="number" min="0" max="100000" data-f="' + d[0] + '" placeholder="' + d[0] + '"></label>'; }).join('');
+  }
+  fields('evRow', TIMES); fields('skRow', SKILL); fields('wkRow', WORK);
+  function sendCfg(btn, rowId, fn, title) {
+    var a = {}, n = 0;
+    $(rowId).querySelectorAll('input').forEach(function (i) { if (i.value !== '') { a[i.getAttribute('data-f')] = Math.trunc(Number(i.value)); n++; } });
+    if (!n) { show('cfgMsg', '바꿀 칸에 값을 적어 주세요', true); return; }
+    confirmBox(title + ' 를 바꿀까요?\n' + JSON.stringify(a), function () {
+      run(btn, 'cfgMsg', fn, a, function (r) { $(rowId).querySelectorAll('input').forEach(function (i) { i.value = ''; }); return title + ' 적용됨\n' + pretty(r); });
+    });
+  }
+  $('btnEv').onclick = function () { sendCfg(this, 'evRow', 'eventCfg', '이벤트 한도'); };
+  $('btnSk').onclick = function () { sendCfg(this, 'skRow', 'skillCap', '스킬 한도'); };
+  $('btnWk').onclick = function () { sendCfg(this, 'wkRow', 'setCap', '일하기 한도'); };
+
+  // ---- 정리
+  var CLEAN = {
+    clearFx: ['스킬 효과', function () { var n = $('cFxN').value.trim(); return n ? { n: n } : {}; }, function () { var n = $('cFxN').value.trim(); return n ? n + ' 님의 스킬 효과를 치울까요?' : '모든 사람의 스킬 효과를 치울까요?'; }],
+    resetStructures: ['건물', function () { var n = $('cStN').value.trim(); return n ? { n: n } : {}; }, function () { var n = $('cStN').value.trim(); return (n ? n + ' 님의' : '모든 사람의') + ' 건물을 치울까요?\n되돌릴 수 없어요 (재료 환급 없음).'; }],
+    resetDepleted: ['고갈 자원', function () { return {}; }, function () { return '고갈된 나무 · 돌 · 풀을 모두 되살릴까요?'; }],
+    clearCoins: ['코인', function () { return {}; }, function () { return '주워 간 기록을 지워 지금 코인을 다시 놓을까요?'; }],
+    resetQuests: ['퀘스트', function () { var n = $('cQn').value.trim(); return n === '' ? {} : { n: n }; }, function () { return '오늘의 퀘스트 진행을 초기화할까요?'; }]
+  };
+  $('sClean').addEventListener('click', function (ev) {
+    var act = ev.target.getAttribute && ev.target.getAttribute('data-act'); if (!act) return;
+    var c = CLEAN[act], btn = ev.target;
+    confirmBox(c[2](), function () { run(btn, 'cMsg', act, c[1](), function (r) { return c[0] + ' 정리 완료\n' + pretty(r); }); });
+  });
+
+  // ---- 보상 지급
+  $('gSt').innerHTML = STATS.map(function (k) { return '<label>' + k + '<input type="number" data-st="' + k + '" placeholder="0"></label>'; }).join('');
+  $('btnGrant').onclick = function () {
+    var n = $('gN').value.trim(), nit = Math.trunc(Number($('gNit').value) || 0), note = $('gNote').value.trim(), st = {}, sum = [];
+    $('gSt').querySelectorAll('input').forEach(function (i) { var v = Math.trunc(Number(i.value) || 0); if (v) { st[i.getAttribute('data-st')] = v; sum.push(i.getAttribute('data-st') + ' ' + (v > 0 ? '+' : '') + v); } });
+    if (!n) { show('gMsg', '닉네임을 넣어 주세요', true); return; }
+    if (!note) { show('gMsg', '사유를 꼭 적어 주세요 (기록에 남아요)', true); return; }
+    if (!nit && !sum.length) { show('gMsg', '지급할 니트론이나 능력치를 넣어 주세요', true); return; }
+    var b = this;
+    confirmBox(n + ' 님에게 지급할까요?\n니트론 ' + nit + (sum.length ? '\n' + sum.join(' · ') : '') + '\n사유: ' + note, function () {
+      run(b, 'gMsg', 'grant', { n: n, nit: nit, st: st, note: note }, function (r) { return n + ' 님에게 지급했어요\n' + pretty(r); });
+    });
+  };
+
+  // ---- 보고
+  function report(send, btn) {
+    show('rMsg', '처리 중…'); btn.disabled = true;
+    admin('reportNow', { send: send }).then(function (r) {
+      var o = $('repOut'); o.hidden = false; o.textContent = typeof r === 'string' ? r : (r && r.text) || JSON.stringify(r, null, 1);
+      show('rMsg', send ? '보고를 보냈어요' : '미리보기예요 (보내지 않았어요)');
+    }, function (e) { show('rMsg', e.message, true); }).then(function () { btn.disabled = false; });
+  }
+  $('btnRepView').onclick = function () { report(false, this); };
+  $('btnRepSend').onclick = function () { var b = this; confirmBox('오늘 사용량 보고를 텔레그램으로 보낼까요?', function () { report(true, b); }); };
+})();
+</script>
+</body>
+</html>
