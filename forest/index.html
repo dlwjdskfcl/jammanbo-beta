@@ -464,6 +464,7 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
   for (y = 0; y < H; y++) for (x = 0; x < W; x++) { var tt = terr[y][x]; if (tt === FA) falls.push([x, y]); else if (tt === WA) { waterCells.push([x, y]); if (hash(x, y, 7) < .35) sparks.push([x * T + Math.floor(hash(x, y, 8) * 14), y * T + Math.floor(hash(x, y, 9) * 14), hash(x, y, 10) * 6.28]); } }
   var cache = {};
   function sprite(w, h, fn) { var c = mk(w, h), q = c.getContext('2d'); fn(q); return c; }
+  var shadowLo = sprite(16, 8, function (q) { q.fillStyle = 'rgba(20,50,20,.3)'; q.beginPath(); q.ellipse(8, 4, 6, 2.2, 0, 0, 6.3); q.fill(); }), shadowHi = sprite(16, 8, function (q) { q.fillStyle = 'rgba(20,50,20,.22)'; q.beginPath(); q.ellipse(8, 4, 7, 2.6, 0, 0, 6.3); q.fill(); });   // 캐릭터 그림자 (매 프레임 path 대신 그림 한 장)
   var chunks = {};
   function getChunk(cx, cy) {
     var key = cx + ',' + cy; if (chunks[key]) return chunks[key];
@@ -607,18 +608,18 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
   clockEl.onclick = function () { timeMode = timeMode === 'auto' ? 'day' : timeMode === 'day' ? 'night' : 'auto'; if (timeMode === 'day') hour = 12; if (timeMode === 'night') hour = 23; };
 
   // ---------- 화면 · 카메라 (기본: 화면을 꽉 채움 / ⤢ 로 전체 보기) ----------
-  var view = document.getElementById('view'), vctx = view.getContext('2d'), bar = document.getElementById('bar');
-  var vw = 0, vh = 0, barH = 40, botH = 0, dpr = 1, sFit = 1, sFill = 1, zoom = 1, camX = PW / 2, camY = PH / 2, fitMode = 'fill';
+  var view = document.getElementById('view'), vctx = view.getContext('2d', { alpha: false }), bar = document.getElementById('bar');
+  var vw = 0, vh = 0, barH = 40, botH = 0, dpr = 1, dprGov = 2, sFit = 1, sFill = 1, zoom = 1, camX = PW / 2, camY = PH / 2, fitMode = 'fill';
   function baseScale() { return fitMode === 'fill' ? sFill : sFit; }
   function scaleNow() { return baseScale() * zoom; }
   function layout() {
     var tbEl = document.getElementById('tabs'); botH = tbEl ? tbEl.offsetHeight : 0;   // 아래 탭 바 만큼 그림 영역을 줄임
     document.documentElement.style.setProperty('--tabH', botH + 'px'); view.style.height = '';
     vw = window.innerWidth; var vvh = window.visualViewport && window.visualViewport.height, kbOpen = !!vvh && window.innerHeight - vvh > 120;   // 키보드가 올라오면 탭 바는 키보드 밑이라 또 빼지 않음
-    vh = (vvh || window.innerHeight) - (kbOpen ? 0 : botH); view.style.height = vh + 'px'; dpr =Math.max(1, Math.min(2, window.devicePixelRatio || 1, Math.sqrt(900000 / (vw * vh)))); barH = bar.offsetHeight;
+    vh = (vvh || window.innerHeight) - (kbOpen ? 0 : botH); view.style.height = vh + 'px'; barH = bar.offsetHeight; sFit = Math.min(vw / PW, (vh - barH) / PH); sFill = Math.max(vw / PW, (vh - barH) / PH);
+    dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1, Math.sqrt(900000 / (vw * vh)), photo ? 2 : Math.min(dprGov, 1 / baseScale())));   // 도트 1칸 = 화면 1픽셀이면 더 촘촘히 그려도 이득이 없음(더 빨라지고 또렷함) · dprGov = 느린 기기에서 프레임이 모자라면 낮춰 가는 해상도 상한 (사진 모드는 제외) barH = bar.offsetHeight;
     document.documentElement.style.setProperty('--barH', barH + 'px');
     view.width = Math.round(vw * dpr); view.height = Math.round(vh * dpr);
-    sFit = Math.min(vw / PW, (vh - barH) / PH); sFill = Math.max(vw / PW, (vh - barH) / PH);
     var tp = document.getElementById('tip'); if (tp) tp.textContent = vw < 560 ? (vh > vw ? '꾹 눌러 옮기기 · 두 손가락 확대 · 끌어서 이동' : '꾹 눌러 옮기기 · 두 손가락 확대') : '캐릭터를 꾹 눌러 들어서 옮겨 보세요 · 두 손가락(또는 휠)으로 확대 · 끌어서 이동';
     clampCam();
   }
@@ -747,7 +748,7 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
 
   // ---------- 2단계: 일하기 · 만들기 · 함께 보기 · 게시판 · 사진 ----------
   // 서버 기능(work · presence)은 응답이 없거나 '알 수 없는 요청'이면 그 기능만 조용히 숨김 (1단계 동작은 그대로)
-  var VER = '2.3.0'; document.getElementById('gver').textContent = '화면 v' + VER;
+  var VER = '2.3.1'; document.getElementById('gver').textContent = '화면 v' + VER;
   var nowMs = Date.now(), animF = 0, actT = 0, depN = 0, photo = false, photoHide = false, shotReq = false;
   var DIRS = ['down', 'right', 'up', 'left'];
   var feat = { work: null, pos: null, board: null, streak: null, skill: null, shop: null, fish: null, coins: null, meteor: null };
@@ -1417,6 +1418,7 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
   }
   function setWeather(k) { wxForce = k || null; wxMode = wxForce || weatherByTime(); updateFab(); }   // #dbg 에서만 쓰는 임의 선택
   var WXICO = { clear: '☀️', rain: '🌧', snow: '❄️', fog: '🌫' };
+  var rainSp = sprite(10, 20, function (q) { q.strokeStyle = 'rgba(215,232,255,1)'; q.lineWidth = 2.4; q.beginPath(); q.moveTo(8, 2); q.lineTo(2, 18); q.stroke(); });
   var rainD = [], snowD = [], fogB = [], fogSp = sprite(256, 180, function (q) { var gr = q.createRadialGradient(128, 90, 0, 128, 90, 128); gr.addColorStop(0, 'rgba(238,243,246,.55)'); gr.addColorStop(1, 'rgba(238,243,246,0)'); q.save(); q.scale(1, .7); q.fillStyle = gr; q.fillRect(0, 0, 256, 256); q.restore(); });
   function wxParts() {
     var n = clamp(Math.round(vw * vh / 6500), 24, 64);
@@ -1428,12 +1430,12 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
     var tgt2 = wxOn && !meteorOn() ? 1 : 0; wxLevel += clamp(tgt2 - wxLevel, -dt * .8, dt * .8);
     q.setTransform(dpr, 0, 0, dpr, 0, 0);
     if (wxLevel > .02 && wxMode !== 'clear') {
-      wxParts(); var L = wxLevel, i4, p;
+      wxParts(); var L = wxLevel, i4, p, rn;
       if (wxMode === 'rain') {
         q.fillStyle = 'rgba(40,60,95,' + (.2 * L).toFixed(3) + ')'; q.fillRect(0, 0, vw, vh);
-        q.strokeStyle = 'rgba(215,232,255,' + (.8 * L).toFixed(3) + ')'; q.lineWidth = 1.2; q.beginPath();
-        for (i4 = 0; i4 < rainD.length; i4++) { p = rainD[i4]; p.y += 520 * p.s * dt; p.x -= 130 * p.s * dt; if (p.y > vh) { p.y = -12; p.x = RR() * (vw + 60); } if (p.x < -8) p.x += vw + 16; var rx = Math.round(p.x), ry = Math.round(p.y); q.moveTo(rx, ry); q.lineTo(rx - 2, ry + 8); }
-        q.stroke();
+        q.globalAlpha = .8 * L;   // 빗줄기: 긴 path 하나(화면 전체 범위)를 AA 로 칠하면 느려서 작은 그림 한 장씩
+        for (i4 = 0, rn = Math.ceil(rainD.length * .6); i4 < rn; i4++) { p = rainD[i4]; p.y += 520 * p.s * dt; p.x -= 130 * p.s * dt; if (p.y > vh) { p.y = -12; p.x = RR() * (vw + 60); } if (p.x < -8) p.x += vw + 16; q.drawImage(rainSp, Math.round(p.x) - 3, Math.round(p.y) - 1, 5, 10); }
+        q.globalAlpha = 1;
       } else if (wxMode === 'snow') {
         q.fillStyle = 'rgba(232,240,255,' + (.08 * L).toFixed(3) + ')'; q.fillRect(0, 0, vw, vh);
         q.fillStyle = 'rgba(255,255,255,' + (.92 * L).toFixed(3) + ')';
@@ -2962,12 +2964,67 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
   document.getElementById('cnt').textContent = chars.length + '명';
   window.SCENE_CHARS = chars; window.SCENE_API = { toScreen: toScreen, toWorld: toWorld, view: view, byName: byName, state: function () { return { zoom: zoom, fit: fitMode, sFit: sFit, sFill: sFill, vw: vw, vh: vh, barH: barH, botH: botH, hour: hour, held: !!held, pts: pts.length, chunks: Object.keys(chunks).length, me: me && me.n, net: net.ok }; } };
   if (location.hash === '#dbg') window.SCENE_API._e = function (s) { return eval(s); };   // 시험 전용 (주소 끝에 #dbg 를 붙였을 때만)
+  // ----- 움직이지 않는 물건(나무 · 덤불 · 바위 · 가로등 · 집 …)은 그림 한 장(oLay)에 구워 두고 프레임마다 한 번에 그림 -----
+  // 캐릭터 · 움직이는 물건은 그 위에 그리고, 캐릭터보다 '앞'(by 가 더 큼)에 있는 물건만 캐릭터 위에 다시 덮어 그림(occl) → 겹침 순서는 예전과 같음.
+  // 물건 상태(채집으로 베어짐 · 흔들림)나 목록이 바뀌면 바뀐 자리만 지우고 다시 구움.
+  var oLay = null, oQ = null, oFor = null, oBk = [], oLive = [];
+  var rippleC = {};   // 물결 고리: 반지름(0.5 단위)마다 점 24개를 한 번만 찍어 둔 그림 (예전엔 프레임마다 점 24번씩 fillRect → 비 오는 날 300번 넘게)
+  function rippleSp(rad) {
+    var key = Math.round(rad * 2); if (rippleC[key]) return rippleC[key];
+    var r2 = key / 2, cx = Math.ceil(r2) + 2, cy = Math.ceil(r2 * .55) + 2, c = sprite(cx * 2 + 1, cy * 2 + 1, function (q) { q.fillStyle = '#e8f8ff'; for (var an = 0; an < 24; an++) { var th = an / 24 * 6.283; q.fillRect(cx + Math.round(Math.cos(th) * r2), cy + Math.round(Math.sin(th) * r2 * .55), 1, 1); } });
+    c.cx = cx; c.cy = cy; return rippleC[key] = c;
+  }
+  function objImg_(o) { return (depN && o.res && depImg(o)) || getObj(o); }
+  function objRect_(o, im) { var X = Math.round(o.tx * T + 8 - im.width / 2 + o.ox + (o.kind === 'log' ? 8 : o.kind === 'cottage' ? 16 : 0)), Y = Math.round(o.by - im.height); return [X, Y, X + im.width, Y + im.height]; }
+  function objKey_(o) { return o.kind + '|' + o.tx + '|' + o.ty + '|' + (o.id || '') + '|' + (o.k || '') + '|' + o.ox + '|' + o.v + '|' + o.seed + '|' + o.by; }
+  function objSync() {
+    var i, o, dirty = [], chg = false, all = allObjs;
+    if (!oLay) { oLay = mk(PW, PH); oQ = oLay.getContext('2d'); }
+    if (all !== oFor) {   // 목록이 새로 만들어짐 → 같은 물건은 상태를 물려받고, 사라진 · 새로 생긴 자리만 다시 구움
+      var om = {}, k; if (oFor) for (i = 0; i < oFor.length; i++) om[objKey_(oFor[i])] = oFor[i];
+      for (i = 0; i < all.length; i++) {
+        o = all[i]; k = objKey_(o); var od = om[k];
+        o._d = o.kind.slice(0, 2) === 'N:' || (o.kind.slice(0, 2) === 'S:' && !!SDEF[o.k] && !!SDEF[o.k].fr);
+        if (od) { delete om[k]; o._st = od._st; o._bk = od._bk; o._bi = od._bi; o._r = od._r; } else { o._st = -1; o._bk = false; o._bi = null; o._r = null; }
+      }
+      for (k in om) if (om[k]._bk && om[k]._r) dirty.push(om[k]._r);
+      oFor = all; chg = true;
+    }
+    oLive.length = 0;
+    for (i = 0; i < all.length; i++) {
+      o = all[i];
+      if (o._d) { oLive.push(o); continue; }
+      var st = (o.rk && shk[o.rk] ? 2 : 0) | (depN && o.res && dep[o.rk] > nowMs ? 1 : 0), im = null;
+      if (o._st !== st || (o._bk && o.kind.charAt(0) === 'S' && o.kind.charAt(1) === ':' && (im = getObj(o)) !== o._bi)) {
+        if (o._bk && o._r) dirty.push(o._r);
+        o._st = st; chg = true;
+        if (st & 2) o._bk = false; else { im = objImg_(o); o._bi = im; o._r = objRect_(o, im); o._bk = true; dirty.push(o._r); }
+      }
+      if (!o._bk) oLive.push(o);
+    }
+    if (!chg) return;
+    oBk = all.filter(function (q) { return q._bk; });
+    if (dirty.length > 30) { oQ.clearRect(0, 0, PW, PH); oBk.forEach(function (q) { oQ.drawImage(q._bi, q._r[0], q._r[1]); }); return; }
+    dirty.forEach(function (r) {
+      oQ.save(); oQ.beginPath(); oQ.rect(r[0], r[1], r[2] - r[0], r[3] - r[1]); oQ.clip(); oQ.clearRect(r[0], r[1], r[2] - r[0], r[3] - r[1]);
+      for (var j = 0; j < oBk.length; j++) { var q = oBk[j], qr = q._r; if (qr[0] < r[2] && qr[2] > r[0] && qr[1] < r[3] && qr[3] > r[1]) oQ.drawImage(q._bi, qr[0], qr[1]); }
+      oQ.restore();
+    });
+  }
+  // 해상도 조절: 1초 평균이 38FPS 아래로 2번 이어지면 그림 해상도(dpr)를 줄임 (소프트웨어 그리기 · 느린 폰). 올리지는 않음(깜빡임 방지), 사진 모드는 항상 원래 해상도
+  var govLow = 0;
+  function govTick(fv, dtv, now) {
+    if (now - T0 < 3000 || bq.length || dtv > 1600 || paused || photo || document.visibilityState !== 'visible' || dpr <= 1.05) { govLow = 0; return; }
+    if (fv >= 38) { govLow = 0; return; }
+    if (++govLow < 2) return;
+    govLow = 0; dprGov = Math.max(1, dpr * Math.sqrt(Math.max(.5, fv / 44))); layout();
+  }
   function frame(now) {
     nowMs = Date.now(); animF = Math.floor(now / 330) % 2; if (now - actT > 250) { actT = now; refreshAct(); }
     var dt = clamp((now - last) / 1000, 0, .1); last = now; if (paused) dt = 0; var t = Math.max(0, (now - T0) / 1000);
-    fpsN++; if (now - fpsT >= 1000) { fpsEl.textContent = 'FPS ' + Math.round(fpsN * 1000 / (now - fpsT)); fpsN = 0; fpsT = now; }
+    fpsN++; if (now - fpsT >= 1000) { var fpsV = fpsN * 1000 / (now - fpsT), fpsDt = now - fpsT; fpsEl.textContent = 'FPS ' + Math.round(fpsV); fpsN = 0; fpsT = now; govTick(fpsV, fpsDt, now); }
     if (timeMode === 'auto') hour = (hour + dt * .1) % 24;
-    stage4Tick(dt); chunkBudget = 1; fbTick(dt);
+    stage4Tick(dt); chunkBudget = 1; fbTick(dt); objSync();
     if (bq.length) { var bt0 = performance.now(), bi = bq.indexOf(meChar); if (bi < 0) for (var bj = 0; bj < bq.length; bj++) if (vis4(bq[bj])) { bi = bj; break; } do { var bc = bq.splice(bi < 0 ? 0 : bi, 1)[0]; bi = -1; if (bc.bq) buildFrames(bc, true); } while (bq.length && performance.now() - bt0 < 5); }
     var t3 = tintAt(hour), dark = clamp((1 - (t3[0] + t3[1] + t3[2]) / 765) / .5, 0, 1), day = 1 - dark;
     var hh = Math.floor(hour), mm = Math.floor((hour - hh) * 60), cs = (hour >= 6 && hour < 18 ? '☀️' : '🌙') + ' ' + (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + (mm - mm % 10) + (timeMode === 'auto' ? '' : timeMode === 'day' ? ' 낮' : ' 밤');
@@ -3016,7 +3073,7 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
     // ----- 화면에 바로 그리기 (카메라 변환 + 보이는 청크만) -----
     var s = scaleNow(), ahc = barH + (vh - barH) / 2, ox = vw / 2 - camX * s, oy = ahc - camY * s;
     var vx0 = camX - vw / 2 / s - 40, vx1 = camX + vw / 2 / s + 40, vy0 = camY - (ahc) / s - 40, vy1 = camY + (vh - ahc) / s + 40;
-    var wc = vctx; wc.setTransform(1, 0, 0, 1, 0, 0); wc.fillStyle = '#10261c'; wc.fillRect(0, 0, view.width, view.height);
+    var wc = vctx; wc.setTransform(1, 0, 0, 1, 0, 0); if (ox > 0 || oy > 0 || ox + PW * s < vw || oy + PH * s < vh) { wc.fillStyle = '#10261c'; wc.fillRect(0, 0, view.width, view.height); }   // 땅이 화면을 다 덮으면 배경 칠하기 생략
     wc.setTransform(s * dpr, 0, 0, s * dpr, ox * dpr, oy * dpr); wc.imageSmoothingEnabled = false;
     var CP = CHK * T;
     for (var cy = Math.max(0, Math.floor(vy0 / CP)); cy <= Math.min(Math.floor((H - 1) * T / CP), Math.floor(vy1 / CP)); cy++) for (var cx = Math.max(0, Math.floor(vx0 / CP)); cx <= Math.min(Math.floor((W - 1) * T / CP), Math.floor(vx1 / CP)); cx++) {
@@ -3025,7 +3082,7 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
     function vis(px_, py_) { return px_ > vx0 && px_ < vx1 && py_ > vy0 && py_ < vy1 + 60; }
     falls.forEach(function (f) { if (!vis(f[0] * T, f[1] * T)) return; for (var k = 0; k < 5; k++) { var sx = f[0] * T + 1 + k * 3, off = Math.floor((t * 22 + k * 5 + f[1] * 3) % 16); rect(wc, sx, f[1] * T + off, 2, 7, '#e8f6ff'); rect(wc, sx + 1, f[1] * T + (off + 8) % 16, 1, 5, '#8fd3f7'); } });
     sparks.forEach(function (sp) { if (vis(sp[0], sp[1]) && Math.sin(t * 1.6 + sp[2]) > .88) rect(wc, sp[0], sp[1], 2, 1, '#e4f7ff'); });
-    ripples.forEach(function (r) { var u = r.t / (r.big ? 1.3 : 1.6), rad = 2 + u * (r.big ? 12 : 8); wc.globalAlpha = (1 - u) * .85; for (var an = 0; an < 24; an++) { var th = an / 24 * 6.283; px(wc, Math.round(r.x + Math.cos(th) * rad), Math.round(r.y + Math.sin(th) * rad * .55), '#e8f8ff'); } wc.globalAlpha = 1; });
+    ripples.forEach(function (r) { var u = r.t / (r.big ? 1.3 : 1.6), rad = 2 + u * (r.big ? 12 : 8); wc.globalAlpha = (1 - u) * .85; var rsp = rippleSp(rad); wc.drawImage(rsp, Math.round(r.x) - rsp.cx, Math.round(r.y) - rsp.cy); wc.globalAlpha = 1; });
     drawGroundFx(wc, t, vx0, vx1, vy0, vy1);
     if (held) {   // 놓을 자리 표시 (초록 = 땅 · 파랑 = 물(헤엄) · 빨강 = 막힘)
       var hcx = clamp(Math.floor(held.hx / T), 0, W - 1), hcy = clamp(Math.floor(held.hy / T), 0, H - 1), ok = walk[hcy][hcx], wat = isW(terr[hcy][hcx]);
@@ -3043,6 +3100,7 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
         wc.fillStyle = c.skin; wc.fillRect(Math.round(gx) + (stroke ? -8 : -9), Math.round(gy - 2 + bob), 2, 1); wc.fillRect(Math.round(gx) + (stroke ? 7 : 8), Math.round(gy - 3 + bob), 2, 1);
         wc.globalAlpha = .9; wc.fillStyle = '#e8f8ff'; for (var wv = -6; wv <= 5; wv += 4) wc.fillRect(Math.round(gx) + wv + ((Math.floor(c.swim.t * 5) + wv) % 2), Math.round(gy - 1), 3, 1); wc.globalAlpha = 1;
         wc.fillStyle = 'rgba(80,170,230,.55)'; wc.fillRect(Math.round(gx) - 8, Math.round(gy), 16, 3);
+        occl(gx - 16, gy - 24, gx + 16, gy + 6, c.y + 1);
         return;
       }
       if (c.held) { gx = c.hx; gy = c.hy; lift = 11 + Math.sin(t * 9) * 1.5; img = c.fr.down[Math.floor(t * 8) % 2 ? 1 : 3]; }
@@ -3053,7 +3111,7 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
       else if (c.work) { img = c.fr[c.dir][0]; lift = workLift(c); }
       else img = frameOf(c);
       if (photo) { } else if (c === meChar) { var pr = 8 + Math.sin(t * 4) * 1.2; wc.strokeStyle = 'rgba(255,216,107,.95)'; wc.lineWidth = 1; wc.beginPath(); wc.ellipse(Math.round(gx), Math.round(gy), pr, pr * .38, 0, 0, 6.3); wc.stroke(); }   // 내 캐릭터 강조 고리
-      wc.fillStyle = 'rgba(20,50,20,' + (lift ? .22 : .3) + ')'; wc.beginPath(); wc.ellipse(Math.round(gx), Math.round(gy), lift ? 7 : 6, lift ? 2.6 : 2.2, 0, 0, 6.3); wc.fill();
+      wc.drawImage(lift ? shadowHi : shadowLo, Math.round(gx) - 8, Math.round(gy) - 4);
       wc.drawImage(img, Math.round(gx - 8), Math.round(gy - 15 - lift)); fbDeco(wc, c, img, gx, gy, lift, t);
       if (pz) drawSkillProps(wc, c, gx, gy, pz);
       if (c.work) drawTool(wc, c, gx, gy, lift);
@@ -3061,10 +3119,19 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
       if (sitNow) drawSitFeet(wc, c, gx, gy + 1, t);
       if (c.emo && now > c.emo.until) c.emo = null; if (c.emo) drawEmote(wc, c.emo.k, gx, gy - 27 - lift, t);
       if (!photo && c === meChar) { var ay = Math.round(gy - 24 - lift + Math.sin(t * 5) * 1.5); wc.fillStyle = '#ffd86b'; wc.fillRect(Math.round(gx) - 2, ay, 5, 1); wc.fillRect(Math.round(gx) - 1, ay + 1, 3, 1); wc.fillRect(Math.round(gx), ay + 2, 1, 1); }   // 머리 위 ▼
+      if (!c.held) occl(gx - 16, gy - 52 - lift, gx + 16, gy + 6, c.y + 1);
     }
+    var lx0 = Math.max(0, Math.floor(vx0)), ly0 = Math.max(0, Math.floor(vy0)), lx1 = Math.min(PW, Math.ceil(vx1)), ly1 = Math.min(PH, Math.ceil(vy1 + 70));
+    if (lx1 > lx0 && ly1 > ly0) wc.drawImage(oLay, lx0, ly0, lx1 - lx0, ly1 - ly0, lx0, ly0, lx1 - lx0, ly1 - ly0);   // 구워 둔 물건
+    function occl(x0, y0, x1, y1, yb) {   // yb 보다 앞(by 가 큼)에 있는 구운 물건 중 (x0..x1, y0..y1) 와 겹치는 것을 다시 덮어 그림
+      var a = oBk, lo = 0, hi = a.length, m;
+      while (lo < hi) { m = (lo + hi) >> 1; if (a[m].by <= yb) lo = m + 1; else hi = m; }
+      for (var i = lo; i < a.length; i++) { var o = a[i]; if (o.by - 100 > y1) break; var r = o._r; if (r[0] < x1 && r[2] > x0 && r[1] < y1 && r[3] > y0) wc.drawImage(o._bi, r[0], r[1]); }
+    }
+    function drawLive(o) { drawObj(o); var im = objImg_(o), r = objRect_(o, im); if (r[0] < vx1 && r[2] > vx0 && r[1] < vy1 && r[3] > vy0) occl(r[0], r[1], r[2], r[3], o.by); }
     var cs2 = chars.filter(function (c) { return !c.held; }).sort(function (a, b) { return a.y - b.y; }), oi = 0;
-    cs2.forEach(function (c) { while (oi < allObjs.length && allObjs[oi].by <= c.y + 1) drawObj(allObjs[oi++]); if (vis(c.x, c.y)) drawChar(c); });
-    while (oi < allObjs.length) drawObj(allObjs[oi++]);
+    cs2.forEach(function (c) { while (oi < oLive.length && oLive[oi].by <= c.y + 1) drawLive(oLive[oi++]); if (vis(c.x, c.y)) drawChar(c); });
+    while (oi < oLive.length) drawLive(oLive[oi++]);
     if (held) drawChar(held);
     cDraw(wc, t, vis); /*FEAT:C*/ drawCoins(wc, t, vis); drawFxStars(wc, t, vis); drawShots(wc, dt, vis); drawNpcFx(wc, t, vis);
     if (day > .15 && SE.fly && wxMode !== 'rain' && wxMode !== 'snow') { wc.globalAlpha = clamp(day * 1.3, 0, 1); flies.forEach(function (f) { if (!vis(f.x, f.y)) return; var im = bflyImg[f.ci][Math.floor(t * 8 + f.ph) % 2]; wc.drawImage(im, Math.round(f.x - 3 + Math.sin(t * 3 + f.ph) * 2), Math.round(f.y - 6 + Math.sin(t * 2.3 + f.ph) * 3)); }); wc.globalAlpha = 1; }
