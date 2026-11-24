@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.28.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.29.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
   var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay', LS_THEME = 'tichu_theme', LS_THEME_TIP = 'tichu_theme_tip', LS_BOTLV = 'tichu_botlv', LS_PRACT = 'tichu_practice';
@@ -42,6 +42,19 @@
     setTimeout(function () { d.remove(); }, 1500);
   }
   function initial(name) { name = String(name || '?').replace(/봇$/, ''); return esc(Array.from(name)[0] || '?'); }
+  // 좌석 썸네일 (16x16 도트): 사람 = 닉네임에 맞는 캐릭터 본모습(서버 chars API 가 로그인한 사람에게만 번호표를 줌), 봇 = 봇 마스코트 10종 중 이름으로 고정. 없으면 이니셜
+  function botIdx(name) { var h = 0; Array.from(String(name || '')).forEach(function (c) { h = (h * 31 + c.charCodeAt(0)) % 9973; }); return h % 10; }
+  function thumb(st) {
+    if (!st) return '';
+    if (st.bot) return '<span class="px bt" style="--cx:' + botIdx(st.name) * 16 + '"></span>';
+    var m = S.chars; if (!m || !Object.prototype.hasOwnProperty.call(m, st.name)) return '';
+    var i = m[st.name];
+    return '<span class="px ch" style="--cx:' + (i % 10) * 64 + ';--cy:' + Math.floor(i / 10) * 64 + '"></span>';
+  }
+  function loadChars() {   // 로그인 뒤 한 번. 실패해도(예전 서버 등) 이니셜 그대로
+    if (S.chars || S.charsBusy || !S.token) return; S.charsBusy = true;
+    api('chars').then(function (r) { S.chars = (r && r.idx) || {}; S.charsBusy = false; try { render(); } catch (e) {} }, function () { S.chars = {}; S.charsBusy = false; });
+  }
 
   /* ----- 소리 (WebAudio로 즉석 합성, 파일 없음) ----- */
   var actx = null;
@@ -448,10 +461,10 @@
   function setLogin(r) {
     S.token = r.token; S.user = r.user;
     lsSet(LS_TOKEN, r.token); lsSet(LS_NOAUTO, null);
-    syncTheme();
+    syncTheme(); loadChars();
   }
   function logout(msg) {
-    S.token = null; S.user = null; lsSet(LS_TOKEN, null);
+    S.token = null; S.user = null; S.chars = null; lsSet(LS_TOKEN, null);
     stopPoll();
     if (msg) toast(msg, true);
     if (S.route.name !== 'login') { location.hash = '#/'; renderLogin(); }
@@ -1371,7 +1384,8 @@
       var st = r.seats[s], p = pos(s, view), t = team(s) ? 'B' : 'A';
       var inner;
       if (st) {
-        inner = '<div class="av ' + t + (st.on ? '' : ' off') + '" style="width:40px;height:40px;font-size:16px">' + initial(st.name) + (st.bot ? '<span class="bot">🤖</span>' : '') + '</div>' +
+        var th = thumb(st);
+        inner = '<div class="av ' + t + (th ? ' pxav' : '') + (st.on ? '' : ' off') + '" style="width:40px;height:40px;font-size:16px">' + (th || initial(st.name)) + (st.bot ? '<span class="bot">🤖</span>' : '') + '</div>' +
           '<div class="nm">' + (st.host ? '👑 ' : '') + esc(st.name) + '</div>' + (st.bot ? '' : '<div class="small">' + (lvTag(rankOf(st.name)) || '<span class="lv">🐣 Lv.1</span>') + '</div>') + (awayText(st) ? '<div class="small">' + awayText(st) + '</div>' : '') + '<div class="tm ' + (t === 'A' ? 'tA' : 'tB') + '">' + t + '팀' + (s === me ? ' · 나' : '') + '</div>';
         if (r.host && s !== me) inner += '<div class="acts"><button class="btn sm ghost" data-kick="' + s + '">' + (st.bot ? '봇 빼기' : '내보내기') + '</button></div>';
       } else {
@@ -1756,7 +1770,7 @@
     else if (awayText(st)) tags += '<span class="tag afk">📱 나감</span>';
     if (s === S.topSeat) tags = '<span class="tag lead">👑 최고</span>' + tags;
     if (s === dogLead(g)) tags = '<span class="tag dog">🐕 개로 턴</span>' + tags;
-    return '<div class="seat p' + p + (s === S.topSeat ? ' lead' : '') + (isPend && (g.phase === 'play' || g.phase === 'dragon') ? ' turn' : '') + '" data-seat="' + s + '"><div class="av ' + t + (isPend ? ' turn' : '') + (st && !st.on ? ' off' : '') + '">' + initial(st ? st.name : '?') +
+    return '<div class="seat p' + p + (s === S.topSeat ? ' lead' : '') + (isPend && (g.phase === 'play' || g.phase === 'dragon') ? ' turn' : '') + '" data-seat="' + s + '"><div class="av ' + t + (thumb(st) ? ' pxav' : '') + (isPend ? ' turn' : '') + (st && !st.on ? ' off' : '') + '">' + (thumb(st) || initial(st ? st.name : '?')) +
       (isPend ? ringSVG() : '') + (st && st.bot ? '<span class="bot">🤖</span>' : '') + '</div>' +
       '<div class="nm ' + (t === 'A' ? 'tA' : 'tB') + '">' + esc(st ? st.name : '') + '</div><div class="info">' + tags + '</div></div>';
   }
@@ -1864,7 +1878,7 @@
     else if (g.phase === 'gameEnd') wait = '게임 끝';
     var tbtn = '';
     if (r.canTichu && g.phase !== 'play') { tbtn = '<button class="btn sm tichu" id="bTichu">스몰 티츄 +100</button>'; acts = acts.replace(/<button class="btn tichu" id="bTichu">[^]*?<\/button>/, ''); }
-    return '<div class="dock' + (isPend ? ' turn' : '') + '"><div class="dk-top"><span class="av sm ' + t + '">' + initial(st.name) + '</span><b class="dk-name">' + esc(st.name) + '</b>' + tags +
+    return '<div class="dock' + (isPend ? ' turn' : '') + '"><div class="dk-top"><span class="av sm ' + t + (thumb(st) ? ' pxav' : '') + '">' + (thumb(st) || initial(st.name)) + '</span><b class="dk-name">' + esc(st.name) + '</b>' + tags +
       '<span class="dk-msg" id="selinfo">' + (myTurn ? '<b class="myturn">내 차례</b>' : '') + '</span><span class="dk-sec" id="mySec"></span></div>' +
       (acts ? '<div class="dk-acts">' + acts + '</div>' : '<div class="dk-wait"><span>' + esc(wait) + '</span>' + tbtn + '</div>') + '</div>';
   }
@@ -2265,7 +2279,7 @@
     var ks = kakaoSession();
     if (info && info.x > Date.now()) {
       S.token = t; S.user = { uid: info.u, name: info.n, kind: info.k, admin: info.k === '운영진' };
-      syncTheme();
+      syncTheme(); loadChars();
       var syncKey = 'tichu_admsync' + ENV_SFX, mainAdm = !!(ks && ks.user && ks.user.admin);
       // 잠만보에서 운영진이 됐거나 빠졌는데 티츄 토큰은 예전 것 → 카카오로 한 번 다시 받음 (안 맞아도 이 탭에서 한 번만)
       if (ks && /^k:/.test(info.u) && mainAdm !== S.user.admin && !sessionStorage.getItem(syncKey)) {

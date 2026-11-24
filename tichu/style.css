@@ -446,6 +446,14 @@ body.ingame .toasts { top: auto; bottom: calc(var(--ch) + 150px); }
 .dock.turn { background: linear-gradient(180deg, rgba(245,179,1,.14), var(--bg2) 70%); box-shadow: inset 0 2px 0 var(--gold); }
 .dk-top { display: flex; align-items: center; gap: 6px; min-height: 24px; min-width: 0; }
 .av.sm { width: 24px; height: 24px; font-size: 11px; border-width: 0; flex: none; }
+/* 좌석 썸네일 (16x16 도트, 정수 배율로 또렷하게): 사람 = 캐릭터 본모습(chars16.png), 봇 = 봇 마스코트(bots16.png) */
+.px { display: block; flex: none; width: calc(16px * var(--k, 2)); height: calc(16px * var(--k, 2)); background-repeat: no-repeat; image-rendering: pixelated; }
+.px.ch { background-image: url(chars16.png?v=1.29.0); background-size: calc(640px * var(--k, 2)) calc(384px * var(--k, 2)); background-position: calc(var(--cx) * var(--k, 2) * -1px) calc(var(--cy) * var(--k, 2) * -1px); }
+.px.bt { background-image: url(bots16.png?v=1.29.0); background-size: calc(160px * var(--k, 2)) calc(32px * var(--k, 2)); background-position: calc(var(--cx) * var(--k, 2) * -1px) 0; }
+.av.pxav { --k: 2; overflow: visible; }
+.av.pxav.A { background: linear-gradient(135deg, #cfe0ff, #8fb0f5); } .av.pxav.B { background: linear-gradient(135deg, #ffd0dc, #f59ab4); }
+.av.sm.pxav { --k: 1; }
+.av.pxav .bot { display: none; }   /* 마스코트가 있으면 🤖 배지는 숨김 (이름이 ~봇으로 끝남) */
 .dk-name { font-size: 13px; max-width: 72px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: none; }
 .dk-top .tag { flex: none; }
 .dk-msg { flex: 1; min-width: 0; font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
