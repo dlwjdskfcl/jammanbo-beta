@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow, noai, noimageai">
+<!-- 보안: 서버 없음 — 글꼴만 밖에서 받음 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://cdn.jsdelivr.net data:; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>잠만보 마피아 나레이터</title>
+<meta name="description" content="마피아 세일럼 밤 진행 — 직업 이름만 부르는 음성 진행자 (숙련자용 · 초보자용)">
+<meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1014" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="마피아 나레이터">
+<link rel="icon" type="image/png" href="../icon-192.png">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" integrity="sha384-GIdEBaqGN9mNkDkMkzMHW8EKUqtpPIe/sLj1X7DIrnc9uPtLROJgmuDlh+3rBw0j" crossorigin="anonymous">
+<link rel="stylesheet" href="style.css?v=1.0.0">
+<link rel="stylesheet" href="../adaptive.css?v=1">
+<script src="../adaptive.js?v=1"></script>
+</head>
+<body>
+<div id="app">
+  <header class="bar">
+    <button type="button" class="ibtn" id="back" aria-label="잠만보 홈으로"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <div class="ttl"><b>마피아 나레이터</b><small>밤 진행 음성 안내</small></div>
+    <span class="ibtn ph" aria-hidden="true"></span>
+  </header>
+
+  <main class="wrap" id="setup">
+    <section class="card">
+      <h3>🎙️ 진행 방식</h3>
+      <div class="seg" id="segMode" role="tablist" aria-label="진행 방식">
+        <button type="button" role="tab" data-mode="beginner">🌱 초보자용</button>
+        <button type="button" role="tab" data-mode="expert">⚡ 숙련자용</button>
+      </div>
+      <p class="hint" id="modeHint"></p>
+    </section>
+
+    <section class="card">
+      <h3>🎭 이번 판 직업 <small>· 이 판에 있는 직업만 켜세요</small></h3>
+      <div class="chips" id="roleChips"></div>
+      <p class="hint">직업이 죽었거나 없는 사람이 있어도 켜 둔 직업은 똑같이 부르고 기다립니다 — 소리만으로 누가 살아 있는지 알 수 없게.</p>
+    </section>
+
+    <section class="card">
+      <h3>🔊 소리</h3>
+      <label class="lab" for="voice">목소리</label>
+      <select id="voice" class="sel"></select>
+      <p class="hint warn" id="voiceNote" hidden></p>
+      <label class="lab" for="rate">말 속도 <b id="rateV"></b></label>
+      <input type="range" id="rate" min="0.7" max="1.4" step="0.05">
+      <label class="lab" for="vol">음량 <b id="volV"></b></label>
+      <input type="range" id="vol" min="0.2" max="1" step="0.05">
+      <label class="lab" for="wmul">기다리는 시간</label>
+      <select id="wmul" class="sel">
+        <option value="0.7">짧게 (×0.7)</option>
+        <option value="1">보통</option>
+        <option value="1.5">길게 (×1.5)</option>
+      </select>
+      <div class="btns"><button type="button" class="btn" id="btnTest">▶ 미리 듣기</button></div>
+    </section>
+
+    <section class="card">
+      <h3>📜 대본 <small id="est"></small></h3>
+      <ol class="script" id="preview"></ol>
+      <p class="hint" id="scriptHint"></p>
+    </section>
+
+    <button type="button" class="btn pri xl" id="btnStart">🌙 밤 시작</button>
+    <p class="hint center">시작하면 3초 뒤에 첫 안내가 나와요. 화면은 켜 둔 채로 두세요(꺼지지 않게 해 둠).</p>
+  </main>
+
+  <main class="wrap" id="run" hidden>
+    <section class="stage" id="stage">
+      <div class="stRole" id="runRole"></div>
+      <div class="stText" id="runText" aria-live="polite"></div>
+      <div class="stCount" id="runCount"></div>
+      <div class="prog"><i id="runFill"></i></div>
+      <div class="stRoles" id="runRoles"></div>
+    </section>
+    <div class="btns" id="ctlRun">
+      <button type="button" class="btn xl" id="btnPause">⏸ 일시정지</button>
+      <button type="button" class="btn xl" id="btnNext">⏭ 다음</button>
+      <button type="button" class="btn xl bad" id="btnStop">■ 끝내기</button>
+    </div>
+    <div class="btns" id="ctlDone" hidden>
+      <button type="button" class="btn pri xl" id="btnAgain">🌙 다음 밤</button>
+      <button type="button" class="btn xl" id="btnSetup">설정으로</button>
+    </div>
+  </main>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<noscript><p style="padding:24px">자바스크립트를 켜야 이용할 수 있어요.</p></noscript>
+<script src="../config.js"></script>
+<script src="app.js?v=1.0.0"></script>
+</body>
+</html>
