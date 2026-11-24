@@ -79,6 +79,7 @@ input[type=range]{width:100%;min-height:44px;accent-color:var(--accent)}
 .stRoles span.now{background:#ffd666;color:#2a2200}
 .stRoles span.done{opacity:.45}
 
+.gver{text-align:center;font-size:11px;line-height:1;color:var(--muted);opacity:.8;font-variant-numeric:tabular-nums;padding:6px 0 calc(18px + env(safe-area-inset-bottom))}
 .toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translate(-50%,20px);opacity:0;pointer-events:none;background:var(--ink);color:var(--bg);font-size:14px;font-weight:600;padding:10px 16px;border-radius:999px;max-width:calc(100vw - 32px);transition:.25s;z-index:40;text-align:center}
 .toast.on{opacity:1;transform:translate(-50%,0)}
 @media (prefers-reduced-motion: reduce){.toast{transition:none}}

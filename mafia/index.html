@@ -7,7 +7,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://cdn.jsdelivr.net data:; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>잠만보 마피아 나레이터</title>
-<meta name="description" content="마피아 세일럼 밤 진행 — 직업 이름만 부르는 음성 진행자 (숙련자용 · 초보자용)">
+<meta name="description" content="마피아 · 세일럼 1692 밤 진행 — 음성 진행자 (숙련자용 · 초보자용)">
 <meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0e1014" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -16,7 +16,7 @@
 <link rel="icon" type="image/png" href="../icon-192.png">
 <link rel="apple-touch-icon" href="../apple-touch-icon.png">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" integrity="sha384-GIdEBaqGN9mNkDkMkzMHW8EKUqtpPIe/sLj1X7DIrnc9uPtLROJgmuDlh+3rBw0j" crossorigin="anonymous">
-<link rel="stylesheet" href="style.css?v=1.0.0">
+<link rel="stylesheet" href="style.css?v=1.1.0">
 <link rel="stylesheet" href="../adaptive.css?v=1">
 <script src="../adaptive.js?v=1"></script>
 </head>
@@ -30,6 +30,24 @@
 
   <main class="wrap" id="setup">
     <section class="card">
+      <h3>🎲 게임</h3>
+      <div class="seg" id="segGame" role="tablist" aria-label="게임">
+        <button type="button" role="tab" data-game="mafia">🌙 마피아</button>
+        <button type="button" role="tab" data-game="salem">🔮 세일럼 1692</button>
+      </div>
+    </section>
+
+    <section class="card" id="salemCard" hidden>
+      <h3>🕯️ 어느 장면 <small>· 진행자가 단계마다 골라요</small></h3>
+      <div class="seg" id="segSalem" role="tablist" aria-label="장면">
+        <button type="button" role="tab" data-sal="first">첫 번째 밤</button>
+        <button type="button" role="tab" data-sal="night">일반 밤</button>
+        <button type="button" role="tab" data-sal="dawn">아침 · 자백</button>
+      </div>
+      <p class="hint" id="salHint"></p>
+    </section>
+
+    <section class="card">
       <h3>🎙️ 진행 방식</h3>
       <div class="seg" id="segMode" role="tablist" aria-label="진행 방식">
         <button type="button" role="tab" data-mode="beginner">🌱 초보자용</button>
@@ -38,7 +56,7 @@
       <p class="hint" id="modeHint"></p>
     </section>
 
-    <section class="card">
+    <section class="card" id="roleCard">
       <h3>🎭 이번 판 직업 <small>· 이 판에 있는 직업만 켜세요</small></h3>
       <div class="chips" id="roleChips"></div>
       <p class="hint">직업이 죽었거나 없는 사람이 있어도 켜 둔 직업은 똑같이 부르고 기다립니다 — 소리만으로 누가 살아 있는지 알 수 없게.</p>
@@ -90,10 +108,11 @@
       <button type="button" class="btn xl" id="btnSetup">설정으로</button>
     </div>
   </main>
+  <footer class="gver" id="gver"></footer>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <noscript><p style="padding:24px">자바스크립트를 켜야 이용할 수 있어요.</p></noscript>
 <script src="../config.js"></script>
-<script src="app.js?v=1.0.0"></script>
+<script src="app.js?v=1.1.0"></script>
 </body>
 </html>
