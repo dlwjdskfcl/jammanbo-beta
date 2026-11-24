@@ -462,7 +462,9 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
   var chars = [], byName = {}, dataBy = {};
   SCENE_DATA.forEach(function (d) { dataBy[d.n] = d; });
   function toCanvas(grid) { var c = mk(16, 16), q = c.getContext('2d'); grid.forEach(function (r, yy) { r.forEach(function (col, xx) { if (col) { q.fillStyle = col; q.fillRect(xx, yy, 1, 1); } }); }); return c; }
-  function buildFrames(c) {
+  var bq = [];   // 모습 굽기 대기줄: 내 캐릭터 · 화면에 보이는 것부터, 프레임마다 조금씩 (시작 직후 끊김 방지)
+  function buildFrames(c, now) {
+    if (!now && c !== meChar) { if (!c.bq) { c.bq = 1; bq.push(c); } return; } c.bq = 0;
     var gr = stageGrid(c.data, c.stage, SCENE_EVO), wk = walkG(gr, c.stage <= 1, c.stage >= 2), fr = {};
     ['down', 'right', 'up', 'left'].forEach(function (d) { fr[d] = wk[d].map(toCanvas); });
     c.fr = fr; c.idle = toCanvas(squashG(gr)); c.sitImg = toCanvas(squashG(squashG(gr)));
@@ -645,7 +647,7 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
 
   // ---------- 2단계: 일하기 · 만들기 · 함께 보기 · 게시판 · 사진 ----------
   // 서버 기능(work · presence)은 응답이 없거나 '알 수 없는 요청'이면 그 기능만 조용히 숨김 (1단계 동작은 그대로)
-  var VER = '2.2.0'; document.getElementById('gver').textContent = '화면 v' + VER;
+  var VER = '2.2.1'; document.getElementById('gver').textContent = '화면 v' + VER;
   var nowMs = Date.now(), animF = 0, actT = 0, depN = 0, photo = false, photoHide = false, shotReq = false;
   var DIRS = ['down', 'right', 'up', 'left'];
   var feat = { work: null, pos: null, board: null, streak: null, skill: null, shop: null, fish: null, coins: null, meteor: null };
@@ -1475,7 +1477,7 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
   });
 
   // ----- 매 프레임 (카메라 따라가기 · 별똥별 때 밤으로 · 날씨 갱신 · 미니맵) -----
-  var wxAt = 0;
+  var wxAt = 0, chunkBudget = 1;
   function stage4Tick(dt) {
     var nw = performance.now();
     if (nw - wxAt > 30000) { wxAt = nw; if (!wxForce) { var k = weatherByTime(); if (k !== wxMode) { wxMode = k; updateFab(); } } }
@@ -1770,7 +1772,8 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
     var dt = clamp((now - last) / 1000, 0, .1); last = now; if (paused) dt = 0; var t = Math.max(0, (now - T0) / 1000);
     fpsN++; if (now - fpsT >= 1000) { fpsEl.textContent = 'FPS ' + Math.round(fpsN * 1000 / (now - fpsT)); fpsN = 0; fpsT = now; }
     if (timeMode === 'auto') hour = (hour + dt * .1) % 24;
-    stage4Tick(dt);
+    stage4Tick(dt); chunkBudget = 1;
+    if (bq.length) { var bt0 = performance.now(), bi = bq.indexOf(meChar); if (bi < 0) for (var bj = 0; bj < bq.length; bj++) if (vis4(bq[bj])) { bi = bj; break; } do { var bc = bq.splice(bi < 0 ? 0 : bi, 1)[0]; bi = -1; if (bc.bq) buildFrames(bc, true); } while (bq.length && performance.now() - bt0 < 5); }
     var t3 = tintAt(hour), dark = clamp((1 - (t3[0] + t3[1] + t3[2]) / 765) / .5, 0, 1), day = 1 - dark;
     var hh = Math.floor(hour), mm = Math.floor((hour - hh) * 60), cs = (hour >= 6 && hour < 18 ? '☀️' : '🌙') + ' ' + (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + (mm - mm % 10) + (timeMode === 'auto' ? '' : timeMode === 'day' ? ' 낮' : ' 밤');
     if (cs !== lastClock) { clockEl.textContent = cs; lastClock = cs; }
@@ -1821,7 +1824,7 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
     wc.setTransform(s * dpr, 0, 0, s * dpr, ox * dpr, oy * dpr); wc.imageSmoothingEnabled = false;
     var CP = CHK * T;
     for (var cy = Math.max(0, Math.floor(vy0 / CP)); cy <= Math.min(Math.floor((H - 1) * T / CP), Math.floor(vy1 / CP)); cy++) for (var cx = Math.max(0, Math.floor(vx0 / CP)); cx <= Math.min(Math.floor((W - 1) * T / CP), Math.floor(vx1 / CP)); cx++) {
-      var ch = getChunk(cx, cy); wc.drawImage(ch, cx * CP, cy * CP, ch.width + .5, ch.height + .5);   // +.5 = 덩어리 사이 틈 방지
+      var ch = chunks[cx + "," + cy] || (chunkBudget-- > 0 ? getChunk(cx, cy) : null); if (!ch) continue; wc.drawImage(ch, cx * CP, cy * CP, ch.width + .5, ch.height + .5);   // +.5 = 덩어리 사이 틈 방지
     }
     function vis(px_, py_) { return px_ > vx0 && px_ < vx1 && py_ > vy0 && py_ < vy1 + 60; }
     falls.forEach(function (f) { if (!vis(f[0] * T, f[1] * T)) return; for (var k = 0; k < 5; k++) { var sx = f[0] * T + 1 + k * 3, off = Math.floor((t * 22 + k * 5 + f[1] * 3) % 16); rect(wc, sx, f[1] * T + off, 2, 7, '#e8f6ff'); rect(wc, sx + 1, f[1] * T + (off + 8) % 16, 1, 5, '#8fd3f7'); } });
@@ -1835,6 +1838,7 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
     function drawObj(o) { var im = (depN && o.res && depImg(o)) || getObj(o), X = Math.round(o.tx * T + 8 - im.width / 2 + o.ox + (o.kind === 'log' ? 8 : o.kind === 'cottage' ? 16 : 0) + (o.rk ? shakeX(o) : 0)), Y = Math.round(o.by - im.height); if (X > vx1 || X + im.width < vx0 || Y > vy1 || Y + im.height < vy0) return; wc.drawImage(im, X, Y); }
     function frameOf(c) { return c.walking ? c.fr[c.dir][Math.floor(t * 6.5 + c.ph) % 4] : (Math.floor(t * 1.6 + c.ph) % 2 ? c.idle : c.fr[c.dir][0]); }
     function drawChar(c) {
+      if (!c.fr) return;
       var gx = c.x, gy = c.y, lift = 0, img, pz = null, sitNow = false;
       if (c.swim) {   // 수영 모션: 머리와 윗몸만 물 위에 떠서 위아래로 일렁이고, 두 팔이 번갈아 물을 가름
         var bob = Math.sin(c.swim.t * 7) * 1, stroke = Math.floor(c.swim.t * 6) % 2;
