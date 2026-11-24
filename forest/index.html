@@ -53,6 +53,7 @@ body.photo #photoBar { display:flex; } body.photo #bar, body.photo #me, body.pho
   <button class="btn" id="nameBtn" title="이름 표시: 자동(확대하면 보임) → 켜기 → 끄기">🏷 자동</button>
   <button class="btn" id="pause">⏸</button><button class="btn" id="zoomReset" title="화면 채우기 ↔ 전체 보기">⤢</button>
   <button class="btn" id="mkBtn" title="가방 · 만들기 · 짓기" style="display:none">🎒</button>
+  <button class="btn" id="skBtn" title="스킬" style="display:none">⚡</button>
   <button class="btn" id="chatBtn" title="말풍선 · 인사" style="display:none">💬</button>
   <button class="btn" id="photoBtn" title="사진 모드">📷</button>
   <button class="btn gold" id="meBtn" style="display:none">👤 <span id="meNit">0</span></button>
@@ -631,10 +632,10 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
 
   // ---------- 2단계: 일하기 · 만들기 · 함께 보기 · 게시판 · 사진 ----------
   // 서버 기능(work · presence)은 응답이 없거나 '알 수 없는 요청'이면 그 기능만 조용히 숨김 (1단계 동작은 그대로)
-  var VER = '2.0.1'; document.getElementById('gver').textContent = '화면 v' + VER;
+  var VER = '2.1.0'; document.getElementById('gver').textContent = '화면 v' + VER;
   var nowMs = Date.now(), animF = 0, actT = 0, depN = 0, photo = false, photoHide = false, shotReq = false;
   var DIRS = ['down', 'right', 'up', 'left'];
-  var feat = { work: null, pos: null, board: null, streak: null };
+  var feat = { work: null, pos: null, board: null, streak: null, skill: null };
   function $(id) { return document.getElementById(id); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]; }); }
   function svc(f, fn, a, t) { return call(fn, a, t).catch(function (e) { if (/알 수 없는 요청/.test(e.message || '')) { feat[f] = false; syncUi(); } throw e; }); }
@@ -715,7 +716,7 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
   function resBox(o) { var cx = o.tx * T + 8 + o.ox; return o.res === 'wood' ? [cx - 10, o.by - 34, cx + 10, o.by + 2] : o.res === 'stone' ? [cx - 9, o.by - 14, cx + 9, o.by + 2] : [cx - 11, o.by - 13, cx + 11, o.by + 2]; }
   function hitRes(w) { var best = null; resList.forEach(function (o) { var b = resBox(o); if (w.x >= b[0] && w.x <= b[2] && w.y >= b[1] && w.y <= b[3] && (!best || o.by > best.by)) best = o; }); return best; }
   function hitStruct(w) { var best = null; structAll.forEach(function (o) { var d = SDEF[o.k], X = o.tx * T + 8 - d.w / 2, Y = o.k === 'bridge' ? o.ty * T : o.by - d.h; if (w.x >= X - 2 && w.x <= X + d.w + 2 && w.y >= Y - 2 && w.y <= Y + d.h + 2 && (!best || o.by > best.by)) best = o; }); return best; }
-  function busyMe() { return !!(meChar && (meChar.work || meChar.swim || meChar.jump)); }
+  function busyMe() { return !!(meChar && (meChar.work || meChar.swim || meChar.jump || meChar.skill)); }
 
   // ----- 길찾기 (내 캐릭터를 걸어가게) -----
   function reach(c) { var cx = clamp(Math.floor(c.x / T), 0, W - 1), cy = clamp(Math.floor(c.y / T), 0, H - 1); if (!walk[cy][cx]) { var n = nearestWalk(cx, cy); cx = n[0]; cy = n[1]; } return { b: bfs(cx, cy, 400), cx: cx, cy: cy }; }
@@ -734,6 +735,7 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
     if (photo) return;
     var w = toWorld(sx, sy);
     if (tapChar) { var tc = tapChar; tapChar = null; selectChar(tc); return; }
+    if (sm) { var hr = sm.k === 'bonk' ? hitRes(w) : null; if (hr && hr.res === 'wood') { sm.x = hr.tx; sm.y = hr.ty; } else { var sx0 = Math.floor(w.x / T), sy0 = Math.floor(w.y / T); if (sx0 >= 0 && sy0 >= 0 && sx0 < W && sy0 < H) { sm.x = sx0; sm.y = sy0; } } refreshAct(true); return; }
     if (bm) { var bx0 = Math.floor(w.x / T), by0 = Math.floor(w.y / T); if (bx0 >= 0 && by0 >= 0 && bx0 < W && by0 < H) { bm.x = bx0; bm.y = by0; refreshAct(true); } return; }
     if (boardObj && w.x >= boardObj.tx * T - 4 && w.x <= boardObj.tx * T + 20 && w.y >= boardObj.by - 28 && w.y <= boardObj.by + 2) { openBoard(); return; }
     var st = hitStruct(w); if (st) { selStruct = st; tgt = null; demoArm = null; selectChar(null); refreshAct(true); return; }
@@ -795,7 +797,7 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
   function posTick() {
     if (!wtok || !meChar || feat.pos === false || Date.now() < posPause || posBusy || document.visibilityState !== 'visible') return;
     var c = meChar, x = c.held ? c.hx : c.jump ? c.jump.x1 : c.x, y = c.held ? c.hy : c.jump ? c.jump.y1 : c.y;
-    var body = { x: Math.round(clamp(x, 0, PW)), y: Math.round(clamp(y, 0, PH)), d: Math.max(0, DIRS.indexOf(c.dir)), a: c.work ? 'work' : c.swim ? 'swim' : c.walking ? 'walk' : 'idle' };
+    var body = { x: Math.round(clamp(x, 0, PW)), y: Math.round(clamp(y, 0, PH)), d: Math.max(0, DIRS.indexOf(c.dir)), a: c.skill ? SKDEF[c.skill.kind].a : c.work ? 'work' : c.swim ? 'swim' : c.walking ? 'walk' : 'idle' };
     if (pendingSay) { body.say = pendingSay; pendingSay = ''; }
     posBusy = true;
     svc('pos', 'pos', body).then(function (r) { if (feat.pos !== true) { feat.pos = true; syncUi(); } posGap = Math.max(3, +r.gap || 3); if (r.slow && !slowShown) { slowShown = true; toast('혼잡해서 위치 갱신이 느려요', 3000); } if (!r.slow) slowShown = false; applyOthers(r); }, function (e) { if (e && (e.code === 'off' || e.code === 'rate')) { posPause = Date.now() + (+e.slow || 60) * 1000; applyOthers({ others: [] }); } }).then(function () { posBusy = false; });
@@ -811,7 +813,7 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
       if (!o.say) c.sayTxt = '';
       if (/^(wave|heart|hi|sleep)$/.test(o.a)) { if (!c.emo || c.emo.k !== o.a) c.emo = { k: o.a, until: now + 3500 }; }
     });
-    chars.forEach(function (c) { if (c.rem && !seen[c.n]) { c.rem = null; c.swim = c.swim && c.swim.remote ? null : c.swim; c.work = null; c.wait = 1; } });
+    chars.forEach(function (c) { if (c.rem && !seen[c.n]) { c.skill = null; c.skillDone = null; c.rem = null; c.swim = c.swim && c.swim.remote ? null : c.swim; c.work = null; c.wait = 1; } });
     onlineN = list.length + (me ? 1 : 0); setCnt();
   }
   function stepRemote(c, dt) {
@@ -821,6 +823,7 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
     else { c.walking = false; if (DIRS[rm.d]) c.dir = DIRS[rm.d]; }
     if (rm.a === 'swim') { c.swim = c.swim || { t: 0, remote: 1, tx: c.x, ty: c.y }; c.swim.t += dt; if (RR() < dt * 4) ripples.push({ x: c.x, y: c.y + 1, t: 0 }); } else if (c.swim && c.swim.remote) c.swim = null;
     if (rm.a === 'work') { c.work = c.work || { t: 0, kind: 'wood', remote: 1 }; c.work.t += dt; c.walking = false; } else if (c.work && c.work.remote) c.work = null;
+    var ska = SKA[rm.a]; if (ska) { if (c.skillDone !== rm.a && (!c.skill || c.skill.kind !== ska)) c.skill = { remote: 1, kind: ska, t: 0, rel: 0, imp: 0, n: 0 }; if (c.skill) { c.walking = false; stepSkill(c, dt); } } else { c.skillDone = null; if (c.skill && c.skill.remote) c.skill = null; }
   }
   function drawBubbles(q, s) {
     var now = performance.now(); q.textAlign = 'center'; q.textBaseline = 'middle';
@@ -843,6 +846,12 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
   function drawGroundFx(q, t, vx0, vx1, vy0, vy1) {
     bridgeList.forEach(function (o) { var X = o.tx * T, Y = o.ty * T; if (X > vx1 || X + T < vx0 || Y > vy1 || Y + T < vy0) return; q.drawImage(structImg('bridge'), X, Y); });
     marks = marks.filter(function (m) { m.t += .016; if (m.t > .6) return false; var u = m.t / .6, r = 3 + u * 5; q.globalAlpha = 1 - u; q.fillStyle = '#fff3a8'; [[0, -r], [r, 0], [0, r], [-r, 0]].forEach(function (d) { q.fillRect(Math.round(m.x + d[0]), Math.round(m.y + d[1] * .6), 1, 1); }); q.globalAlpha = 1; return true; });
+    drawFxGround(q, vx0, vx1, vy0, vy1);
+    if (sm && !photo) {
+      var bad2 = !!skCan(sm.k, sm.x, sm.y), X2 = sm.x * T, Y2 = sm.y * T; q.globalAlpha = .45 + .15 * Math.sin(t * 6); q.fillStyle = bad2 ? '#ff6a5a' : '#7dff9a'; q.fillRect(X2, Y2, T, T); q.globalAlpha = .8;
+      if (sm.k === 'flower' || sm.k === 'splash') { q.strokeStyle = bad2 ? '#ff6a5a' : '#bfffd0'; q.lineWidth = 1; q.setLineDash([2, 2]); q.strokeRect((sm.x - 1) * T + .5, (sm.y - 1) * T + .5, 3 * T - 1, 3 * T - 1); q.setLineDash([]); }
+      q.globalAlpha = 1;
+    }
     if (selStruct && !photo) { q.strokeStyle = '#fff3a8'; q.lineWidth = 1; q.strokeRect(selStruct.tx * T + .5, selStruct.ty * T + .5, T - 1, T - 1); }
     if (bm) {
       var bad = canBuild(bm.k, bm.x, bm.y), d = SDEF[bm.k], X = bm.x * T, Y = bm.y * T;
@@ -858,7 +867,7 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
   $('photoBtn').onclick = function () { setPhoto(true); }; $('phX').onclick = function () { setPhoto(false); };
   $('phName').onclick = function () { photoHide = !photoHide; this.textContent = photoHide ? '🏷 이름 보이기' : '🏷 이름 숨기기'; };
   $('phSave').onclick = function () { shotReq = true; };
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { if (photo) setPhoto(false); else { bm = null; tgt = null; selStruct = null; $('bw').classList.remove('show'); $('chat').classList.remove('show'); refreshAct(true); } } });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { if (photo) setPhoto(false); else { sm = null; bm = null; tgt = null; selStruct = null; $('bw').classList.remove('show'); $('chat').classList.remove('show'); refreshAct(true); } } });
 
   // ----- 말풍선 · 인사 -----
   var chatEl = $('chat'), emoRow = $('emoRow');
@@ -915,8 +924,11 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
   var actEl = $('act');
   function refreshAct(force) {
     var h = ''; near = null;
-    if (!bm && !selStruct && !tgt && meChar && hasWork() && !busyMe()) { var bd0 = 27, cx0 = Math.floor(meChar.x / T), cy0 = Math.floor(meChar.y / T); for (var yy = cy0 - 2; yy <= cy0 + 2; yy++) for (var xx = cx0 - 2; xx <= cx0 + 2; xx++) { var no = resMap[xx + ',' + yy]; if (!no || dep[no.rk] > nowMs) continue; var nd = Math.hypot(no.tx * T + 8 - meChar.x, no.ty * T + 8 - meChar.y); if (nd < bd0) { bd0 = nd; near = no; } } }
-    if (bm) {
+    if (!sm && !bm && !selStruct && !tgt && meChar && hasWork() && !busyMe()) { var bd0 = 27, cx0 = Math.floor(meChar.x / T), cy0 = Math.floor(meChar.y / T); for (var yy = cy0 - 2; yy <= cy0 + 2; yy++) for (var xx = cx0 - 2; xx <= cx0 + 2; xx++) { var no = resMap[xx + ',' + yy]; if (!no || dep[no.rk] > nowMs) continue; var nd = Math.hypot(no.tx * T + 8 - meChar.x, no.ty * T + 8 - meChar.y); if (nd < bd0) { bd0 = nd; near = no; } } }
+    if (sm) {
+      var why1 = skCan(sm.k, sm.x, sm.y), D1 = SKDEF[sm.k];
+      h = '<span class="lab">' + D1.e + ' ' + D1.n + (why1 ? ' · <span style="color:#ffb0a0">' + esc(why1) + '</span>' : ' · 이 칸에 쓸까요? ⚡' + D1.nit) + '</span><button class="btn gold big" data-a="skgo"' + (why1 ? ' disabled' : '') + '>✔ 쓰기</button><button class="btn" data-a="cancel">✕</button>';
+    } else if (bm) {
       var why = canBuild(bm.k, bm.x, bm.y), d = SDEF[bm.k];
       h = '<span class="lab">' + d.e + ' ' + d.n + (why ? ' · <span style="color:#ffb0a0">' + esc(why) + '</span>' : ' · 이 칸에 지을까요?') + '</span><button class="btn gold big" data-a="build"' + (why ? ' disabled' : '') + '>✔ 짓기</button><button class="btn" data-a="cancel">✕</button>';
     } else if (selStruct) {
@@ -934,7 +946,8 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
     var b = e.target.closest ? e.target.closest('[data-a]') : null; if (!b) return; var a = b.getAttribute('data-a');
     if (a === 'gather') { var m = tgt || near; if (m) startGather(m); }
     else if (a === 'build') doBuild();
-    else if (a === 'cancel') { bm = null; tgt = null; selStruct = null; demoArm = null; refreshAct(true); }
+    else if (a === 'skgo') { if (sm) startSkill(sm); }
+    else if (a === 'cancel') { sm = null; bm = null; tgt = null; selStruct = null; demoArm = null; refreshAct(true); }
     else if (a === 'demolish' && selStruct) { if (demoArm === selStruct.id) doDemolish(selStruct); else { demoArm = selStruct.id; refreshAct(true); } }
   });
   // ----- 가방 · 만들기 · 짓기 패널 -----
@@ -943,6 +956,7 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
   function costText(rc) { return rc ? Object.keys(rc).map(function (k) { return (KICON[k] || k) + rc[k]; }).join(' ') : ''; }
   function renderMk() {
     if (!me || mkPanel.style.display !== 'block') return;
+    if (mkView === 'skill') { renderSk(); return; }
     var inv = me.inv || {}, items = me.items || {}, acc = me.acc || [], bd = me.build || {}, cp = me.caps && me.caps.gather;
     var h = '<h3>🎒 가방 · 만들기</h3><div class="tabs">' + [['bag', '가방'], ['craft', '만들기'], ['build', '짓기']].map(function (t) { return '<button class="btn' + (mkTab === t[0] ? ' on' : '') + '" data-a="tab" data-v="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>';
     if (mkTab === 'bag') {
@@ -967,13 +981,14 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
     else if (a === 'enh') run(['enhance', { id: v }], function (r) { return r.ok ? '✨ 강화 성공! +' + r.lv : '아쉽게 실패했어요… 아이템은 그대로예요 (+' + r.lv + ')'; });
     else if (a === 'craft') run(['craft', { recipe: v }], function () { return '🎉 만들었어요!'; });
     else if (a === 'bld') enterBuild(v);
+    else if (a === 'skpick') enterSkill(v);
   });
-  $('mkBtn').onclick = function () { var on = mkPanel.style.display !== 'block'; mkPanel.style.display = on ? 'block' : 'none'; if (on) { mePanel.style.display = 'none'; mkMsg = ''; renderMk(); } };
+  $('mkBtn').onclick = function () { var on = mkPanel.style.display !== 'block' || mkView !== 'bag'; mkView = 'bag'; mkPanel.style.display = on ? 'block' : 'none'; if (on) { mePanel.style.display = 'none'; mkMsg = ''; renderMk(); } };
   var streakInfo = null;
   function streakHtml() { if (!me || !me.streak) return ''; var n = streakInfo && streakInfo.next; return '<div class="msg" style="color:#ffb27a">🔥 연속 출석 ' + (me.streak.days || 0) + '일 · 최고 ' + (me.streak.best || 0) + '일' + (n ? '<br><span class="dim">' + n.days + '일째에 +' + n.bonus + ' 니트론 보너스</span>' : '') + '</div>'; }
   var timersOn = false;
   function syncUi() { if (meChar) meChar.ctl = feat.work === true || feat.pos === true;   // 서버 기능이 있으면 내가 직접 조종 (없으면 예전처럼 배회)
-    $('mkBtn').style.display = hasWork() ? '' : 'none'; $('chatBtn').style.display = me && wtok && feat.pos !== false ? '' : 'none'; if (!hasWork()) { mkPanel.style.display = 'none'; bm = null; } refreshAct(true); }
+    $('mkBtn').style.display = hasWork() ? '' : 'none'; $('chatBtn').style.display = me && wtok && feat.pos !== false ? '' : 'none'; $('skBtn').style.display = hasSkill() ? '' : 'none'; if ((mkView === 'bag' && !hasWork()) || (mkView === 'skill' && !hasSkill())) mkPanel.style.display = 'none'; if (!hasWork()) bm = null; if (!hasSkill()) sm = null; refreshAct(true); }
   function onMe() {   // applyMe 때마다
     syncUi(); renderMk();
     if (!timersOn && wtok) { timersOn = true; (function loop() { posTick(); setTimeout(loop, Math.max(posGap, onlineN <= 1 ? 10 : 3) * 1000); })(); if (feat.streak !== false) svc('streak', 'streak', {}).then(function (r) { streakInfo = r; renderMe(); }, function () {}); }
@@ -981,6 +996,265 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
   var rules = null;
   function loadRules() { if (rules) return; svc('work', 'rules', {}, '').then(function (r) { rules = r; if (r.builds) { Object.keys(r.builds).forEach(function (k) { if (SDEF[k] && r.builds[k].name) SDEF[k].n = r.builds[k].name; }); } renderMk(); }, function () {}); }
   if (API) { pollWorld(); setInterval(pollWorld, 5000); }
+
+  // ----- 스킬 (3단계): 꽃뿌리기 · 박치기 · 물총 · 별빛 — 환경에 하는 귀여운 재주 (사람을 해치지 않음) -----
+  var SKW = .45, DV = { down: [0, 1], up: [0, -1], left: [-1, 0], right: [1, 0] };
+  var SKDEF = {
+    flower: { e: '🌸', n: '꽃뿌리기', st: '매력', need: 3, nit: 3, a: 'sk_f', R: .9, imp: .5, tip: '풀밭에 꽃밭이 피어나요 (30분)', pick: '풀밭 빈 칸을 골라요' },
+    bonk: { e: '💥', n: '박치기', st: '힘', need: 3, nit: 2, a: 'sk_b', R: 1, imp: .3, tip: '나무를 흔들어 도토리를 떨어뜨려요', pick: '나무를 골라요' },
+    splash: { e: '💦', n: '물총', st: '손재주', need: 3, nit: 2, a: 'sk_w', R: 1.15, imp: .8, tip: '밭에 새싹이 쑥! 풀도 얻어요', pick: '밭을 골라요' },
+    star: { e: '✨', n: '별빛', st: '지혜', need: 3, nit: 5, a: 'sk_s', R: 1.3, imp: .6, tip: '풀밭에 별 장식 (밤에 반짝, 1시간)', pick: '풀밭 빈 칸을 골라요' }
+  }, SKORDER = ['flower', 'bonk', 'splash', 'star'], SKA = {}, FXK = { bonk: 'bonk', flower: 'flower', f: 'flower', splash: 'splash', w: 'splash', sprout: 'splash', star: 'star', s: 'star' };
+  SKORDER.forEach(function (k) { SKA[SKDEF[k].a] = k; });
+  var sm = null, shots = [], shk = {}, fxById = {}, fxList = [], fxVer = null, fxInit = false, fxDirty = 0;
+  var PETC = ['#ff7fae', '#ffffff', '#ffd84a', '#b48cff', '#ff8a5c', '#f7b2cd'];
+  var starArt = art(['....o....', '...oYo...', '..oYWYo..', 'ooYYWYYoo', '.oYYYYYo.', '..oYYYo..', '..oYYYo..', '.oYYoYYo.', '.ooo.ooo.'], { o: '#b07a1a', Y: '#ffd84a', W: '#fff6b0' });
+  var gunArt = art(['..ccc...', '.ooooooo', 'obbbbwbo', '.ooooooo', '.oo.....'], { o: '#2a2230', b: '#58b4ee', w: '#e8f6ff', c: '#8fd3f7' });
+  var acornArt = art(['.ccc.', 'ccccc', '.aaa.', '.aaa.', '..t..'], { c: '#6b4a2b', a: '#c4934e', t: '#8a5a2a' });
+  function hasSkill() { return feat.skill !== false && !!me && !!wtok && !!me.skills; }
+  function skUnlocked(k) { var u = me && me.skills && me.skills.unlocked; return u ? u.indexOf(k) >= 0 : ((me && me.s && me.s[SKDEF[k].st]) || 0) >= SKDEF[k].need; }
+  function fxHere(x, y) { for (var i = 0; i < fxList.length; i++) if (fxList[i].k !== 'bonk' && fxList[i].x === x && fxList[i].y === y) return true; return false; }
+  function skCan(k, x, y) {
+    var t = terr[y] && terr[y][x]; if (t == null) return '여기엔 못 써요';
+    if (k === 'bonk') { var o = resMap[x + ',' + y]; if (!o || o.res !== 'wood') return '나무를 골라요'; var bc = me && me.skills && me.skills.cd && me.skills.cd.bonk, cdu = 0; (bc || []).forEach(function (e) { if (e[0] === x + ',' + y) cdu = e[1] - tOff; }); return cdu > nowMs ? '이 나무는 쉬는 중이에요 (' + Math.ceil((cdu - nowMs) / 60000) + '분)' : ''; }
+    if (k === 'splash') { if (t !== SO) return '밭을 골라요'; if (structAt[x + ',' + y]) return '이미 무언가 있어요'; }
+    else { if (t !== G) return '풀밭 빈 칸을 골라요'; if (blocked[x + ',' + y] || resMap[x + ',' + y] || structAt[x + ',' + y]) return '풀밭 빈 칸을 골라요'; }
+    if (fxHere(x, y)) return '이미 꾸며진 칸이에요';
+    var d = me && me.skills && me.skills.daily; if (d && d.max != null && d.used >= d.max) return '오늘 쓸 수 있는 만큼 다 했어요';
+    if (me && me.nit < SKDEF[k].nit) return '니트론이 모자라요 (' + SKDEF[k].nit + ' 필요)';
+    return '';
+  }
+  function enterSkill(k) {
+    var c = meChar; if (!c) return; var cx = Math.floor(c.x / T), cy = Math.floor(c.y / T), v = DV[c.dir] || [0, 1], best = null, bd = 1e9;
+    if (k === 'bonk') { resList.forEach(function (o) { if (o.res !== 'wood') return; var d = Math.hypot(o.tx - cx, o.ty - cy); if (d < bd && d <= 6) { bd = d; best = o; } }); }
+    sm = best ? { k: k, x: best.tx, y: best.ty } : { k: k, x: clamp(cx + v[0] * 2, 0, W - 1), y: clamp(cy + v[1] * 2, 0, H - 1) };
+    tgt = null; selStruct = null; bm = null; mkPanel.style.display = 'none'; refreshAct(true);
+  }
+  function skStand(c, x, y, rmax) {   // 대상 가까이 설 자리: 이미 가까우면 null(제자리), 갈 수 있으면 길, 못 가면 false
+    var cx = Math.floor(c.x / T), cy = Math.floor(c.y / T); if (Math.max(Math.abs(cx - x), Math.abs(cy - y)) <= rmax && !(cx === x && cy === y && rmax === 1)) return null;
+    var r = reach(c), bestP = false;
+    for (var yy = y - rmax; yy <= y + rmax; yy++) for (var xx = x - rmax; xx <= x + rmax; xx++) { if (!walk[yy] || !walk[yy][xx] || (xx === x && yy === y && rmax === 1)) continue; var p = pathIn(r, xx, yy); if (p && (bestP === false || p.length < bestP.length)) bestP = p; }
+    return bestP;
+  }
+  function startSkill(b) {
+    var c = meChar; if (!c || busyMe() || !hasSkill()) return; var why = skCan(b.k, b.x, b.y); if (why) { toast(why); return; }
+    var st = skStand(c, b.x, b.y, b.k === 'bonk' ? 1 : 3); if (st === false) { toast('다가갈 수 있는 자리가 없어요'); return; }
+    sm = null; refreshAct(true);
+    if (st === null || !st.length) doSkill(b); else { c.path = st; c.onArrive = function () { doSkill(b); }; c.wait = 3; }
+  }
+  function doSkill(b) {
+    var c = meChar; if (!c || c.work || c.swim || c.skill) return; var def = SKDEF[b.k];
+    var tx = b.x * T + 8, ty = b.y * T + 10, dx = tx - c.x, dy = ty - c.y; c.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'); c.path = []; c.walking = false;
+    var s = c.skill = { kind: b.k, x: b.x, y: b.y, t: 0, wait: 0, rel: 0, imp: 0, res: null, err: null, tp: { x: tx, y: ty } };
+    svc('skill', 'skill', { kind: b.k, x: b.x, y: b.y }).then(function (r) { s.res = r || {}; }, function (e) { s.err = e; });
+    setTimeout(posTick, 30);
+  }
+  function skTarget(c, s) {
+    if (!s.remote) return s.tp; var dv = DV[c.dir] || [0, 1], n = s.kind === 'bonk' ? 1 : 2.5; return { x: c.x + dv[0] * n * T, y: c.y - 4 + dv[1] * n * T };
+  }
+  function skSide(c) { return c.dir === 'left' ? -1 : 1; }
+  function addShot(o) { if (shots.length < 120) shots.push(o); }
+  function releaseFx(c, s) {
+    var tp = skTarget(c, s), sg = skSide(c), i;
+    if (s.kind === 'flower') { for (i = 0; i < 10; i++) addShot({ ty: 'petal', x0: c.x + sg * 9, y0: c.y - 11, x1: tp.x + (RR() - .5) * 44, y1: tp.y + (RR() - .5) * 36, t: -RR() * .12, dur: .38 + RR() * .22, h: 10 + RR() * 8, col: PETC[i % PETC.length], sw: RR() * 6 }); }
+    else if (s.kind === 'splash') { for (i = 0; i < 8; i++) addShot({ ty: 'drop', x0: c.x + sg * 15, y0: c.y - 11, x1: tp.x + (RR() - .5) * 18, y1: tp.y + (RR() - .5) * 14, t: -i * .07, dur: .36, h: 8 + RR() * 3 }); }
+    else if (s.kind === 'star') { addShot({ ty: 'star', x0: c.x, y0: c.y - 20, x1: tp.x, y1: tp.y - 12, t: 0, dur: .58, h: 22 }); for (i = 0; i < 6; i++) addShot({ ty: 'twink', x: c.x + (RR() - .5) * 18, y: c.y - 18 - RR() * 8, t: -RR() * .25, dur: .45, col: '#fff3a8' }); }
+  }
+  function impactFx(c, s) {
+    var tp = skTarget(c, s), dv = DV[c.dir] || [0, 1], i;
+    if (s.kind === 'flower') { puff(tp.x, tp.y - 2, '#ffb0cc', 8, 26); puff(tp.x, tp.y - 2, '#ffffff', 5, 22); for (i = 0; i < 3; i++) addShot({ ty: 'twink', x: tp.x + (RR() - .5) * 30, y: tp.y - RR() * 8, t: -i * .08, dur: .4, col: '#ffe3ee' }); }
+    else if (s.kind === 'bonk') {
+      addShot({ ty: 'twink', x: c.x + dv[0] * 9, y: c.y - 8 + dv[1] * 6, t: 0, dur: .35, col: '#fff3a8', big: 1 });
+      var o = s.remote ? resMap[Math.floor((c.x + dv[0] * T) / T) + ',' + Math.floor((c.y - 4 + dv[1] * T) / T)] : resMap[s.x + ',' + s.y]; if (!o || o.res !== 'wood') return;
+      shk[o.rk] = performance.now(); var n = s.remote ? 2 : clamp((s.res && s.res.got && s.res.got.nit) || 1, 1, 3), cx = o.tx * T + 8;
+      for (i = 0; i < n; i++) addShot({ ty: 'acorn', x: cx + (RR() - .5) * 8, y: o.by - 26 - RR() * 6, vx: (RR() - .5) * 34, vy: -18 - RR() * 14, gy: o.by + 3 + RR() * 7, t: -i * .12, life: 2.2, b: 0 });
+      for (i = 0; i < 6; i++) addShot({ ty: 'petal', x0: cx + (RR() - .5) * 16, y0: o.by - 30 - RR() * 10, x1: cx + (RR() - .5) * 30, y1: o.by - 2 + RR() * 4, t: -RR() * .25, dur: .9 + RR() * .4, h: 0, col: i % 2 ? '#5cb857' : '#86d36a', sw: RR() * 6, amp: 3 });
+    }
+    else if (s.kind === 'splash') { puff(tp.x, tp.y, '#e8f6ff', 6, 24); puff(tp.x, tp.y, '#58b4ee', 6, 20); }
+    else if (s.kind === 'star') { for (i = 0; i < 8; i++) addShot({ ty: 'twink', x: tp.x + (RR() - .5) * 26, y: tp.y - 4 - RR() * 20, t: -i * .05, dur: .5, col: i % 2 ? '#fff3a8' : '#ffffff' }); addShot({ ty: 'twink', x: tp.x, y: tp.y - 12, t: 0, dur: .6, col: '#fff3a8', big: 1 }); }
+    if (!s.remote) applyResult(c, s);
+  }
+  function fxKind(k) { return FXK[k] || null; }
+  function upsertFx(f, delay) {
+    var k = fxKind(f.k); if (!k || f.x == null || f.y == null || f.until == null) return; var o = fxById[f.id];
+    if (o) { o.until = f.until; o.o = f.o; if (f.c) { o.c = f.c; o.cv = null; } return; }
+    fxById[f.id] = { id: f.id, k: k, x: f.x, y: f.y, o: f.o, c: f.c, until: f.until, show: performance.now() + (delay || 0), cv: null, boom: 0 };
+  }
+  function rebuildFx() { fxList = Object.keys(fxById).map(function (i) { return fxById[i]; }); }
+  function applyResult(c, s) {
+    var r = s.res || {}, g = r.got || {};
+    if (r.fx && fxKind(r.fx.k) !== 'bonk') { upsertFx(r.fx, 0); rebuildFx(); } else if (r.fx) { upsertFx(r.fx, 0); fxById[r.fx.id].boom = 1; rebuildFx(); }
+    var gx = c.x, gy = c.y - 30;
+    if (g.nit) pop(gx, gy, '+' + g.nit + (s.kind === 'bonk' ? ' 도토리' : ' 니트론'), '#fff3a8');
+    if (g.herb) setTimeout(function () { pop(c.x, c.y - 40, '+' + g.herb + ' 풀', '#bfe8c0'); }, 300);
+    if (r.me) applyMe(r.me);
+  }
+  function finishSkill(c) { c.skill = null; c.wait = 1; refreshAct(true); renderMk(); }
+  function stepSkill(c, dt) {
+    var s = c.skill, D = SKDEF[s.kind];
+    if (s.remote) {
+      s.t += dt;
+      if (!s.rel && s.t >= SKW) { s.rel = 1; s.t = 0; s.imp = 0; releaseFx(c, s); }
+      if (s.rel && !s.imp && s.t >= D.imp) { s.imp = 1; impactFx(c, s); }
+      if (s.rel && s.t >= D.R + .25) { s.n++; s.rel = 0; s.t = 0; if (s.n >= 2) { c.skillDone = c.rem && c.rem.a; c.skill = null; } }
+      return;
+    }
+    if (!s.rel) {
+      s.wait += dt; s.t = Math.min(SKW, s.t + dt);
+      if (s.err) { c.skill = null; c.wait = 1; toast(s.err.message || '쓰지 못했어요'); refreshAct(true); return; }
+      if (s.t >= SKW && s.res) { s.rel = 1; s.t = 0; releaseFx(c, s); }
+      else if (s.wait > 12) { c.skill = null; toast('서버가 응답하지 않아요'); }
+      return;
+    }
+    s.t += dt;
+    if (!s.imp && s.t >= D.imp) { s.imp = 1; impactFx(c, s); }
+    if (s.t >= D.R) finishSkill(c);
+  }
+  // 몸짓: 같은 몸에 작은 팔(테두리 + 몸색) · 물총을 얹고, 앞으로 쏠리거나 통통 뜀 (프레임 6)
+  function skillPose(c, s) {
+    var k = s.kind, tt = s.rel ? SKW + s.t : s.t, rt = tt - SKW, f = tt < .2 ? 0 : tt < SKW ? 1 : rt < .15 ? 2 : rt < .35 ? 3 : rt < .6 ? 4 : 5;
+    var dv = DV[c.dir] || [0, 1], sg = skSide(c), base = c.fr[c.dir][0], crouch = c.fr[c.dir][1], p = { img: base, dx: 0, dy: 0, lift: 0, f: f, sg: sg, arms: [], both: 0, gun: null, flw: 0 };
+    if (!s.rel && s.t >= SKW) p.lift = Math.sin(performance.now() / 90) > .3 ? 1 : 0;
+    if (k === 'flower') {
+      if (f === 0) p.arms.push([5, -8, 2, 3]);
+      else if (f === 1) { p.dx = -sg; p.arms.push([6, -14, 2, 3]); p.flw = 1; }
+      else if (f === 2) { p.dx = sg; p.arms.push([6, -11, 4, 2]); }
+      else if (f === 3) { p.dx = sg; p.lift = 1; p.arms.push([8, -10, 3, 2]); }
+      else p.arms.push([5, -8, 2, 3]);
+    } else if (k === 'bonk') {
+      if (f === 0) { p.img = crouch; p.dx = Math.floor(tt * 22) % 2 ? 1 : -1; }
+      else if (f === 1) { p.img = crouch; p.dx = -dv[0]; p.dy = -dv[1]; }
+      else if (f === 2) { p.dx = dv[0] * 3; p.dy = dv[1] * 3; p.lift = 3; }
+      else if (f === 3) { p.img = crouch; p.dx = dv[0] * 5; p.dy = dv[1] * 5; }
+      else if (f === 4) { p.dx = dv[0] * 2; p.dy = dv[1] * 2; p.lift = 2; }
+    } else if (k === 'splash') {
+      if (f === 0) p.arms.push([5, -8, 2, 3]);
+      else if (f === 1) { p.dx = -sg; p.arms.push([5, -11, 3, 2]); p.gun = [6, -13]; }
+      else if (f === 2) { p.dx = -sg; p.arms.push([5, -11, 3, 2]); p.gun = [6, -14]; }
+      else if (f === 3) { p.arms.push([5, -11, 3, 2]); p.gun = [6, -13]; }
+      else p.arms.push([5, -8, 2, 3]);
+    } else {
+      p.both = 1;
+      if (f === 0) p.arms.push([5, -8, 2, 3]);
+      else if (f === 1) { p.lift += 1; p.arms.push([4, -15, 2, 3]); }
+      else if (f === 2) { p.lift = 3; p.arms.push([4, -18, 2, 3]); }
+      else if (f === 3) { p.lift = 2; p.arms.push([4, -17, 2, 3]); }
+      else if (f === 4) p.arms.push([5, -10, 2, 3]);
+    }
+    return p;
+  }
+  function drawSkillProps(q, c, gx, gy, p) {
+    var sg = p.sg, base = gy - p.lift;
+    function arm(a, m) { var x = m > 0 ? gx + a[0] : gx - a[0] - a[2]; q.fillStyle = OUT; q.fillRect(Math.round(x) - 1, Math.round(base + a[1]) - 1, a[2] + 2, a[3] + 2); q.fillStyle = c.skin; q.fillRect(Math.round(x), Math.round(base + a[1]), a[2], a[3]); }
+    p.arms.forEach(function (a) { arm(a, sg); if (p.both) arm(a, -sg); });
+    if (p.gun) { var gx0 = Math.round(sg > 0 ? gx + p.gun[0] : gx - p.gun[0] - 8), gy0 = Math.round(base + p.gun[1]); if (sg > 0) q.drawImage(gunArt, gx0, gy0); else { q.save(); q.translate(gx0 + 8, gy0); q.scale(-1, 1); q.drawImage(gunArt, 0, 0); q.restore(); } }
+    if (p.flw) { var fx0 = Math.round(gx + sg * 7), fy0 = Math.round(base - 17); px(q, fx0, fy0, '#ff7fae'); px(q, fx0 + 1, fy0 - 1, '#ffffff'); px(q, fx0 - 1, fy0 - 1, '#ffd84a'); px(q, fx0 + sg * 2, fy0, '#b48cff'); }
+  }
+  function drawShots(q, dt, vis) {
+    var i, o, u, x, y;
+    shots = shots.filter(function (o) {
+      o.t += dt; if (o.t < 0) return true;
+      if (o.ty === 'acorn') {
+        o.vy += 150 * dt; o.x += o.vx * dt; o.y += o.vy * dt;
+        if (o.y >= o.gy) { o.y = o.gy; if (o.b < 2) { o.b++; o.vy = -Math.abs(o.vy) * .4; o.vx *= .5; } else { o.vy = 0; o.vx = 0; } }
+        if (o.t > o.life) return false; if (!vis(o.x, o.y)) return true;
+        q.globalAlpha = o.t > o.life - .4 ? clamp((o.life - o.t) / .4, 0, 1) : 1; q.fillStyle = 'rgba(20,50,20,.25)'; q.fillRect(Math.round(o.x) - 1, Math.round(o.gy) + 1, 4, 1);
+        q.drawImage(acornArt, Math.round(o.x) - 2, Math.round(o.y) - 5); q.globalAlpha = 1; return true;
+      }
+      if (o.ty === 'twink') {
+        u = o.t / o.dur; if (u >= 1) return false; if (!vis(o.x, o.y)) return true; var r = (o.big ? 2 : 1) + Math.round(u * (o.big ? 5 : 3)); q.globalAlpha = 1 - u; q.fillStyle = o.col;
+        x = Math.round(o.x); y = Math.round(o.y); q.fillRect(x, y, 1, 1); q.fillRect(x - r, y, 1, 1); q.fillRect(x + r, y, 1, 1); q.fillRect(x, y - r, 1, 1); q.fillRect(x, y + r, 1, 1);
+        if (o.big) { q.fillRect(x - r + 1, y - r + 1, 1, 1); q.fillRect(x + r - 1, y - r + 1, 1, 1); q.fillRect(x - r + 1, y + r - 1, 1, 1); q.fillRect(x + r - 1, y + r - 1, 1, 1); } q.globalAlpha = 1; return true;
+      }
+      u = o.t / o.dur; if (u >= 1) return false;
+      x = o.x0 + (o.x1 - o.x0) * u; y = o.y0 + (o.y1 - o.y0) * u - Math.sin(u * Math.PI) * o.h;
+      if (o.ty === 'petal') { x += Math.sin(o.t * 12 + o.sw) * (o.amp || 1.4); if (!vis(x, y)) return true; q.globalAlpha = u > .85 ? (1 - u) / .15 : 1; q.fillStyle = o.col; if (Math.floor(o.t * 10 + o.sw) % 2) q.fillRect(Math.round(x), Math.round(y), 2, 1); else q.fillRect(Math.round(x), Math.round(y), 1, 2); q.globalAlpha = 1; }
+      else if (o.ty === 'drop') { if (!vis(x, y)) return true; q.fillStyle = '#58b4ee'; q.fillRect(Math.round(x), Math.round(y), 1, 2); q.fillStyle = '#e8f6ff'; q.fillRect(Math.round(x), Math.round(y), 1, 1); q.globalAlpha = .45; q.fillStyle = '#8fd3f7'; q.fillRect(Math.round(x - (o.x1 - o.x0) * .04), Math.round(y + 1 + Math.sin(u * 3) * 1), 1, 1); q.globalAlpha = 1; }
+      else if (o.ty === 'star') {
+        if (!vis(x, y)) return true; q.drawImage(starArt, Math.round(x) - 4, Math.round(y) - 4); if (RR() < dt * 30) pts.push({ x: x, y: y, vx: (RR() - .5) * 12, vy: 4 + RR() * 6, g: 0, life: .4 + RR() * .3, t: 0, col: RR() < .5 ? '#fff3a8' : '#ffffff', sz: 1 });
+      }
+      return true;
+    });
+  }
+  // fx(꽃밭 · 새싹 · 별) 그리기 — 칸 그림은 한 번 구워 두고 그림
+  function fxCells(f) {
+    if (f.c && f.c.length) return f.c;
+    var out = []; for (var yy = f.y - 1; yy <= f.y + 1; yy++) for (var xx = f.x - 1; xx <= f.x + 1; xx++) {
+      var t = terr[yy] && terr[yy][xx]; if (t == null || t !== (f.k === 'splash' ? SO : G) || blocked[xx + ',' + yy] || resMap[xx + ',' + yy] || structAt[xx + ',' + yy]) continue; out.push([xx, yy]);
+    } return out;
+  }
+  function bakeFx(f) {
+    var cv = mk(48, 56), q = cv.getContext('2d');
+    fxCells(f).forEach(function (cl) {
+      var ox = (cl[0] - f.x + 1) * T, oy = (cl[1] - f.y + 1) * T + 8;
+      for (var i = 0; i < (f.k === 'splash' ? 2 : 5); i++) {
+        var h = hash(cl[0] * 7 + i, cl[1] * 5 + i * 3, 41), h2 = hash(cl[1] * 3 + i, cl[0] * 11 + i * 5, 17), fx0 = ox + 2 + Math.floor(h * 11), fy0 = oy + 5 + Math.floor(h2 * 8);
+        if (f.k === 'splash') {   // 쌍잎 새싹
+          px(q, fx0 + 1, fy0, '#3f9a45'); px(q, fx0 + 1, fy0 - 1, '#5cb857'); px(q, fx0, fy0 - 2, '#86d36a'); px(q, fx0 - 1, fy0 - 3, '#86d36a'); px(q, fx0 + 2, fy0 - 2, '#5cb857'); px(q, fx0 + 3, fy0 - 3, '#86d36a'); px(q, fx0 - 1, fy0 - 2, '#5cb857'); px(q, fx0 + 3, fy0 - 2, '#3f9a45');
+        } else {   // 꽃: 줄기 · 잎 · 꽃잎 다섯 · 노란 가운데
+          var col = PETC[Math.floor(hash(cl[0] + i * 13, cl[1] + i * 7, 3) * PETC.length)];
+          px(q, fx0, fy0, '#3f9a45'); px(q, fx0, fy0 - 1, '#3f9a45'); px(q, fx0 + 1, fy0, '#5cb857'); px(q, fx0 - 1, fy0 + 1, '#5cb857');
+          px(q, fx0, fy0 - 3, col); px(q, fx0 - 1, fy0 - 2, col); px(q, fx0 + 1, fy0 - 2, col); px(q, fx0, fy0 - 2, '#ffd84a'); px(q, fx0 - 1, fy0 - 3, col === '#ffffff' ? '#f4f1e6' : col); px(q, fx0 + 1, fy0 - 3, col === '#ffffff' ? '#f4f1e6' : col); px(q, fx0, fy0 - 4, col === '#ffffff' ? '#f4f1e6' : col);
+        }
+      }
+    });
+    return cv;
+  }
+  function fxLeft(f) { return f.until - tOff - nowMs; }
+  function drawFxGround(q, vx0, vx1, vy0, vy1) {
+    var now = performance.now();
+    fxList.forEach(function (f) {
+      if (f.k === 'star' || f.k === 'bonk' || now < f.show) return; var X = (f.x - 1) * T, Y = (f.y - 1) * T - 8; if (X > vx1 || X + 48 < vx0 || Y > vy1 || Y + 56 < vy0) return;
+      var left = fxLeft(f); if (left <= 0) return; if (!f.cv || f.dirty !== fxDirty) { f.cv = bakeFx(f); f.dirty = fxDirty; }
+      var u = clamp((now - f.show) / 480, 0, 1), sc = u < 1 ? (u < .7 ? u / .7 * 1.14 : 1.14 - (u - .7) / .3 * .14) : 1;
+      if (!f.boom && u < 1) { f.boom = 1; puff(f.x * T + 8, f.y * T + 10, f.k === 'splash' ? '#bfe8a0' : '#ffd0e0', 6, 22); }
+      q.globalAlpha = left < 5000 ? (Math.floor(now / 200) % 2 ? .55 : 1) * clamp(left / 5000, .3, 1) : 1;
+      q.drawImage(f.cv, 0, 0, 48, 56, X, Math.round(Y + 56 - 56 * sc), 48, Math.round(56 * sc)); q.globalAlpha = 1;
+    });
+  }
+  function drawFxStars(q, t, vis) {
+    var now = performance.now();
+    fxList.forEach(function (f) {
+      if (f.k === 'bonk') { if (!f.boom) { f.boom = 1; if (now - f.show < 2500 && f.show > 0 && !(me && f.o === me.n)) { var tr = resMap[f.x + ',' + f.y]; if (tr) { shk[tr.rk] = now; for (var q2 = 0; q2 < 2; q2++) addShot({ ty: 'acorn', x: tr.tx * T + 8 + (RR() - .5) * 8, y: tr.by - 26, vx: (RR() - .5) * 34, vy: -18 - RR() * 10, gy: tr.by + 3 + RR() * 7, t: -q2 * .12, life: 2.2, b: 0 }); } } } return; }
+      if (f.k !== 'star' || now < f.show) return; var X = f.x * T + 8, Y = f.y * T + 13; if (!vis(X, Y)) return; var left = fxLeft(f); if (left <= 0) return;
+      var u = clamp((now - f.show) / 600, 0, 1), sc = u < 1 ? 1 - Math.pow(1 - u, 3) : 1, bob = Math.sin(t * 2.4 + f.x) * 1.5;
+      q.globalAlpha = left < 5000 ? (Math.floor(now / 200) % 2 ? .5 : 1) : 1;
+      q.fillStyle = 'rgba(20,50,20,.25)'; q.beginPath(); q.ellipse(X, Y, 4, 1.4, 0, 0, 6.3); q.fill();
+      q.fillStyle = '#8a5a2a'; q.fillRect(X, Math.round(Y - 6 * sc), 1, Math.round(6 * sc)); q.fillStyle = '#6b4a2b'; q.fillRect(X + 1, Math.round(Y - 6 * sc), 1, Math.round(6 * sc));
+      var sy = Math.round(Y - 6 - 9 * sc - 4 + bob - (1 - sc) * 4); q.drawImage(starArt, X - 4, sy);
+      if (Math.sin(t * 3 + f.y * 2.7) > .8) { q.fillStyle = '#ffffff'; q.fillRect(X + 5, sy + 1, 1, 1); q.fillRect(X + 4, sy + 2, 3, 1); q.fillRect(X + 5, sy + 3, 1, 1); }
+      q.globalAlpha = 1;
+      if (!f.boom && u < 1) { f.boom = 1; for (var k = 0; k < 6; k++) addShot({ ty: 'twink', x: X + (RR() - .5) * 20, y: Y - 8 - RR() * 14, t: -k * .06, dur: .5, col: '#fff3a8' }); }
+    });
+  }
+  function shakeX(o) { var s = shk[o.rk]; if (!s) return 0; var a = (performance.now() - s) / 1000; if (a > .9) { delete shk[o.rk]; return 0; } return Math.round(Math.sin(a * 45) * 2 * (1 - a / .9)); }
+  var fxBusy = false;
+  function applyFx(r) {
+    if (r.t) tOff = r.t - Date.now();
+    if (r.same) { if (r.ver != null) fxVer = r.ver; return; }
+    var seen = {}, first = !fxInit; fxInit = true;
+    (r.fx || []).forEach(function (f) { if (!f) return; if (meChar && meChar.skill && !meChar.skill.imp && f.o === me.n && !fxById[f.id]) return; seen[f.id] = 1; upsertFx(f, 0); if (first && fxById[f.id]) { fxById[f.id].show = 0; fxById[f.id].boom = 1; } });
+    Object.keys(fxById).forEach(function (id) { if (!seen[id] && fxById[id].show <= performance.now()) delete fxById[id]; });
+    rebuildFx(); if (r.ver != null) fxVer = r.ver;
+  }
+  function pollFx() {
+    if (!API || feat.skill === false || fxBusy || document.visibilityState !== 'visible') return; fxBusy = true;
+    svc('skill', 'fx', fxVer == null ? {} : { ver: fxVer }, '').then(function (r) { if (feat.skill !== true) { feat.skill = true; syncUi(); } applyFx(r || {}); }, function () {}).then(function () { fxBusy = false; });
+  }
+  function loadSkillRules() { if (!API || feat.skill === false) return; svc('skill', 'skillRules', {}, '').then(function (r) { var o = (r && r.skills) || {}; SKORDER.forEach(function (k) { var v = o[k]; if (!v) return; if (v.name) SKDEF[k].n = v.name; if (v.stat) SKDEF[k].st = v.stat; if (v.need != null) SKDEF[k].need = v.need; if (v.nit != null) SKDEF[k].nit = v.nit; if (v.life) SKDEF[k].tip = SKDEF[k].tip.replace(/\(.*\)/, '(' + (v.life >= 3600e3 ? Math.round(v.life / 3600e3) + '시간' : Math.round(v.life / 60e3) + '분') + ')'); }); renderMk(); }, function () {}); }
+  if (API) { pollFx(); setInterval(pollFx, 5000); loadSkillRules(); }
+  // 스킬 패널 (가방 패널 자리에 열림)
+  function renderSk() {
+    var d = me.skills || {}, dd = d.daily, h = '<h3>⚡ 스킬</h3><div class="sub" style="margin-bottom:6px">능력치를 키우면 재주가 열려요. 고르면 땅에서 칸을 눌러 정하고 ✔ 로 써요.' + (dd && dd.max != null ? ' (오늘 ' + (dd.used || 0) + '/' + dd.max + ')' : '') + '</div>';
+    SKORDER.forEach(function (k) {
+      var D = SKDEF[k], on = skUnlocked(k), have = (me.s && me.s[D.st]) || 0, cd = d.cd && d.cd[k];
+      h += '<div class="row"><span>' + D.e + ' <b>' + D.n + '</b> <span class="sub">⚡' + D.nit + '</span><br><span class="sub">' + (on ? D.tip : '🔒 ' + D.st + ' ' + D.need + ' 이상 필요 (지금 ' + have + ')') + '</span></span>' + (on ? '<button class="btn gold" data-a="skpick" data-v="' + k + '">쓰기</button>' : '<span class="sub">🔒</span>') + '</div>';
+    });
+    if (d.next && d.next.kind && SKDEF[d.next.kind]) h += '<div class="sub" style="margin-top:6px">다음 재주: ' + SKDEF[d.next.kind].e + ' ' + SKDEF[d.next.kind].n + ' (' + d.next.stat + ' ' + d.next.have + '/' + d.next.need + ')</div>';
+    mkPanel.innerHTML = h + '<div class="msg">' + esc(mkMsg) + '</div>';
+  }
+  var mkView = 'bag';
+  $('skBtn').onclick = function () { var on = mkPanel.style.display !== 'block' || mkView !== 'skill'; mkView = 'skill'; mkPanel.style.display = on ? 'block' : 'none'; if (on) { mePanel.style.display = 'none'; mkMsg = ''; renderMk(); } };
 
   // ---------- 매 프레임 ----------
   var paused = false, last = performance.now(), T0 = last, fpsN = 0, fpsT = last, fpsEl = document.getElementById('fps'), petalT = 0, rippleT = 0, birdT = 6 + RR() * 8, lastClock = '', pulse = 0;
@@ -1000,6 +1274,7 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
     // 캐릭터
     chars.forEach(function (c) {
       if (c.rem) { stepRemote(c, dt); return; }
+      if (c.skill) { stepSkill(c, dt); return; }
       if (c.work) { stepWork(c, dt); return; }
       if (c.swim) {   // 수영: 가까운 물가까지 헤엄쳐 가서 올라옴
         var sx = c.swim.tx - c.x, sy = c.swim.ty - c.y, sd = Math.hypot(sx, sy), ss = 22 * dt; c.swim.t += dt;
@@ -1050,10 +1325,10 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
       var hcx = clamp(Math.floor(held.hx / T), 0, W - 1), hcy = clamp(Math.floor(held.hy / T), 0, H - 1), ok = walk[hcy][hcx], wat = isW(terr[hcy][hcx]);
       wc.globalAlpha = .55 + .25 * Math.sin(t * 8); wc.fillStyle = ok ? '#7dff9a' : wat ? '#7dd3ff' : '#ff8d7d'; wc.fillRect(hcx * T, hcy * T, T, 2); wc.fillRect(hcx * T, hcy * T + 14, T, 2); wc.fillRect(hcx * T, hcy * T, 2, T); wc.fillRect(hcx * T + 14, hcy * T, 2, T); wc.globalAlpha = 1;
     }
-    function drawObj(o) { var im = (depN && o.res && depImg(o)) || getObj(o), X = Math.round(o.tx * T + 8 - im.width / 2 + o.ox + (o.kind === 'log' ? 8 : o.kind === 'cottage' ? 16 : 0)), Y = Math.round(o.by - im.height); if (X > vx1 || X + im.width < vx0 || Y > vy1 || Y + im.height < vy0) return; wc.drawImage(im, X, Y); }
+    function drawObj(o) { var im = (depN && o.res && depImg(o)) || getObj(o), X = Math.round(o.tx * T + 8 - im.width / 2 + o.ox + (o.kind === 'log' ? 8 : o.kind === 'cottage' ? 16 : 0) + (o.rk ? shakeX(o) : 0)), Y = Math.round(o.by - im.height); if (X > vx1 || X + im.width < vx0 || Y > vy1 || Y + im.height < vy0) return; wc.drawImage(im, X, Y); }
     function frameOf(c) { return c.walking ? c.fr[c.dir][Math.floor(t * 6.5 + c.ph) % 4] : (Math.floor(t * 1.6 + c.ph) % 2 ? c.idle : c.fr[c.dir][0]); }
     function drawChar(c) {
-      var gx = c.x, gy = c.y, lift = 0, img;
+      var gx = c.x, gy = c.y, lift = 0, img, pz = null;
       if (c.swim) {   // 수영 모션: 머리와 윗몸만 물 위에 떠서 위아래로 일렁이고, 두 팔이 번갈아 물을 가름
         var bob = Math.sin(c.swim.t * 7) * 1, stroke = Math.floor(c.swim.t * 6) % 2;
         wc.fillStyle = 'rgba(30,90,140,.35)'; wc.beginPath(); wc.ellipse(Math.round(gx), Math.round(gy), 7, 2.6, 0, 0, 6.3); wc.fill();
@@ -1065,11 +1340,13 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
       }
       if (c.held) { gx = c.hx; gy = c.hy; lift = 11 + Math.sin(t * 9) * 1.5; img = c.fr.down[Math.floor(t * 8) % 2 ? 1 : 3]; }
       else if (c.jump) { var u = clamp(c.jump.t, 0, 1); gx = c.jump.x0 + (c.jump.x1 - c.jump.x0) * u; gy = c.jump.y0 + (c.jump.y1 - c.jump.y0) * u; lift = Math.sin(u * Math.PI) * c.jump.h; img = c.fr.down[0]; }
+      else if (c.skill) { pz = skillPose(c, c.skill); img = pz.img; lift = pz.lift; gx += pz.dx; gy += pz.dy; }
       else if (c.work) { img = c.fr[c.dir][0]; lift = workLift(c); }
       else img = frameOf(c);
       if (photo) { } else if (c === meChar) { var pr = 8 + Math.sin(t * 4) * 1.2; wc.strokeStyle = 'rgba(255,216,107,.95)'; wc.lineWidth = 1; wc.beginPath(); wc.ellipse(Math.round(gx), Math.round(gy), pr, pr * .38, 0, 0, 6.3); wc.stroke(); }   // 내 캐릭터 강조 고리
       wc.fillStyle = 'rgba(20,50,20,' + (lift ? .22 : .3) + ')'; wc.beginPath(); wc.ellipse(Math.round(gx), Math.round(gy), lift ? 7 : 6, lift ? 2.6 : 2.2, 0, 0, 6.3); wc.fill();
       wc.drawImage(img, Math.round(gx - 8), Math.round(gy - 15 - lift));
+      if (pz) drawSkillProps(wc, c, gx, gy, pz);
       if (c.work) drawTool(wc, c, gx, gy, lift);
       if (c.emo && now > c.emo.until) c.emo = null; if (c.emo) drawEmote(wc, c.emo.k, gx, gy - 27 - lift, t);
       if (!photo && c === meChar) { var ay = Math.round(gy - 24 - lift + Math.sin(t * 5) * 1.5); wc.fillStyle = '#ffd86b'; wc.fillRect(Math.round(gx) - 2, ay, 5, 1); wc.fillRect(Math.round(gx) - 1, ay + 1, 3, 1); wc.fillRect(Math.round(gx), ay + 2, 1, 1); }   // 머리 위 ▼
@@ -1078,6 +1355,7 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
     cs2.forEach(function (c) { while (oi < allObjs.length && allObjs[oi].by <= c.y + 1) drawObj(allObjs[oi++]); if (vis(c.x, c.y)) drawChar(c); });
     while (oi < allObjs.length) drawObj(allObjs[oi++]);
     if (held) drawChar(held);
+    drawFxStars(wc, t, vis); drawShots(wc, dt, vis);
     if (day > .15) { wc.globalAlpha = clamp(day * 1.3, 0, 1); flies.forEach(function (f) { if (!vis(f.x, f.y)) return; var im = bflyImg[f.ci][Math.floor(t * 8 + f.ph) % 2]; wc.drawImage(im, Math.round(f.x - 3 + Math.sin(t * 3 + f.ph) * 2), Math.round(f.y - 6 + Math.sin(t * 2.3 + f.ph) * 3)); }); wc.globalAlpha = 1; }
     birds.forEach(function (bd) { var im = birdImg[Math.floor(t * 5) % 2]; wc.fillStyle = 'rgba(20,40,20,.22)'; wc.beginPath(); wc.ellipse(Math.round(bd.x), Math.round(bd.y + 18), 5, 1.6, 0, 0, 6.3); wc.fill(); wc.save(); if (bd.flip) { wc.translate(Math.round(bd.x) + 5, Math.round(bd.y)); wc.scale(-1, 1); wc.drawImage(im, 0, 0); } else wc.drawImage(im, Math.round(bd.x - 5), Math.round(bd.y)); wc.restore(); });
     pts.forEach(function (p) { wc.globalAlpha = clamp(1 - p.t / p.life, 0, 1) * .95; wc.fillStyle = p.col; wc.fillRect(Math.round(p.x), Math.round(p.y), p.sz, 1); }); wc.globalAlpha = 1;
@@ -1087,6 +1365,7 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
       wc.globalCompositeOperation = 'lighter';
       lamps.forEach(function (l) { if (!vis(l.x, l.y)) return; wc.globalAlpha = clamp(dark * 1.2, 0, 1) * (.8 + .08 * Math.sin(t * 3 + l.x)); wc.drawImage(glowLg, Math.round(l.x - 56), Math.round(l.y - 50)); });
       fireflies.forEach(function (f) { if (!vis(f.x, f.y)) return; var a = dark * (.35 + .65 * Math.max(0, Math.sin(t * 2.2 + f.ph))); if (a < .05) return; wc.globalAlpha = a; wc.drawImage(glowSm, Math.round(f.x - 12), Math.round(f.y - 12)); });
+      fxList.forEach(function (f) { if (f.k !== 'star' || performance.now() < f.show || fxLeft(f) <= 0) return; var X = f.x * T + 8, Y = f.y * T + 3; if (!vis(X, Y)) return; wc.globalAlpha = clamp(dark * 1.2, 0, 1) * (.7 + .3 * Math.sin(t * 4 + f.x)); wc.drawImage(glowSm, Math.round(X - 12), Math.round(Y - 12)); });
       wc.globalAlpha = 1; wc.globalCompositeOperation = 'source-over';
       fireflies.forEach(function (f) { if (!vis(f.x, f.y)) return; var a = dark * Math.max(0, Math.sin(t * 2.2 + f.ph)); if (a > .3) { wc.globalAlpha = a; px(wc, Math.round(f.x), Math.round(f.y), '#fff6a0'); } }); wc.globalAlpha = 1;
     }
