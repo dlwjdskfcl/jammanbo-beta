@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.27.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.28.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
   var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay', LS_THEME = 'tichu_theme', LS_THEME_TIP = 'tichu_theme_tip', LS_BOTLV = 'tichu_botlv', LS_PRACT = 'tichu_practice';
@@ -798,7 +798,7 @@
   }
   function botDelayVal(root) { var v = segVal(root, 'botDelay'); v = v == null ? botDelayPref() : +v; lsSet(LS_BOTD, String(v)); return v; }
   function roomOptForm(o) {
-    o = o || { name: '', target: 500, time: 0, timer: 30, pw: '', botDelay: botDelayPref(), botLv: botLvPref(), peek: 1, hide: 0 };   // 새 방 기본: 턴 30초 · 관전자 패 보여 주기
+    o = o || { name: '', target: 500, time: 0, timer: 30, pw: '', botDelay: botDelayPref(), botLv: botLvPref(), peek: 1, pub: 0, hide: 0 };   // 새 방 기본: 턴 30초 · 관전자 패 보여 주기
     var preset = [100, 200, 400, 500].indexOf(+o.target) >= 0;
     return '<div class="field"><label>방 이름</label><input class="input" id="oName" maxlength="24" placeholder="' + esc(S.user.name) + '님의 방" value="' + esc(o.name) + '"></div>' +
       '<div class="field"><label>목표 점수</label>' + optSeg('target', [100, 200, 400, 500], preset ? o.target : '', function (v) { return v + '점'; }) +
@@ -810,6 +810,9 @@
       // 관전자 패 보기 (실시간 서버 방만) — 배우는 사람 · 대회 중계용
       (CFG.rt ? '<div class="field"><label>👀 관전자에게 패 보여 주기 <span class="small">(배우는 사람 · 대회 중계용)</span></label>' + optSeg('peek', [0, 1], o.peek ? 1 : 0, function (v) { return v ? '보여 주기' : '안 보여 주기'; }) +
         '<div class="small" style="margin-top:6px">켜면 관전자는 네 사람의 패를 모두 볼 수 있어요 · 공정하게 하려고 게임 중 관전자의 봇 자리 이어받기는 막혀요</div></div>' : '') +
+      // 먹은 카드점수 (실시간 서버 방만) — 실제 티츄는 먹은 트릭이 비공개라 기본은 숨기기
+      (CFG.rt ? '<div class="field"><label>🧮 먹은 카드점수 보여 주기 <span class="small">(실제 티츄는 비공개)</span></label>' + optSeg('pub', [0, 1], o.pub ? 1 : 0, function (v) { return v ? '보여 주기' : '숨기기'; }) +
+        '<div class="small" style="margin-top:6px">켜면 점수판에 이번 라운드에 먹은 카드점수(사람별 · 팀 합계)가 나와요 · 끄면 직접 세야 해요 · 바닥에 놓인 카드 점수는 늘 보여요</div></div>' : '') +
       '<div class="field"><label>🙈 방 목록에 숨기기 <span class="small">(혼자 AI와 하거나 아는 사람만 초대할 때)</span></label>' + optSeg('hide', [0, 1], o.hide ? 1 : 0, function (v) { return v ? '숨기기' : '보이기'; }) +
         '<div class="small" style="margin-top:6px">숨기면 방 목록에 안 나와요 · 대기실의 초대 링크로 들어올 수 있어요 · 빈자리는 AI로 채워 바로 시작할 수 있어요</div></div>' +
       '<div class="field"><label>방 비밀번호 (선택, 숫자·영문)</label><input class="input" id="oPw" maxlength="8" inputmode="text" autocomplete="off" value="' + esc(o.pw || '') + '"></div>';
@@ -819,7 +822,7 @@
     bindSeg(modalEl); bindTarget(modalEl);
     $('#oGo').onclick = function () {
       var b = $('#oGo'); b.disabled = true;
-      api('create', { name: $('#oName').value, target: targetVal(modalEl), time: +segVal(modalEl, 'time') || 0, timer: +segVal(modalEl, 'timer'), botDelay: botDelayVal(modalEl), botLv: botLvVal(modalEl), peek: +segVal(modalEl, 'peek') || 0, hide: +segVal(modalEl, 'hide') || 0, pw: $('#oPw').value }).then(function (r) {
+      api('create', { name: $('#oName').value, target: targetVal(modalEl), time: +segVal(modalEl, 'time') || 0, timer: +segVal(modalEl, 'timer'), botDelay: botDelayVal(modalEl), botLv: botLvVal(modalEl), peek: +segVal(modalEl, 'peek') || 0, pub: +segVal(modalEl, 'pub') || 0, hide: +segVal(modalEl, 'hide') || 0, pw: $('#oPw').value }).then(function (r) {
         closeModal(); applyRoom(r, true); location.hash = '#/room/' + r.id;
       }, function (e) { b.disabled = false; toast(e.message, true); });
     };
@@ -1476,10 +1479,10 @@
   }
   function optSheet() {
     var r = S.room;
-    openModal('<h2>방 설정<button class="x" data-x>✕</button></h2>' + roomOptForm({ name: r.name, target: r.opt.target, time: timeOf(r.opt), timer: r.opt.timer, botDelay: botDelayOf(r.opt), botLv: botLvOf(r.opt), peek: r.opt.peek, hide: r.opt.hide, pw: '' }) +
+    openModal('<h2>방 설정<button class="x" data-x>✕</button></h2>' + roomOptForm({ name: r.name, target: r.opt.target, time: timeOf(r.opt), timer: r.opt.timer, botDelay: botDelayOf(r.opt), botLv: botLvOf(r.opt), peek: r.opt.peek, pub: r.opt.pub, hide: r.opt.hide, pw: '' }) +
       '<div class="small">비밀번호 칸을 비우면 공개방이 돼요.</div><button class="btn primary block" id="oGo">저장</button>');
     bindSeg(modalEl); bindTarget(modalEl);
-    $('#oGo').onclick = function () { var pk = segVal(modalEl, 'peek'); roomCall('opt', { name: $('#oName').value, target: targetVal(modalEl), time: CFG.rt ? +segVal(modalEl, 'time') || 0 : undefined, timer: +segVal(modalEl, 'timer'), botDelay: botDelayVal(modalEl), botLv: botLvVal(modalEl), peek: pk == null ? undefined : +pk, hide: +segVal(modalEl, 'hide') || 0, pw: $('#oPw').value }, $('#oGo')).then(closeModal); };
+    $('#oGo').onclick = function () { var pk = segVal(modalEl, 'peek'), pb = segVal(modalEl, 'pub'); roomCall('opt', { name: $('#oName').value, target: targetVal(modalEl), time: CFG.rt ? +segVal(modalEl, 'time') || 0 : undefined, timer: +segVal(modalEl, 'timer'), botDelay: botDelayVal(modalEl), botLv: botLvVal(modalEl), peek: pk == null ? undefined : +pk, pub: pb == null ? undefined : +pb, hide: +segVal(modalEl, 'hide') || 0, pw: $('#oPw').value }, $('#oGo')).then(closeModal); };
   }
   function copyInvite() {
     // ?reset: 잠만보 앱의 예전 서비스 워커(v2.2)가 남은 기기에서도 티츄 페이지가 바로 열리게 (티츄는 이 값을 쓰지 않고 지움)
@@ -1766,7 +1769,7 @@
     return { by: by, tot: tot };
   }
   function gverHTML() { return '<div class="gver">화면 v' + APP_VER + '</div>'; }   // 게임 화면 맨 아래 패치 버전
-  function plusN(n) { return n > 0 ? '+' + n : String(n); }
+  function plusN(n) { return n >= 0 ? '+' + n : String(n); }
   function ptsFmt(n) { return (n > 0 ? '+' : '') + n + '점'; }
   // 바닥(낸 카드 칸). isTurn = 지금 이 사람 차례 → 금색 테두리 + '차례' 표시. pts = 이 자리가 이 트릭에 낸 카드 점수
   function frontHTML(g, s, p, st, isTop, isTurn, pts) {

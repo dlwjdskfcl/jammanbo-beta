@@ -509,7 +509,7 @@ var TE = (function () {
   }
 
   // 한 자리에서 본 게임 상태 (다른 사람 손패·교환 카드·남은 덱은 숨김). seat=-1 은 관전
-  function view(g, seat) {
+  function view(g, seat, o) {   // o.pts = 방 설정 '먹은 카드점수 보여 주기' (실시간 서버만 넘김 — GAS 방식은 항상 비공개)
     if (!g) return null;
     var v = {
       target: g.target, scores: g.scores, round: g.round, phase: g.phase, turn: g.turn, lead: g.lead,
@@ -527,8 +527,8 @@ var TE = (function () {
       v.recv = g.recv ? g.recv[seat] : null;
     }
     if (g.phase === 'roundEnd' || g.phase === 'gameEnd') v.hands = g.hands;   // 라운드가 끝나면 남은 손패 공개
-    else {   // 라운드 중: 각자 따간 카드점수(v.pts)는 공개(2026-11-24, ptsLive 로 화면이 새 서버인지 앎), 트릭 이벤트의 점수 p 만 숨김
-      v.ptsLive = true;
+    else {   // 라운드 중: 각자 따간 카드점수(v.pts)는 방 설정(o.pts)이 켜졌을 때만 공개 — ptsLive 로 화면이 앎. 트릭 이벤트의 점수 p 는 늘 숨김
+      if (o && o.pts) v.ptsLive = true; else v.pts = [0, 0, 0, 0];
       v.log = v.log.map(function (e) { if (e.k !== 'trick') return e; var c = {}; for (var k in e) if (k !== 'p') c[k] = e[k]; return c; });
     }
     return v;
