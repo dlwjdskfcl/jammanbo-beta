@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.26.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.27.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
   var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay', LS_THEME = 'tichu_theme', LS_THEME_TIP = 'tichu_theme_tip', LS_BOTLV = 'tichu_botlv', LS_PRACT = 'tichu_practice';
@@ -1280,7 +1280,8 @@
       // 3등이 마지막 패를 내고 라운드가 끝났으면: 그 패를 테이블에 잠깐 보여 준 뒤 결과 화면 (2026-11-23 제보)
       var endKey = key + ':' + g.round;
       S.holdMs = 0;
-      if (S.lastSeq && (g.phase === 'roundEnd' || g.phase === 'gameEnd') && S.resultShown !== endKey && evs.some(function (e) { return e.k === 'out' && e.place === 3; })) {
+      // 내가 꼴찌(4등)일 때만 — 1·2등으로 나간 사람은 보여 줄 필요 없음 (2026-11-24 제보)
+      if (S.lastSeq && me >= 0 && g.out.indexOf(me) < 0 && (g.phase === 'roundEnd' || g.phase === 'gameEnd') && S.resultShown !== endKey && evs.some(function (e) { return e.k === 'out' && e.place === 3; })) {
         for (var li = g.log.length - 1; li >= 0 && g.log[li].k !== 'play'; li--);
         if (li >= 0) { S.holdMs = END_HOLD_MS; S.endHold = { n: g.log[li].n, until: Date.now() + END_HOLD_MS }; setTimeout(render, END_HOLD_MS + 50); }
       }
@@ -1628,14 +1629,19 @@
     if (op && me >= 0 && op.k === 'pass') { ts[me] = { pass: 1 }; S.flash[me] = 0; }
     var myTurn = me >= 0 && g.phase === 'play' && g.turn === me;
     var scoreUs = g.scores[myTeam], scoreThem = g.scores[1 - myTeam];
-    var nmUs = [view, (view + 2) % 4].map(seatName).join('·'), nmThem = [(view + 1) % 4, (view + 3) % 4].map(seatName).join('·');
+    // 이번 라운드에 먹었지만 아직 점수로 환산 안 된 카드점수 (서버 v1.17.8+ 가 g.ptsLive 로 알려 줌)
+    var live = !!g.ptsLive && (g.phase === 'play' || g.phase === 'dragon'), rp = g.pts || [0, 0, 0, 0];
+    var usS = [view, (view + 2) % 4], thS = [(view + 1) % 4, (view + 3) % 4];
+    var nmP = function (x) { return live ? seatName(x).slice(0, 3) + ' ' + rp[x] : seatName(x); };   // 점수를 붙일 땐 이름을 3글자까지만 (줄이 좁아 파트너 점수가 잘리지 않게)
+    var nmUs = usS.map(nmP).join('·'), nmThem = thS.map(nmP).join('·');
+    var rpUs = live ? '<i class="rp" title="이번 라운드에 먹었지만 아직 점수로 환산 안 된 카드점수">' + plusN(rp[usS[0]] + rp[usS[1]]) + '</i>' : '', rpThem = live ? '<i class="rp" title="이번 라운드에 먹었지만 아직 점수로 환산 안 된 카드점수">' + plusN(rp[thS[0]] + rp[thS[1]]) + '</i>' : '';
 
     var h = '<div class="game">';
     // 상단: 점수
     h += '<div class="gbar"><button class="iconbtn" id="gMenu" aria-label="메뉴">≡</button>' +
-      '<div class="score"><div class="tm ' + (myTeam ? 'tB' : 'tA') + '"><span>' + scoreUs + '</span><small>' + (me >= 0 ? '우리 · ' : '') + esc(nmUs) + '</small></div>' +
+      '<div class="score"><div class="tm ' + (myTeam ? 'tB' : 'tA') + (live ? ' live' : '') + '"><span>' + scoreUs + rpUs + '</span><small>' + (me >= 0 && !live ? '우리 · ' : '') + esc(nmUs) + '</small></div>' +
       '<div class="vs">' + g.round + 'R<small>' + (timeOf(r.opt) ? '<span id="gClock" title="타임 어택 남은 시간">⏱ ' + clockText(r) + '</span>' : '/' + g.target) + '</small></div>' +
-      '<div class="tm ' + (myTeam ? 'tA' : 'tB') + '"><span>' + scoreThem + '</span><small>' + (me >= 0 ? '상대 · ' : '') + esc(nmThem) + '</small></div></div>' +
+      '<div class="tm ' + (myTeam ? 'tA' : 'tB') + (live ? ' live' : '') + '"><span>' + scoreThem + rpThem + '</span><small>' + (me >= 0 && !live ? '상대 · ' : '') + esc(nmThem) + '</small></div></div>' +
       '<button class="iconbtn" id="gSheet" aria-label="점수표">📋</button>' +
       '<button class="iconbtn" id="gPeople" aria-label="참가자·관전자">👥' + ((r.watchers || []).length ? '<span class="cnt">' + r.watchers.length + '</span>' : '') + '</button>' +
       '<button class="iconbtn" id="gChat" aria-label="채팅">💬' + (S.unread ? '<span class="badge-dot">' + S.unread + '</span>' : '') + '</button></div>';
@@ -1643,14 +1649,14 @@
     // 테이블
     h += '<div class="felt">';
     S.topSeat = top && (gt.phase === 'play' || gt.phase === 'dragon') ? top.s : -1;
-    var fronts = ['', '', '', ''];
+    var fronts = ['', '', '', ''], fp = floorPts(gt, op, me);
     for (var s = 0; s < 4; s++) {
       var p = pos(s, view), st = r.seats[s];
       if (p !== 0) h += seatHTML(g, s, p, st, pend);
-      fronts[p] = frontHTML(gt, s, p, ts[s], top && top.s === s, pend.indexOf(s) >= 0 && !closing && (g.phase === 'play' || g.phase === 'dragon') && !(op && s === me));
+      fronts[p] = frontHTML(gt, s, p, ts[s], top && top.s === s, pend.indexOf(s) >= 0 && !closing && (g.phase === 'play' || g.phase === 'dragon') && !(op && s === me), fp.by[s]);
     }
     // 낸 카드 판: 위(맞은편) · 왼쪽 · 오른쪽 · 가운데 안내 · 아래(나) — 네 사람 카드가 서로 겹치지 않게 칸을 나눔
-    h += '<div class="board">' + fronts[2] + fronts[3] + fronts[1] + '<div class="center">' + centerHTML(g, me, pend) + '</div>' + fronts[0] + '</div>';
+    h += '<div class="board">' + fronts[2] + fronts[3] + fronts[1] + '<div class="center">' + centerHTML(g, me, pend, fp) + '</div>' + fronts[0] + '</div>';
     h += panelHTML(g, me);
     h += '</div>';
 
@@ -1660,7 +1666,7 @@
       if (mst && mst.afk) h += '<div class="afkbar">자리 비움 · 자동 진행 중 <button class="btn sm primary" id="gBack">돌아왔어요</button></div>';
       h += '<div class="timerbar"><i id="myTimer" style="width:0"></i></div>';
       h += myBarHTML(g, me, pend, myTurn, top);
-      h += '<div class="handwrap"><div id="recvBar"></div><div class="hand" id="hand"></div></div>';
+      h += '<div class="handwrap"><div id="recvBar"></div><div class="hand" id="hand"></div>' + gverHTML() + '</div>';
     } else {
       // 관전: 누구 시점으로 볼지 고르는 큰 버튼 4개 (테이블 자리를 눌러도 됨) + 패 보기 방이면 그 사람 패 + 봇 자리 이어받기
       var takes = r.status === 'play' && !r.solo && !r.opt.peek ? r.seats.map(function (st, s) {
@@ -1671,7 +1677,7 @@
         (peek ? '<div class="handwrap peek"><div class="hand" id="peekHand"></div></div>' : '') +
         '<div class="sline">👀 관전 중 · ' + esc(r.name) + (r.status === 'play' ? '' : ' (게임 끝)') +
           (peek ? ' <button class="btn sm" id="gPeekAll">🃏 4명 한눈에</button>' : r.opt.peek ? '' : ' <span class="small">· 자리를 누르면 그 사람 시점</span>') + '</div>' +
-        watchersHTML(r) + (takes ? '<div class="takes">' + takes + '</div>' : '') + '</div>';
+        watchersHTML(r) + (takes ? '<div class="takes">' + takes + '</div>' : '') + gverHTML() + '</div>';
     }
     h += '</div>';
     app.innerHTML = h;
@@ -1752,8 +1758,18 @@
       '<div class="nm ' + (t === 'A' ? 'tA' : 'tB') + '">' + esc(st ? st.name : '') + '</div><div class="info">' + tags + '</div></div>';
   }
   function ringSVG() { return '<svg class="ring" viewBox="0 0 40 40"><circle cx="20" cy="20" r="18" stroke-dasharray="113.1" stroke-dashoffset="0" data-ring="1"/></svg>'; }
-  // 바닥(낸 카드 칸). isTurn = 지금 이 사람 차례 → 금색 테두리 + '차례' 표시
-  function frontHTML(g, s, p, st, isTop, isTurn) {
+  // 현재 트릭 바닥의 카드 점수 (공개된 카드라 합계는 숨길 게 없음). 자리별 = 그 사람이 이 트릭에 낸 카드 점수 전부
+  function floorPts(g, op, me) {
+    var by = [0, 0, 0, 0], tot = 0;
+    g.trick.plays.forEach(function (p) { var v = TE.sumPoints(p.c.c); by[p.s] += v; tot += v; });
+    if (op && op.k === 'play' && op.c && me >= 0) { var v2 = TE.sumPoints(op.c.c); by[me] += v2; tot += v2; }
+    return { by: by, tot: tot };
+  }
+  function gverHTML() { return '<div class="gver">화면 v' + APP_VER + '</div>'; }   // 게임 화면 맨 아래 패치 버전
+  function plusN(n) { return n > 0 ? '+' + n : String(n); }
+  function ptsFmt(n) { return (n > 0 ? '+' : '') + n + '점'; }
+  // 바닥(낸 카드 칸). isTurn = 지금 이 사람 차례 → 금색 테두리 + '차례' 표시. pts = 이 자리가 이 트릭에 낸 카드 점수
+  function frontHTML(g, s, p, st, isTop, isTurn, pts) {
     var mine = p === 0 && myView() >= 0;   // 관전자에게 아래 자리는 '나'가 아님
     var who = mine ? '나' : esc(seatName(s)), tc = team(s) ? 'B' : 'A', tn = isTurn ? ' turn' : '';
     var turnLbl = isTurn ? '<span class="turnlbl">' + (g.phase === 'dragon' ? '🐉 ' : '⏳ ') + (mine ? '내 차례' : who + ' 차례') + '</span>' : '';
@@ -1765,9 +1781,9 @@
     // 방금 낸 카드: 한 장씩 그 사람 자리 쪽에서 날아옴 (CSS .fly — --i 순서, 폭탄은 .bomb 쾅)
     var cards = fl ? '<div class="cards ' + size + '">' + st.play.c.map(function (c, i) { return cardHTML(c, '', size).replace('class="card', 'style="--i:' + i + '" class="card'); }).join('') + '</div>' : cardsHTML(st.play.c, size);
     if (fl) fl += ' fly' + (S.shake && isTop ? ' bomb' : '');
-    return '<div class="front p' + p + ' t' + tc + (isTop ? ' top' : ' old') + fl + tn + '"' + delay + '>' + cards + '<span class="lbl">' + (isTop ? '👑 ' : '') + who + ' · ' + esc(TE.comboName(st.play)) + '</span>' + turnLbl + '</div>';
+    return '<div class="front p' + p + ' t' + tc + (isTop ? ' top' : ' old') + fl + tn + '"' + delay + '>' + cards + '<span class="lbl">' + (isTop ? '👑 ' : '') + who + ' · ' + esc(TE.comboName(st.play)) + '</span>' + (pts ? '<span class="fpts' + (pts < 0 ? ' neg' : '') + '">' + ptsFmt(pts) + '</span>' : '') + turnLbl + '</div>';
   }
-  function centerHTML(g, me, pend) {
+  function centerHTML(g, me, pend, fp) {
     var h = '', msg = '', isMe = false;
     if (g.phase === 'grand') msg = '라지 티츄 결정 중 · ' + g.grand.filter(function (x) { return x !== null; }).length + '/4';
     else if (g.phase === 'exchange') msg = '카드 교환 중 · ' + g.exDone.filter(Boolean).length + '/4';
@@ -1791,6 +1807,7 @@
       var tp = g.trick.plays[g.trick.plays.length - 1], tt = team(tp.s) ? 'B' : 'A';
       if (S.optim && S.optim.k === 'play' && S.optim.c && me >= 0) { tp = { s: me, c: S.optim.c }; tt = team(me) ? 'B' : 'A'; }
       h += '<div class="topwho ' + tt + '"><span class="dot"></span>' + (tp.s === me ? '내가 낸 카드' : esc(seatName(tp.s))) + ' · ' + esc(TE.comboName(tp.c)) + '</div>';
+      h += '<div class="floorpts' + (fp.tot < 0 ? ' neg' : '') + '" title="이번 라운드에서 아직 점수로 환산되지 않은 카드점수 — 이 트릭을 이기면 가져가요">바닥 카드점수 ' + fp.tot + '점 · 미확정</div>';
     }
     return h;
   }

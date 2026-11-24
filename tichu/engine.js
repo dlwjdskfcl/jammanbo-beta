@@ -527,8 +527,8 @@ var TE = (function () {
       v.recv = g.recv ? g.recv[seat] : null;
     }
     if (g.phase === 'roundEnd' || g.phase === 'gameEnd') v.hands = g.hands;   // 라운드가 끝나면 남은 손패 공개
-    else {   // 라운드 중에는 각자 따간 점수 비공개 (점수·트릭 이벤트의 점수 숨김)
-      v.pts = [0, 0, 0, 0];
+    else {   // 라운드 중: 각자 따간 카드점수(v.pts)는 공개(2026-11-24, ptsLive 로 화면이 새 서버인지 앎), 트릭 이벤트의 점수 p 만 숨김
+      v.ptsLive = true;
       v.log = v.log.map(function (e) { if (e.k !== 'trick') return e; var c = {}; for (var k in e) if (k !== 'p') c[k] = e[k]; return c; });
     }
     return v;
