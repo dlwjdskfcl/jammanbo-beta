@@ -1,4 +1,4 @@
-/*! 잠만보 마피아 나레이터 — 화면 v1.1.0 (세일럼 1692 추가: 첫 번째 밤 · 일반 밤 · 아침 자백 30초)
+/*! 잠만보 마피아 나레이터 — 화면 v1.2.0 (세일럼 1692 · 퀘스트 감독판 · 남은 시간 읽기 · 말 속도 3배까지)
  * 마피아 세일럼(Town of Salem 방식) 밤 진행을 음성으로 읽어 주는 도구. 서버 없음 — 브라우저 음성합성(speechSynthesis)만 씀.
  * 진행 방식 2가지: 🌱 초보자용(행동까지 안내, 기다림 길게) · ⚡ 숙련자용(직업 이름 + 눈 떠요/감아요만, 기다림 짧게)
  * 켜 둔 직업은 죽었어도 똑같이 부르고 기다림 (소리만으로 생사를 알 수 없게). 순서: 방해꾼 → 마피아 → 연쇄살인마 → 의사 → 경찰 → 감시자
@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.1.0';
+  var VER = '1.2.0';
   var ROOT = (function () { var seg = location.pathname.split('/')[1] || ''; return /\.github\.io$/.test(location.hostname) && seg ? '/' + seg + '/' : '/'; })();
   var KEY = 'jmb_mafia_opt';
   var HAS_TTS = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
@@ -45,17 +45,19 @@
   };
   var SAL_POLICE = { id: 'police', name: '경찰' };
 
-  var OPT = Object.assign({ game: 'mafia', sal: 'first', police: 1, mode: 'beginner', roles: { mafia: 1, doctor: 1, police: 1 }, rate: 1, vol: 1, wmul: 1, voice: '' }, lsJSON(KEY, {}));
-  if (OPT.game !== 'salem') OPT.game = 'mafia';
+  var OPT = Object.assign({ game: 'mafia', cd: 1, sal: 'first', police: 1, mode: 'beginner', roles: { mafia: 1, doctor: 1, police: 1 }, rate: 1, vol: 1, wmul: 1, voice: '' }, lsJSON(KEY, {}));
+  if (OPT.game !== 'salem' && OPT.game !== 'quest') OPT.game = 'mafia';
+  OPT.cd = [0, 1, 2].indexOf(+OPT.cd) >= 0 ? +OPT.cd : 1;
   if (!SALEM[OPT.sal]) OPT.sal = 'first';
   if (!MODES[OPT.mode]) OPT.mode = 'beginner';
   if (!OPT.roles || typeof OPT.roles !== 'object') OPT.roles = { mafia: 1, doctor: 1, police: 1 };
-  OPT.rate = clamp(OPT.rate, 0.7, 1.4, 1); OPT.vol = clamp(OPT.vol, 0.2, 1, 1); OPT.wmul = clamp(OPT.wmul, 0.7, 1.5, 1);
+  OPT.rate = clamp(OPT.rate, 0.7, 3, 1); OPT.vol = clamp(OPT.vol, 0.2, 1, 1); OPT.wmul = clamp(OPT.wmul, 0.7, 1.5, 1);
   function saveOpt() { lsSet(KEY, JSON.stringify(OPT)); }
   function active() { return ROLES.filter(function (r) { return OPT.roles[r.id]; }); }
   var salem = function () { return OPT.game === 'salem'; };
   /** 지금 게임에서 부르는 직업 목록 (진행 표시줄 · 단계의 ri 가 이 목록의 번호) */
   function cast() {
+    if (OPT.game === 'quest') return [{ id: 'evil', name: '악의 세력' }, { id: 'cleric', name: '성직자' }];
     if (!salem()) return active();
     return OPT.sal === 'night' ? [{ id: 'witch', name: '마녀' }].concat(OPT.police ? [SAL_POLICE] : []) : OPT.sal === 'first' ? [{ id: 'witch', name: '마녀' }] : [];
   }
@@ -66,8 +68,8 @@
     function add(t, w, ri, kind, fixed) { s.push({ t: t, w: w, ri: ri, kind: kind, fixed: !!fixed }); }
     if (OPT.sal === 'dawn') {
       add('', 3, -1, 'ready', true);
-      add(beg ? '아침이 밝았습니다. 지목된 플레이어는 지금부터 30초 동안 자백할 수 있습니다. 시작하세요.' : '자백, 30초. 시작.', 20, -1, 'morning', true);
-      add('10초 남았습니다.', 10, -1, 'morning', true);
+      add(beg ? '아침이 밝았습니다. 지목된 플레이어는 지금부터 30초 동안 자백할 수 있습니다. 시작하세요.' : '자백, 30초. 시작.', 30, -1, 'morning', true);
+      s[s.length - 1].cdMin = 2;   // 남은 시간은 '남은 시간 읽기'가 읽어 줌 — 끔이 아니면 20 · 10초도 읽음
       add(beg ? '시간이 끝났습니다. 재판 카드를 공개하지 않았거나 경찰의 보호를 받지 못한 플레이어는 탈락합니다.' : '시간 끝.', 0, -1, 'morning', true);
       return s;
     }
@@ -89,8 +91,26 @@
     return s;
   }
 
+  /** 퀘스트(감독판) 시작 멘트 — 눈먼 사냥꾼을 뺀 악의 세력이 서로 확인 → 성직자가 첫 원정대장의 진영만 확인. ri 0 = 악의 세력 · 1 = 성직자 */
+  function buildQuest() {
+    var beg = OPT.mode === 'beginner', s = [];
+    function add(t, w, ri, kind) { s.push({ t: t, w: w, ri: ri, kind: kind, fixed: false }); }
+    s.push({ t: '', w: 3, fixed: true, ri: -1, kind: 'ready' });
+    add(beg ? '모두 눈을 감고 주먹을 앞으로 내밀어 주세요.' : '모두 눈 감고 주먹.', beg ? 3 : 2, -1, 'night');
+    add(beg ? '눈먼 사냥꾼을 제외한 악의 세력은 눈을 뜨고 서로를 확인해 주세요.' : '악의 세력, 눈 떠요. 눈먼 사냥꾼은 빼고.', beg ? 8 : 6, 0, 'open');
+    add(beg ? '악의 세력은 눈을 감아 주세요.' : '악의 세력, 눈 감아요.', beg ? 2 : 1, 0, 'close');
+    add(beg ? '성직자는 눈을 떠 주세요.' : '성직자, 눈 떠요.', 1, 1, 'open');
+    add(beg ? '첫 번째 원정대장은 선이라면 엄지를 위로, 악이라면 아래로 향하게 해 주세요. 말썽꾼은 악으로 표시해 주세요.' : '원정대장, 선은 엄지 위, 악은 아래. 말썽꾼은 악.', beg ? 5 : 3, 1, 'act');
+    add(beg ? '성직자는 원정대장의 진영을 확인해 주세요.' : '성직자, 확인.', beg ? 4 : 3, 1, 'act');
+    add(beg ? '원정대장은 주먹을 다시 쥐어 주세요.' : '원정대장, 주먹.', beg ? 2 : 1, 1, 'act');
+    add(beg ? '성직자는 눈을 감아 주세요.' : '성직자, 눈 감아요.', beg ? 2 : 1, 1, 'close');
+    add(beg ? '모두 눈을 떠 주세요.' : '모두 눈 떠요.', 0, -1, 'morning');
+    return s;
+  }
+
   /** 대본 만들기 — 단계 { t: 읽을 말(없으면 기다리기만), w: 기다림(초), fixed: 배율 안 곱함, ri: 몇 번째 직업(-1 = 직업 아님), kind } */
   function build() {
+    if (OPT.game === 'quest') return buildQuest();
     if (salem()) return buildSalem();
     var beg = OPT.mode === 'beginner', s = [], list = active();
     s.push({ t: '', w: 3, fixed: true, ri: -1, kind: 'ready' });
@@ -134,11 +154,12 @@
     document.querySelectorAll('#segGame button').forEach(function (b) { var on = b.dataset.game === OPT.game; b.classList.toggle('on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
     document.querySelectorAll('#segSalem button').forEach(function (b) { var on = b.dataset.sal === OPT.sal; b.classList.toggle('on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
     $('salemCard').hidden = !sl; $('salHint').textContent = SALEM[OPT.sal];
-    $('roleCard').hidden = sl && OPT.sal !== 'night';
+    $('roleCard').hidden = OPT.game === 'quest' || (sl && OPT.sal !== 'night');
     var chips = sl ? [{ id: 'police', name: SAL_POLICE.name + '(보안관)', on: !!OPT.police }] : ROLES.map(function (r) { return { id: r.id, name: r.name, on: !!OPT.roles[r.id] }; });
     $('roleChips').innerHTML = chips.map(function (r) { return '<button type="button" class="chip' + (r.on ? ' on' : '') + '" data-role="' + r.id + '" aria-pressed="' + r.on + '">' + (r.on ? '✔ ' : '') + esc(r.name) + '</button>'; }).join('');
     $('rate').value = OPT.rate; $('rateV').textContent = '×' + OPT.rate.toFixed(2).replace(/0$/, '');
     $('vol').value = OPT.vol; $('volV').textContent = Math.round(OPT.vol * 100) + '%';
+    $('cd').value = String(OPT.cd);
     $('wmul').value = String(OPT.wmul);
     if ($('wmul').value !== String(OPT.wmul)) { OPT.wmul = 1; $('wmul').value = '1'; }
     var s = build(), total = 0;
@@ -148,20 +169,22 @@
     }).join('');
     s.forEach(function (st) { total += waitMs(st) + speakMs(st); });
     $('est').textContent = '· 한 번에 약 ' + Math.round(total / 1000) + '초';
-    $('scriptHint').textContent = sl ? (OPT.sal === 'first' ? '아침이 되면 검정 고양이 카드를 지목된 플레이어 앞에 놓으세요.' : OPT.sal === 'night' ? '아침이 되면 [아침 · 자백] 장면으로 이어 가세요.' : '자백 시간 30초는 기다리는 시간 설정과 상관없이 고정이에요.')
+    $('scriptHint').textContent = OPT.game === 'quest' ? '감독판 시작 멘트(9인 기준). 눈먼 사냥꾼은 악의 세력을 모르고 악의 세력도 눈먼 사냥꾼을 몰라요 · 성직자는 첫 원정대장의 진영만 확인해요 · 말썽꾼은 선이지만 악으로 표시해요.'
+      : sl ? (OPT.sal === 'first' ? '아침이 되면 검정 고양이 카드를 지목된 플레이어 앞에 놓으세요.' : OPT.sal === 'night' ? '아침이 되면 [아침 · 자백] 장면으로 이어 가세요.' : '자백 시간 30초는 기다리는 시간 설정과 상관없이 고정이에요.')
       : OPT.mode === 'beginner' ? '경찰의 조사 결과는 진행자가 엄지(마피아 = 올림, 아님 = 내림)로 알려 주세요.' : '';
-    $('btnStart').disabled = !sl && !s.some(function (st) { return st.ri >= 0; });
+    $('btnStart').disabled = OPT.game === 'mafia' && !s.some(function (st) { return st.ri >= 0; });
   }
 
   $('segGame').addEventListener('click', function (e) { var b = e.target.closest('button[data-game]'); if (!b) return; OPT.game = b.dataset.game; saveOpt(); renderSetup(); });
   $('segSalem').addEventListener('click', function (e) { var b = e.target.closest('button[data-sal]'); if (!b) return; OPT.sal = b.dataset.sal; saveOpt(); renderSetup(); });
   $('segMode').addEventListener('click', function (e) { var b = e.target.closest('button[data-mode]'); if (!b) return; OPT.mode = b.dataset.mode; saveOpt(); renderSetup(); });
   $('roleChips').addEventListener('click', function (e) { var b = e.target.closest('button[data-role]'); if (!b) return; var id = b.dataset.role; if (salem()) OPT.police = OPT.police ? 0 : 1; else if (OPT.roles[id]) delete OPT.roles[id]; else OPT.roles[id] = 1; saveOpt(); renderSetup(); });
-  $('rate').addEventListener('input', function () { OPT.rate = clamp(this.value, 0.7, 1.4, 1); saveOpt(); renderSetup(); });
+  $('cd').addEventListener('change', function () { OPT.cd = +this.value; saveOpt(); renderSetup(); });
+  $('rate').addEventListener('input', function () { OPT.rate = clamp(this.value, 0.7, 3, 1); saveOpt(); renderSetup(); });
   $('vol').addEventListener('input', function () { OPT.vol = clamp(this.value, 0.2, 1, 1); saveOpt(); renderSetup(); });
   $('wmul').addEventListener('change', function () { OPT.wmul = clamp(this.value, 0.7, 1.5, 1); saveOpt(); renderSetup(); });
   $('voice').addEventListener('change', function () { OPT.voice = this.value; saveOpt(); });
-  $('btnTest').addEventListener('click', function () { say(salem() ? '마녀, 눈 떠요.' : '마피아, 눈 떠요.', function () {}); if (!HAS_TTS) toast('음성을 지원하지 않아요'); });
+  $('btnTest').addEventListener('click', function () { say(OPT.game === 'quest' ? '성직자, 눈 떠요.' : salem() ? '마녀, 눈 떠요.' : '마피아, 눈 떠요.', function () {}); if (!HAS_TTS) toast('음성을 지원하지 않아요'); });
   $('back').addEventListener('click', function () { stopAll(); location.href = ROOT; });
 
   /* ---------- 말하기 ----------
@@ -183,7 +206,20 @@
     } catch (e) {}
     R.fb = setTimeout(end, text.length * 280 / OPT.rate + 3500);   // onend 가 안 와도 진행
   }
-  function silence() { R.tok++; clearTimeout(R.fb); clearTimeout(R.tm); try { if (HAS_TTS) speechSynthesis.cancel(); } catch (e) {} }
+  /** 남은 시간 읽기 — 기다림 중 남은 초가 표시한 값이 될 때 숫자를 읽음. 설정 1 = 5 · 4 · 3 · 2 · 1, 2 = 20 · 10 + 5 · 4 · 3 · 2 · 1 (단계에 cdMin 이 있으면 끔이 아닌 한 2 이상) */
+  var CD_WORD = ['', '하나', '둘', '셋', '넷', '다섯'];
+  function cdClear() { (R.cdT || []).forEach(clearTimeout); R.cdT = []; }
+  function cdSchedule(ms, st) {
+    cdClear();
+    var mode = OPT.cd ? Math.max(OPT.cd, (st && st.cdMin) || 0) : 0;
+    if (!mode || !st || st.kind === 'ready' || ms < 6000) return;   // 준비 구간 · 짧은 기다림(5 · 4 · 3 · 2 · 1 이 다 안 들어가는)은 읽지 않음
+    var marks = mode === 2 ? [20, 10, 5, 4, 3, 2, 1] : [5, 4, 3, 2, 1];
+    marks.forEach(function (m) {
+      if (m * 1000 >= ms) return;   // 기다림이 그보다 짧으면 읽지 않음 (시작 직후 겹쳐 읽는 것 방지)
+      R.cdT.push(setTimeout(function () { if (R.run && !R.paused && R.phase === 'wait') say(m <= 5 ? CD_WORD[m] : m + '초 남았습니다', function () {}); }, ms - m * 1000));
+    });
+  }
+  function silence() { cdClear(); R.tok++; clearTimeout(R.fb); clearTimeout(R.tm); try { if (HAS_TTS) speechSynthesis.cancel(); } catch (e) {} }
 
   /* ---------- 진행 ---------- */
   function wake(on) {
@@ -231,6 +267,7 @@
     if (R.i >= R.steps.length - 1 && ms <= 0) return finish();   // 마지막 말(아침)이 끝나면 바로 끝
     R.phase = 'wait'; R.total = ms; R.until = Date.now() + ms;
     clearTimeout(R.tm); R.tm = setTimeout(advance, ms);
+    cdSchedule(ms, R.steps[R.i]);
   }
   function advance() {
     if (!R.run || R.paused) return;
@@ -277,7 +314,7 @@
       $('runCount').textContent = '⏸';
     } else {
       R.paused = false; $('btnPause').textContent = '⏸ 일시정지';
-      if (R.left >= 0) { R.total = Math.max(R.total, R.left); R.phase = 'wait'; R.until = Date.now() + R.left; R.tm = setTimeout(advance, R.left); }
+      if (R.left >= 0) { R.total = Math.max(R.total, R.left); R.phase = 'wait'; R.until = Date.now() + R.left; R.tm = setTimeout(advance, R.left); cdSchedule(R.left, R.steps[R.i]); }
       else step();
     }
   });
