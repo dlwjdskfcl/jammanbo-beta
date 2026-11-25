@@ -1,4 +1,56 @@
 {
+ "act.knock": {
+  "en": "Knock knock. Nobody home",
+  "ko": "똑똑. 아무도 없어요"
+ },
+ "act.listen": {
+  "en": "You hear the waves",
+  "ko": "파도 소리가 들려요"
+ },
+ "act.look": {
+  "en": "Look",
+  "ko": "살펴봐요"
+ },
+ "act.read": {
+  "en": "Reading the board",
+  "ko": "게시판을 읽어요"
+ },
+ "act.sealed": {
+  "en": "The door will not budge",
+  "ko": "문이 꿈쩍도 안 해요"
+ },
+ "act.sit": {
+  "en": "Resting",
+  "ko": "앉아서 쉬어요"
+ },
+ "act.smell": {
+  "en": "Smells nice",
+  "ko": "좋은 향기가 나요"
+ },
+ "act.soak": {
+  "en": "Soaking feet",
+  "ko": "발을 담갔어요. 따뜻해요"
+ },
+ "act.splash": {
+  "en": "Splash!",
+  "ko": "첨벙! 시원해요"
+ },
+ "act.stand": {
+  "en": "Standing up",
+  "ko": "다시 일어나요"
+ },
+ "act.thud": {
+  "en": "Thud! Unmoved",
+  "ko": "퍽! 끄떡없어요"
+ },
+ "act.touch": {
+  "en": "Cold on your fingertips",
+  "ko": "손끝이 서늘해요"
+ },
+ "act.warm": {
+  "en": "Warming up",
+  "ko": "불을 쬐어요. 몸이 풀려요"
+ },
  "combat.attack": {
   "en": "Attack",
   "ko": "공격"
@@ -55,6 +107,270 @@
   "en": "Nit Slime",
   "ko": "니트 슬라임"
  },
+ "obj.bench": {
+  "en": "Bench",
+  "ko": "벤치"
+ },
+ "obj.bench.d": {
+  "en": "",
+  "ko": "앉아서 쉬어 가기 좋은 자리예요."
+ },
+ "obj.board": {
+  "en": "Notice Board",
+  "ko": "게시판"
+ },
+ "obj.board.d": {
+  "en": "",
+  "ko": "마을 소식이 붙어 있어요."
+ },
+ "obj.bridge": {
+  "en": "Wooden Bridge",
+  "ko": "나무 다리"
+ },
+ "obj.bridge.d": {
+  "en": "",
+  "ko": "밟을 때마다 삐걱거려요."
+ },
+ "obj.bush": {
+  "en": "Bush",
+  "ko": "풀숲"
+ },
+ "obj.bush.d": {
+  "en": "",
+  "ko": "약초 향이 은은하게 나요."
+ },
+ "obj.campfire": {
+  "en": "Campfire",
+  "ko": "모닥불"
+ },
+ "obj.campfire.d": {
+  "en": "",
+  "ko": "타닥타닥 불씨가 튀어요. 곁에 있으면 몸이 풀려요."
+ },
+ "obj.cave": {
+  "en": "Arche Gate",
+  "ko": "아르케 관문"
+ },
+ "obj.cave.d": {
+  "en": "",
+  "ko": "서늘한 바람이 불어 나와요. 안쪽에 오래된 문명의 흔적이 있대요."
+ },
+ "obj.cottage": {
+  "en": "Cottage",
+  "ko": "오두막"
+ },
+ "obj.cottage.d": {
+  "en": "",
+  "ko": "굴뚝에서 가느다란 연기가 올라와요."
+ },
+ "obj.dbones": {
+  "en": "Pile of Bones",
+  "ko": "뼈 무더기"
+ },
+ "obj.dbones.d": {
+  "en": "",
+  "ko": "오래전 누군가 쉬어 간 흔적이에요."
+ },
+ "obj.dcrystal": {
+  "en": "Teal Crystal",
+  "ko": "청록 결정"
+ },
+ "obj.dcrystal.d": {
+  "en": "",
+  "ko": "희미하게 빛나요. 만지면 차가워요."
+ },
+ "obj.dgate": {
+  "en": "Sealed Door",
+  "ko": "봉인된 문"
+ },
+ "obj.dgate.d": {
+  "en": "",
+  "ko": "굳게 닫혀 있어요. 위층으로 가는 길인가 봐요."
+ },
+ "obj.dpillar": {
+  "en": "Stone Pillar",
+  "ko": "돌기둥"
+ },
+ "obj.dpillar.d": {
+  "en": "",
+  "ko": "금이 간 오래된 기둥이에요."
+ },
+ "obj.dstairs": {
+  "en": "Stairs Out",
+  "ko": "바깥으로 가는 계단"
+ },
+ "obj.dstairs.d": {
+  "en": "",
+  "ko": "위에서 바깥 빛이 희미하게 들어와요."
+ },
+ "obj.dstatue": {
+  "en": "Nameless Statue",
+  "ko": "이름 없는 석상"
+ },
+ "obj.dstatue.d": {
+  "en": "",
+  "ko": "얼굴은 닳았지만, 오래 누군가를 기다린 듯해요."
+ },
+ "obj.fall": {
+  "en": "Waterfall",
+  "ko": "폭포"
+ },
+ "obj.fall.d": {
+  "en": "",
+  "ko": "물보라가 시원하게 튀어요."
+ },
+ "obj.fence": {
+  "en": "Fence",
+  "ko": "울타리"
+ },
+ "obj.fence.d": {
+  "en": "",
+  "ko": "마을을 두른 튼튼한 나무 울타리예요."
+ },
+ "obj.flower": {
+  "en": "Wildflower",
+  "ko": "들꽃"
+ },
+ "obj.flower.d": {
+  "en": "",
+  "ko": "작은 꽃이 살랑거려요."
+ },
+ "obj.gatepost": {
+  "en": "Gatepost",
+  "ko": "문기둥"
+ },
+ "obj.gatepost.d": {
+  "en": "",
+  "ko": "마을 문 곁을 지키는 기둥이에요."
+ },
+ "obj.hot": {
+  "en": "Hot Spring",
+  "ko": "온천"
+ },
+ "obj.hot.d": {
+  "en": "",
+  "ko": "따뜻한 김이 올라와요."
+ },
+ "obj.lamp": {
+  "en": "Lamp Post",
+  "ko": "가로등"
+ },
+ "obj.lamp.d": {
+  "en": "",
+  "ko": "해가 지면 따뜻한 불이 들어와요."
+ },
+ "obj.log": {
+  "en": "Log",
+  "ko": "통나무"
+ },
+ "obj.log.d": {
+  "en": "",
+  "ko": "앉기 좋게 눕혀 둔 통나무예요."
+ },
+ "obj.mush": {
+  "en": "Mushroom",
+  "ko": "버섯"
+ },
+ "obj.mush.d": {
+  "en": "",
+  "ko": "비 온 뒤에 올라온 버섯이에요. 먹지는 마세요."
+ },
+ "obj.ore": {
+  "en": "Ore",
+  "ko": "광석"
+ },
+ "obj.ore.d": {
+  "en": "",
+  "ko": "단단한 광석이 박혀 있어요."
+ },
+ "obj.palm": {
+  "en": "Palm",
+  "ko": "야자수"
+ },
+ "obj.palm.d": {
+  "en": "",
+  "ko": "짠 바람을 맞고 자란 야자수예요."
+ },
+ "obj.pine": {
+  "en": "Pine",
+  "ko": "소나무"
+ },
+ "obj.pine.d": {
+  "en": "",
+  "ko": "곧게 뻗은 소나무예요. 송진 냄새가 나요."
+ },
+ "obj.pink": {
+  "en": "Blossom Tree",
+  "ko": "벚나무"
+ },
+ "obj.pink.d": {
+  "en": "",
+  "ko": "분홍 꽃잎이 바람에 흩날려요."
+ },
+ "obj.rock": {
+  "en": "Rock",
+  "ko": "바위"
+ },
+ "obj.rock.d": {
+  "en": "",
+  "ko": "이끼 낀 단단한 바위예요."
+ },
+ "obj.round": {
+  "en": "Round Tree",
+  "ko": "둥근 나무"
+ },
+ "obj.round.d": {
+  "en": "",
+  "ko": "잎이 풍성해서 그늘이 시원해요."
+ },
+ "obj.scarecrow": {
+  "en": "Scarecrow",
+  "ko": "허수아비"
+ },
+ "obj.scarecrow.d": {
+  "en": "",
+  "ko": "밭을 지키는 허수아비예요. 맞아도 끄떡없어요."
+ },
+ "obj.shell": {
+  "en": "Shell",
+  "ko": "조개"
+ },
+ "obj.shell.d": {
+  "en": "",
+  "ko": "귀에 대면 파도 소리가 나요."
+ },
+ "obj.struct": {
+  "en": "Building",
+  "ko": "건물"
+ },
+ "obj.struct.d": {
+  "en": "",
+  "ko": "누군가 정성껏 지은 건물이에요."
+ },
+ "obj.stump": {
+  "en": "Stump",
+  "ko": "그루터기"
+ },
+ "obj.stump.d": {
+  "en": "",
+  "ko": "나이테가 빽빽해요. 오래된 나무였나 봐요."
+ },
+ "obj.torch": {
+  "en": "Torch",
+  "ko": "횃불"
+ },
+ "obj.torch.d": {
+  "en": "",
+  "ko": "벽에 걸린 횃불이 일렁여요."
+ },
+ "obj.water": {
+  "en": "Water",
+  "ko": "물"
+ },
+ "obj.water.d": {
+  "en": "",
+  "ko": "맑은 물이 흘러요. 손을 담그면 시원해요."
+ },
  "place.coast": {
   "en": "Air Coast",
   "ko": "대기 해안"
@@ -106,5 +422,53 @@
  "raid.warn": {
   "en": "Something stirs beyond the gate",
   "ko": "문 밖이 소란스러워요. 곧 야습이 시작돼요"
+ },
+ "zone.already": {
+  "en": "Already there",
+  "ko": "이미 그쪽이에요"
+ },
+ "zone.dungeon": {
+  "en": "Arche Ruins",
+  "ko": "아르케 유적"
+ },
+ "zone.enter": {
+  "en": "A cool air wraps around you",
+  "ko": "서늘한 공기가 감싸요"
+ },
+ "zone.far.in": {
+  "en": "The gate is still far",
+  "ko": "관문이 아직 멀어요"
+ },
+ "zone.far.out": {
+  "en": "The stairs are still far",
+  "ko": "계단이 아직 멀어요"
+ },
+ "zone.field": {
+  "en": "Archeon Fields",
+  "ko": "아르케온 들판"
+ },
+ "zone.floor": {
+  "en": "F",
+  "ko": "층"
+ },
+ "zone.gate.ask": {
+  "en": "Enter the Arche Gate?",
+  "ko": "아르케 관문으로 들어갈까요?"
+ },
+ "zone.ko": {
+  "en": "You cannot move now",
+  "ko": "지금은 움직일 수 없어요"
+ },
+ "zone.leave": {
+  "en": "The outside air is warm",
+  "ko": "바깥 공기가 따뜻해요"
+ },
+ "zone.stairs.ask": {
+  "en": "Leave the ruins?",
+  "ko": "유적을 나갈까요?"
+ },
+ "zone.village": {
+  "en": "Nitra Village",
+  "ko": "니트라 마을"
  }
 }
