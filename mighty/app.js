@@ -2,7 +2,7 @@
  * 기기 저장: jmb_mighty_save(진행 중인 게임) · jmb_mighty_set(설정) · jmb_mighty_stats(전적) */
 (function () {
   'use strict';
-  var VER = '1.0.9';
+  var VER = '1.1.0';
   var E = window.MightyEngine, AI = window.MightyAI, FX = window.JMB_FX, ARC = window.JMB_ARCADE;
   var ROOT = (function () { var seg = location.pathname.split('/')[1] || ''; return /\.github\.io$/.test(location.hostname) && seg ? '/' + seg + '/' : '/'; })();
   var LS = { save: 'jmb_mighty_save', set: 'jmb_mighty_set', stats: 'jmb_mighty_stats' };
@@ -103,7 +103,7 @@
   function resetUI() { UI.sel = []; UI.pend = null; UI.kg = null; UI.fr = null; UI.hintCard = -1; UI.bn = 13; }
   function nextRound() {
     G.roundNo++; G.recorded = false; G.hold = null; G.notice = ''; G.rlv = SET.level; G.hinted = 0; G.rank = null;
-    G.st = E.deal({ starter: G.starter, mult: G.mult });
+    G.st = E.deal({ starter: G.starter, mult: G.mult }); G.alog = [];
     resetUI(); closeModal(); save(); render(); pump();
   }
   function redeal() {
@@ -111,7 +111,7 @@
     G.mult = Math.min(4, G.mult * 2);
     if (st.phase === 'allpass') G.starter = (G.starter + 1) % 5;
     G.notice = ''; G.rlv = SET.level; G.hinted = 0;   // 새로 나눈 패 — 힌트 · 실력 표시도 처음부터
-    G.st = E.deal({ starter: G.starter, mult: G.mult });
+    G.st = E.deal({ starter: G.starter, mult: G.mult }); G.alog = [];
     resetUI(); save(); render(); pump();
   }
   function pump() {
@@ -158,6 +158,7 @@
       try { a = fallback(st, seat); E.act(st, seat, a); } catch (e2) { return toast('판을 이어 갈 수 없어요 — 설정(오른쪽 위)에서 새 게임을 눌러 주세요', 8000); }
     }
     UI.sel = []; UI.pend = null; UI.hintCard = -1;
+    if (G.alog) G.alog.push(actCode(seat, a));   // 판 기록(mlog)용 — 끝난 판을 서버가 같은 엔진으로 다시 돌려 확인
     var who = seat === ME ? '나' : NAMES[seat] + ' 님';
     if (ph === 'play') {
       SND.card();
@@ -193,11 +194,53 @@
       STATS.n++; STATS[role]++; if (won) { STATS.win++; STATS[role + 'w']++; }
       STATS.sum += r.delta[ME]; STATS.best = Math.max(STATS.best || 0, r.delta[ME]);
       rankRound(r, role, won);
+      try { mlogRound(st); } catch (e) {}   // 판 기록은 실패해도 게임에 영향 없음
       lsSet(LS.stats, STATS); save();
       if (won) { SND.win(); haptic('win'); if (FX) try { FX.confetti({ count: r.delta[ME] >= 8 ? 120 : 60 }); } catch (e) {} }
       else SND.lose();
     }
     render(); showResult();
+  }
+
+  /* ---------- 판 기록 (1.1.0~, 엣지 POST /mlog → D1 mighty_games): 로그인(닉네임 연결) 회원이 끝낸 판만, 분석용으로 한 판을 1행으로.
+   * 판은 seed + 수 목록(G.alog)이면 다시 만들어지므로 그것만 보냄 — 서버가 같은 엔진으로 다시 돌려 규칙에 맞는 판인지 확인(수 코드는 서버 mlog.js 머리 주석).
+   * 조용히 동작(화면 안내 없음): 보낼 판은 먼저 기기에 적고(jmb_mighty_mlog) 하나씩 보냄, 일시 오류(연결 · 서버 · 로그인 만료)는 나중에 다시, 규칙 거절 · 하루 상한은 버림 ---------- */
+  var MLOG_LS = 'jmb_mighty_mlog', MLOG_MAX = 40, MLOG_AGE = 3 * 86400e3, mlogBusy = false, mlogT = 0;
+  function actCode(seat, a) {
+    var lv = seat === ME ? 0 : SET.level;
+    if (a.t === 'pass') return [seat, 'p', lv];
+    if (a.t === 'bid') return [seat, 'b', a.n, a.s, lv];
+    if (a.t === 'discard') return [seat, 'd', a.cards[0], a.cards[1], a.cards[2], a.giruda == null ? -1 : a.giruda, lv];
+    if (a.t === 'friend') return a.kind === 'card' ? [seat, 'f', 'c', a.card, lv] : [seat, 'f', a.kind === 'first' ? 'F' : 'N', lv];
+    return [seat, 'c', a.card, a.callSuit == null ? -1 : a.callSuit, a.jokerCall ? 1 : 0, lv];
+  }
+  function mlogRound(st) {
+    if (!ARC || !NICK || !G.alog || !G.alog.length || !st.result) return;
+    var q = lsGet(MLOG_LS, []), now = Date.now();
+    q = q.filter(function (it) { return it && now - it.at < MLOG_AGE; });
+    q.push({ nick: NICK, at: now, rec: { seed: st.seed, starter: st.starter, mult: st.mult, me: ME, lv: Math.min(G.rlv || SET.level, SET.level), hinted: Math.min(99, +G.hinted || 0), ver: VER, aiver: (AI && AI.ver) || '', acts: G.alog } });
+    while (q.length > MLOG_MAX) q.shift();
+    lsSet(MLOG_LS, q);
+    mlogFlush();
+  }
+  function mlogFlush() {
+    clearTimeout(mlogT);
+    var EDGE = (window.JMB_CONFIG && window.JMB_CONFIG.semEdge) || '', q = lsGet(MLOG_LS, []);
+    if (mlogBusy || !EDGE || !ARC || !q.length) return;
+    var token = ''; try { token = ARC.token(); } catch (e) {}
+    var i = -1, k; for (k = 0; k < q.length; k++) if (q[k] && q[k].nick === NICK) { i = k; break; }   // 다른 계정 판은 그 계정으로 로그인했을 때만 보냄
+    if (i < 0 || !token) return;
+    var it = q[i], ctl = typeof AbortController === 'function' ? new AbortController() : null, tm = setTimeout(function () { if (ctl) ctl.abort(); }, 15000);
+    mlogBusy = true;
+    function done(drop) {
+      clearTimeout(tm); mlogBusy = false;
+      if (drop) { var cur = lsGet(MLOG_LS, []).filter(function (x) { return x && !(x.at === it.at && x.nick === it.nick); }); if (cur.length) lsSet(MLOG_LS, cur); else lsDel(MLOG_LS); mlogT = setTimeout(mlogFlush, 1500); }
+      else mlogT = setTimeout(mlogFlush, 60000);
+    }
+    fetch(EDGE + '/mlog', { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, cache: 'no-store', signal: ctl ? ctl.signal : undefined,
+      body: JSON.stringify({ token: token, env: (window.JMB_CONFIG && window.JMB_CONFIG.env === 'prod') ? '' : 'beta', rec: it.rec }) })
+      .then(function (r) { return r.json().catch(function () { return null; }); })
+      .then(function (j) { done(!!j && (j.ok === true || j.code === 'reject' || j.code === 'cap' || j.code === 'nolink')); }, function () { done(false); });
   }
 
   /* ---------- 모임 랭킹 (오락실 arcade.js): 카카오 로그인 회원이면 끝난 판을 모두 보냄 (1.0.5~ — 예전엔 AI 고수 · 힌트 없이 이긴 판만).
@@ -737,7 +780,8 @@
   var rz = 0;
   window.addEventListener('resize', function () { clearTimeout(rz); rz = setTimeout(function () { if (UI.view === 'game' && G) renderGame(); }, 120); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && $('modal').querySelector('[data-self]') && !(history.state && history.state.jarc)) closeModal(); });
-  document.addEventListener('visibilitychange', function () { if (!document.hidden && UI.view === 'game' && G && !$('modal').innerHTML) pump(); });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) { try { mlogFlush(); } catch (e) {} } if (!document.hidden && UI.view === 'game' && G && !$('modal').innerHTML) pump(); });
+  setTimeout(function () { try { mlogFlush(); } catch (e) {} }, 6000);   // 이전에 못 보낸 판 기록
 
   /* ---------- 시작 ---------- */
   G = load();

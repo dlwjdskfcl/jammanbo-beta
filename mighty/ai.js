@@ -1,4 +1,4 @@
-/* 잠만보 마이티 — AI v1.0.4 (DOM 없음 · 브라우저/Node 공용)
+/* 잠만보 마이티 — AI v1.0.5 (DOM 없음 · 브라우저/Node 공용)
  *   MightyAI.choose(st, seat, level, rnd) → 그 자리의 다음 동작 {t:..., why:'이유'}   level 1 쉬움 · 2 보통 · 3 고수
  * AI 는 자기 손패와 공개 정보(나온 카드 · 무늬가 떨어진 자리 · 조커콜 반응)만 봄.
  *   쉬움 = 규칙 기반 + 가끔 아무 카드, 공약 소극적   보통 = 규칙 기반(역할 추론 · 기루다 빼기 · 점수 몰아주기)
@@ -402,6 +402,6 @@
     return null;
   }
 
-  var A = { choose: choose, strength: strength, predict: predict, PRED: PRED, MARGIN: MARGIN, heur: heur, sampleWorld: sampleWorld, suspicion: suspicion, setWorlds: function (n) { WORLDS = n; } };
+  var A = { ver: '1.0.5', choose: choose, strength: strength, predict: predict, PRED: PRED, MARGIN: MARGIN, heur: heur, sampleWorld: sampleWorld, suspicion: suspicion, setWorlds: function (n) { WORLDS = n; } };
   if (typeof module !== 'undefined' && module.exports) module.exports = A; else root.MightyAI = A;
 })(typeof self !== 'undefined' ? self : this);
