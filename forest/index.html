@@ -400,6 +400,7 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
 /*END EVO*/</script>
 <script>
 (function () {
+  window.UX_DEMOQ = /[?&]demo=1/.test(location.search);   // 아래에서 주소의 쿼리를 지우기 전에 데모 표시를 기억
   if (location.search) try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}   // 메뉴의 ?reset 정리
   var inSite = /\/forest\/?(index\.html)?$/.test(location.pathname);
   var lkHome = document.getElementById('lkHome');
@@ -879,7 +880,7 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
   var tipEl = document.getElementById('tip'), tipOn = true; function hideTip() { if (tipOn) { tipOn = false; tipEl.style.opacity = 0; } } setTimeout(hideTip, 9000);
 
   // ---------- 월드 서버 (로그인 · 지갑 · 보상 · 성장) ----------
-  var CFG = SCENE_CFG, KEYS5 = SCENE_EVO.keys, DEMO = !!(CFG.demo || /[?&]demo=1/.test(location.search));   // 데모: 로그인 · 서버 · 월드 호출 전부 없음
+  var CFG = SCENE_CFG, KEYS5 = SCENE_EVO.keys, DEMO = !!(CFG.demo || window.UX_DEMOQ);   // 데모: 로그인 · 서버 · 월드 호출 전부 없음
   var hostOk = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) || location.protocol === 'file:';
   var API = DEMO ? '' : (hostOk && window.WORLD_API_OVERRIDE) || CFG.worldApi;
   var env = (function () { var m = window.JMB_CONFIG || {}; return m.env || (!/github\.io$/.test(location.hostname) ? 'local' : /^\/jammanbo\//.test(location.pathname) ? 'prod' : 'beta'); })();
@@ -946,7 +947,7 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
 
   // ---------- 2단계: 일하기 · 만들기 · 함께 보기 · 게시판 · 사진 ----------
   // 서버 기능(work · presence)은 응답이 없거나 '알 수 없는 요청'이면 그 기능만 조용히 숨김 (1단계 동작은 그대로)
-  var VER = '2.6.0'; document.getElementById('gver').textContent = '화면 v' + VER;
+  var VER = '2.6.1'; document.getElementById('gver').textContent = '화면 v' + VER;
   var nowMs = Date.now(), animF = 0, actT = 0, depN = 0, photo = false, photoHide = false, shotReq = false;
   var DIRS = ['down', 'right', 'up', 'left'];
   var feat = { work: null, pos: null, board: null, streak: null, skill: null, shop: null, fish: null, coins: null, meteor: null };
