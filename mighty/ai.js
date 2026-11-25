@@ -1,4 +1,4 @@
-/* 잠만보 마이티 — AI v1.0.0 (DOM 없음 · 브라우저/Node 공용)
+/* 잠만보 마이티 — AI v1.0.4 (DOM 없음 · 브라우저/Node 공용)
  *   MightyAI.choose(st, seat, level, rnd) → 그 자리의 다음 동작 {t:..., why:'이유'}   level 1 쉬움 · 2 보통 · 3 고수
  * AI 는 자기 손패와 공개 정보(나온 카드 · 무늬가 떨어진 자리 · 조커콜 반응)만 봄.
  *   쉬움 = 규칙 기반 + 가끔 아무 카드, 공약 소극적   보통 = 규칙 기반(역할 추론 · 기루다 빼기 · 점수 몰아주기)
@@ -12,7 +12,9 @@
   var PRED = { a: 9.8, b: 0.93 };                 // 예상 득점 = a + b × 강도 (자동 대국 회귀)
   var PRED_NT = { a: 10.2, b: 0.9 };               // 노기루다는 강도 식이 달라 따로 맞춤
   var MARGIN = { 1: 1.3, 2: 0.4, 3: 0.2 };        // 공약 = 예상 득점 − 여유
-  var WORLDS = 18;                                // 고수: 한 수에 나눠 보는 세계 수
+  var KEEP_BIG = 1.2;                              // 우리 편이 이기는 점수 적은 트릭에 조커 · 마이티를 쓰는 수의 불이익 (고수 탐색)
+  var DUMP_PTS = 3;                               // 상대가 이기는 트릭에 점수 카드를 헌납하는 수의 불이익 (고수 탐색)
+  var WORLDS = 18;                               // 고수: 한 수에 나눠 보는 세계 수
 
   function has(h, c) { return h.indexOf(c) >= 0; }
   function bySuit(h) { var a = [[], [], [], []]; for (var i = 0; i < h.length; i++) if (h[i] !== JOKER) a[suitOf(h[i])].push(h[i]); return a; }
@@ -269,6 +271,7 @@
       return low('우리 편이 이기고 있어 낮은 카드를 내요');
     }
     var cheap = winners.filter(function (c) { return c !== x.m && c !== JOKER; });
+    if (enemyAfter && trickPts === 0 && g !== NT && st.leadSuit !== g) cheap = cheap.filter(function (c) { return suitOf(c) !== g; });   // 점수 카드가 없는 트릭은 기루다로 자르지 않음 (뒤에 상대가 남았을 때)
     if (cheap.length) {
       if (!enemyAfter) {
         var pw = cheap.filter(isPoint);
@@ -358,6 +361,13 @@
     var base = heur(st, me), cands = candidates(st, me, base), i, k;
     if (cands.length <= 1 || st.hands[me].length <= 1) return base;
     var sum = cands.map(function () { return 0; });
+    var x = context(st, me), keepBig = false;   // 우리 편이 이기고 있고 점수도 적으면 조커 · 마이티를 아낌
+    if (st.trick.length && x.team[E.curWinner(st)] === x.my) { var tp = 0; for (i = 0; i < st.trick.length; i++) if (isPoint(st.trick[i].card)) tp++; keepBig = tp <= 1; }
+    var dumpPen = null;   // 상대가 이기는 트릭에 못 이기는 점수 카드를 내주는 수 (점수 아닌 카드로 버릴 수 있을 때)
+    if (st.trick.length && x.team[E.curWinner(st)] !== x.my) {
+      var jp = E.jokerPower(st), mt = x.m, lose = function (c) { return E.winnerIdx(st.trick.concat([{ seat: me, card: c }]), st.giruda, st.leadSuit, jp) !== st.trick.length; };
+      if (E.legalPlays(st, me).some(function (c) { return !isPoint(c) && c !== JOKER && c !== mt && lose(c); })) dumpPen = lose;
+    }
     for (k = 0; k < worlds; k++) {
       var w0 = sampleWorld(st, me, rnd);
       for (i = 0; i < cands.length; i++) {
@@ -367,7 +377,7 @@
       }
     }
     var bi = 0, bv = -1e9;
-    for (i = 0; i < cands.length; i++) { var v = sum[i] / worlds + (same(cands[i], base) ? 0.35 : 0); if (v > bv) { bv = v; bi = i; } }
+    for (i = 0; i < cands.length; i++) { var v = sum[i] / worlds + (same(cands[i], base) ? 0.35 : 0) - (keepBig && (cands[i].card === JOKER || cands[i].card === x.m) && !same(cands[i], base) ? KEEP_BIG : 0) - (dumpPen && isPoint(cands[i].card) && dumpPen(cands[i].card) ? DUMP_PTS : 0); if (v > bv) { bv = v; bi = i; } }
     if (same(cands[bi], base)) return base;
     var a = cands[bi]; a.why = '여러 경우를 끝까지 굴려 보니 이 카드가 가장 좋았어요';
     return a;

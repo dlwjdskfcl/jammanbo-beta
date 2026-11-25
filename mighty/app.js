@@ -2,7 +2,7 @@
  * 기기 저장: jmb_mighty_save(진행 중인 게임) · jmb_mighty_set(설정) · jmb_mighty_stats(전적) */
 (function () {
   'use strict';
-  var VER = '1.0.6';
+  var VER = '1.0.9';
   var E = window.MightyEngine, AI = window.MightyAI, FX = window.JMB_FX, ARC = window.JMB_ARCADE;
   var ROOT = (function () { var seg = location.pathname.split('/')[1] || ''; return /\.github\.io$/.test(location.hostname) && seg ? '/' + seg + '/' : '/'; })();
   var LS = { save: 'jmb_mighty_save', set: 'jmb_mighty_set', stats: 'jmb_mighty_stats' };
