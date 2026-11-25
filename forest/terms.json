@@ -1,4 +1,8 @@
 {
+ "act.dice": {
+  "en": "Roll it",
+  "ko": "굴려 보기"
+ },
  "act.knock": {
   "en": "Knock knock. Nobody home",
   "ko": "똑똑. 아무도 없어요"
@@ -11,9 +15,25 @@
   "en": "Look",
   "ko": "살펴봐요"
  },
+ "act.meeple": {
+  "en": "Assign workers",
+  "ko": "일꾼 배치"
+ },
+ "act.meeple.tip": {
+  "en": "Send workers to buildings in the yard",
+  "ko": "마당에서 건물마다 일꾼을 보내요"
+ },
  "act.read": {
   "en": "Reading the board",
   "ko": "게시판을 읽어요"
+ },
+ "act.roulette": {
+  "en": "Go enhance",
+  "ko": "강화하러 가기"
+ },
+ "act.roulette.tip": {
+  "en": "Pick a trinket in the bag to enhance",
+  "ko": "가방에서 장신구를 골라 강화해요"
  },
  "act.sealed": {
   "en": "The door will not budge",
@@ -50,6 +70,86 @@
  "act.warm": {
   "en": "Warming up",
   "ko": "불을 쬐어요. 몸이 풀려요"
+ },
+ "bg.dice.capped": {
+  "en": "Critical bonus used up today",
+  "ko": "오늘 대성공 보너스는 다 썼어요"
+ },
+ "bg.dice.crit": {
+  "en": "Critical",
+  "ko": "대성공"
+ },
+ "bg.dice.fiber": {
+  "en": "Fiber",
+  "ko": "섬유"
+ },
+ "bg.meeple": {
+  "en": "Workers",
+  "ko": "일꾼"
+ },
+ "bg.meeple.cd": {
+  "en": "Can change again soon",
+  "ko": "잠시 뒤 바꿀 수 있어요"
+ },
+ "bg.meeple.hint": {
+  "en": "Assign for +{n}% output",
+  "ko": "보내면 생산 +{n}%"
+ },
+ "bg.meeple.on": {
+  "en": "Output {n}",
+  "ko": "생산 {n}"
+ },
+ "bg.rl.again": {
+  "en": "Once more",
+  "ko": "한 번 더"
+ },
+ "bg.rl.break": {
+  "en": "Shattered",
+  "ko": "깨졌어요"
+ },
+ "bg.rl.keep": {
+  "en": "No change this time",
+  "ko": "이번엔 그대로예요"
+ },
+ "bg.rl.o.brk": {
+  "en": "Shatter",
+  "ko": "파괴"
+ },
+ "bg.rl.o.keep": {
+  "en": "Keep",
+  "ko": "유지"
+ },
+ "bg.rl.o.succ": {
+  "en": "Success",
+  "ko": "성공"
+ },
+ "bg.rl.ok": {
+  "en": "OK",
+  "ko": "확인"
+ },
+ "bg.rl.pity": {
+  "en": "Streak bonus",
+  "ko": "연속 실패 보정"
+ },
+ "bg.rl.refund": {
+  "en": "On shatter, materials are lost; the nitron you paid comes back",
+  "ko": "깨지면 재료는 사라지고 낸 니트론만 돌려받아요"
+ },
+ "bg.rl.spin": {
+  "en": "Spin",
+  "ko": "돌리기"
+ },
+ "bg.rl.title": {
+  "en": "Wheel of Fate",
+  "ko": "운명 바퀴"
+ },
+ "bg.rl.warn": {
+  "en": "High level - it can shatter",
+  "ko": "높은 단계라 깨질 수 있어요"
+ },
+ "bg.rl.win": {
+  "en": "Hardened",
+  "ko": "단단해졌어요"
  },
  "combat.attack": {
   "en": "Attack",
@@ -187,6 +287,14 @@
   "en": "",
   "ko": "굳게 닫혀 있어요. 위층으로 가는 길인가 봐요."
  },
+ "obj.dicetable": {
+  "en": "Dice Table",
+  "ko": "주사위 탁자"
+ },
+ "obj.dicetable.d": {
+  "en": "A twenty-sided die that decides gathering and crafting luck",
+  "ko": "채집과 제작의 운을 정하는 스무 면 주사위가 놓여 있어요"
+ },
  "obj.dpillar": {
   "en": "Stone Pillar",
   "ko": "돌기둥"
@@ -267,6 +375,14 @@
   "en": "",
   "ko": "앉기 좋게 눕혀 둔 통나무예요."
  },
+ "obj.meepleshed": {
+  "en": "Meeple Rest",
+  "ko": "일꾼 쉼터"
+ },
+ "obj.meepleshed.d": {
+  "en": "Where meeple workers rest before heading out",
+  "ko": "미플 일꾼들이 건물로 나가기 전에 쉬는 곳이에요"
+ },
  "obj.mush": {
   "en": "Mushroom",
   "ko": "버섯"
@@ -314,6 +430,14 @@
  "obj.rock.d": {
   "en": "",
   "ko": "이끼 낀 단단한 바위예요."
+ },
+ "obj.roulette": {
+  "en": "Wheel of Fate",
+  "ko": "운명 바퀴"
+ },
+ "obj.roulette.d": {
+  "en": "A wheel that hardens trinkets. High levels can shatter",
+  "ko": "장신구를 돌려 단단하게 만드는 바퀴예요. 높은 단계는 깨질 수도 있어요"
  },
  "obj.round": {
   "en": "Round Tree",
