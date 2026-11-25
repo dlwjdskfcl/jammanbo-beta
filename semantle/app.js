@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var VER = '1.33.2';
+  var VER = '1.33.3';
   var LATE_FROM = '2026-11-16', LATE_AT = '23:30', LATE_PTS = 10;   // (1.31.0) 밤 23:30 에 톡방에 정답이 공개됨 → 그 뒤 정답은 고정 점수 (서버 SEM_CFG_ LATE_* 와 같게 — 점수는 서버가 정함, 여기는 안내용)
   function lateNow() { var t = new Date(Date.now() + 9 * 3600e3).toISOString(); return t.slice(0, 10) >= LATE_FROM && t.slice(11, 16) >= LATE_AT; }
   var CFG = window.JMB_CONFIG || {};
@@ -739,12 +739,19 @@
   function tabsOn() { [].forEach.call($('tabs').children, function (b) { b.classList.toggle('on', b.getAttribute('data-v') === S.view); }); }
   /* ---------- 로그인 안 하면 시작 못 함 (서버도 로그인 없이는 문제를 안 줌) ---------- */
   function renderGate(hasSession) {
+    if (window.JMB_PROMO) JMB_PROMO.hide();
     $('tabs').hidden = true; updateTop(); xlState();
     $('ttl').textContent = S.xl ? '업무현황.xlsx' : '꼬맨틀'; $('sub').textContent = S.xl ? '로그인 필요' : '로그인하고 시작하세요';
     $('view').innerHTML = '<div class="card gate"><div class="em">🔒</div><h2>로그인하고 시작하세요</h2>' +
       '<p>꼬맨틀은 <b>잠만보 회원</b>만 할 수 있어요.<br>카카오로 로그인하면 기록 · 순위 · 레이팅이 남아요.</p>' +
       (hasSession ? '<div class="note warn" style="margin:12px 0 0">카카오 로그인은 됐는데 <b>모임 닉네임이 아직 연결되지 않았어요.</b><br>잠만보 앱 오른쪽 위 계정 버튼에서 닉네임을 먼저 연결해 주세요.</div><div class="btns"><button type="button" class="btn pri" id="goHome">🏠 잠만보로 가서 연결하기</button></div>'
                   : '<div class="btns"><button type="button" class="btn pri" id="login">카카오로 로그인</button></div>') + '</div>';
+  }
+  /** (1.33.3) 아르케온 '곧 출시예정' 홍보(../promo.js) — 첫 화면(오늘의 챌린지)과 결과 화면 아래에서만. 추측 입력 중 · 연습 · 꼬들 · 순위 · 기록에서는 안 뜸. 엑셀 모드는 위장 화면이라 셀 메모 한 줄로만 */
+  function promoSync() {
+    var P = window.JMB_PROMO; if (!P) return;
+    var home = S.view === 'chal', result = S.view === 'play' && S.L && S.L.done && !S.L.prac;
+    if (home || result) P.show(home ? 'home' : 'result', $('view'), { xl: !!S.xl, inset: true }); else P.hide();
   }
   function render() {
     if (!S.nick) return renderGate(!!session());
@@ -756,6 +763,7 @@
     else if (S.view === 'kodle') renderKodle('play');
     else if (S.view === 'chal') renderChal();
     else renderPlay();
+    promoSync();
     xlState();   // 엑셀 모드: 리본 · 수식 입력줄 · 상태 표시줄을 지금 화면에 맞춤
   }
 
@@ -932,6 +940,7 @@
     $('pList').innerHTML = S.xl ? rows() : L.g.length ? '<div class="card" style="padding:8px 10px">' + rows() + '</div>'   // 엑셀 모드는 추측이 없어도 빈 격자를 보여 줌
       : (!L.done ? '<p class="hint">처음 입력해 볼 단어는 뭐든 괜찮아요. 예: <b>사람</b> · <b>음식</b> · <b>하늘</b> — 점수가 높은 쪽으로 따라가 보세요!</p>' : '');
     xlState();
+    promoSync();   // 정답 · 포기 직후 결과 화면에도
     if (!S.focused && !L.done && !(navigator.maxTouchPoints > 0)) { S.focused = true; try { inp.focus({ preventScroll: true }); } catch (e) {} }   // 컴퓨터만 자동 포커스 (휴대폰은 키보드가 화면을 가리지 않게)
     var beh = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
     if (S.scrollRes && L.done && !S.busy) {   // 정답 · 포기 직후에는 결과 카드로

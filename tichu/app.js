@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var APP_VER = '1.29.0';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
+  var APP_VER = '1.29.1';   // 화면 버전 — 계정 창(이름 버튼)에 표시. 서버 버전은 응답의 sv
   var CFG = window.TICHU_CONFIG || {};
   var ENV_SFX = CFG.env && CFG.env !== 'prod' ? '_' + CFG.env : '';
   var LS_TOKEN = 'tichu_token' + ENV_SFX, LS_NOAUTO = 'tichu_noauto' + ENV_SFX, LS_SOUND = 'tichu_sound', LS_VOICE = 'tichu_voice', LS_SEEN = 'tichu_seen_rules', LS_BOTD = 'tichu_botdelay', LS_THEME = 'tichu_theme', LS_THEME_TIP = 'tichu_theme_tip', LS_BOTLV = 'tichu_botlv', LS_PRACT = 'tichu_practice';
@@ -492,6 +492,7 @@
   }
 
   function renderLogin(errMsg) {
+    if (window.JMB_PROMO) JMB_PROMO.hide();
     S.route = { name: 'login' };
     stopPoll(); clearInterval(S.lobbyT);
     var ks = kakaoSession(), nick = ks && ks.user && ks.user.nickname;
@@ -584,6 +585,8 @@
     else body = rulesBody();
     app.innerHTML = '<div class="shell">' + header() + '<div class="content">' + body + '</div>' + tabbar(r) + '</div>';
     bindShell();
+    // (1.29.1) 아르케온 '곧 출시예정' 홍보(../promo.js) — 방 목록에서만. 다른 탭 · 방 · 게임 화면에서는 안 뜸
+    if (window.JMB_PROMO) { if (r === 'lobby') JMB_PROMO.show('lobby', document.querySelector('.content')); else JMB_PROMO.hide(); }
   }
   function bindShell() {
     $$('[data-go]').forEach(function (b) { b.onclick = function () { location.hash = b.getAttribute('data-go'); }; });
@@ -1373,6 +1376,7 @@
   /* ----- 그리기 ----- */
   function render() {
     if (S.route.name !== 'room' || !S.room) return;
+    if (window.JMB_PROMO) JMB_PROMO.hide();   // (1.29.1) 대기실 · 게임 · 관전 화면에서는 홍보를 숨김
     var r = S.room;
     document.body.classList.toggle('ingame', r.status !== 'wait');
     if (r.status === 'wait') renderWait(); else renderGame();
