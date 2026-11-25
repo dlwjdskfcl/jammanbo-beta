@@ -1,4 +1,20 @@
 {
+ "combat.attack": {
+  "en": "Attack",
+  "ko": "공격"
+ },
+ "combat.auto": {
+  "en": "Auto attack",
+  "ko": "자동 공격"
+ },
+ "combat.ko": {
+  "en": "Knocked out",
+  "ko": "쓰러졌어요"
+ },
+ "combat.wake": {
+  "en": "Woke up by the fire",
+  "ko": "모닥불 곁에서 깨어났어요"
+ },
  "currency.name": {
   "en": "Nitron",
   "ko": "니트론"
@@ -22,6 +38,22 @@
  "game.tagline": {
   "en": "Primal element, ancient civilization",
   "ko": "근원 원소, 고대 문명"
+ },
+ "monster.elite": {
+  "en": "Arche Guardian",
+  "ko": "아르케 수호병"
+ },
+ "monster.gold": {
+  "en": "Golden Slime",
+  "ko": "황금 슬라임"
+ },
+ "monster.root": {
+  "en": "Root Goblin",
+  "ko": "뿌리 도깨비"
+ },
+ "monster.slime": {
+  "en": "Nit Slime",
+  "ko": "니트 슬라임"
  },
  "place.coast": {
   "en": "Air Coast",
@@ -54,5 +86,25 @@
  "place.woods": {
   "en": "Source Woods",
   "ko": "근원의 숲"
+ },
+ "raid.clear": {
+  "en": "The raid is repelled",
+  "ko": "야습을 물리쳤어요"
+ },
+ "raid.end": {
+  "en": "The raid has faded",
+  "ko": "야습이 물러갔어요"
+ },
+ "raid.name": {
+  "en": "Night Raid",
+  "ko": "야습"
+ },
+ "raid.on": {
+  "en": "Night raid! Monsters at the gate",
+  "ko": "야습! 몬스터가 문으로 몰려와요"
+ },
+ "raid.warn": {
+  "en": "Something stirs beyond the gate",
+  "ko": "문 밖이 소란스러워요. 곧 야습이 시작돼요"
  }
 }
