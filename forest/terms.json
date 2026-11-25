@@ -1,0 +1,58 @@
+{
+ "currency.name": {
+  "en": "Nitron",
+  "ko": "니트론"
+ },
+ "currency.unit": {
+  "en": "N",
+  "ko": "N"
+ },
+ "feature.codex": {
+  "en": "Arche Codex",
+  "ko": "아르케 도감"
+ },
+ "feature.soon": {
+  "en": "Coming Soon",
+  "ko": "곧 출시예정"
+ },
+ "game.name": {
+  "en": "Archeon",
+  "ko": "아르케온"
+ },
+ "game.tagline": {
+  "en": "Primal element, ancient civilization",
+  "ko": "근원 원소, 고대 문명"
+ },
+ "place.coast": {
+  "en": "Air Coast",
+  "ko": "대기 해안"
+ },
+ "place.farm": {
+  "en": "Bean Camp",
+  "ko": "콩밭 야영지"
+ },
+ "place.garden": {
+  "en": "Herb Garden",
+  "ko": "약초원"
+ },
+ "place.gate": {
+  "en": "Arche Gate",
+  "ko": "아르케 관문"
+ },
+ "place.mine": {
+  "en": "Nit Vein",
+  "ko": "니트 광맥"
+ },
+ "place.plaza": {
+  "en": "Nitra Plaza",
+  "ko": "니트라 광장"
+ },
+ "place.spring": {
+  "en": "Root Springs",
+  "ko": "뿌리온천"
+ },
+ "place.woods": {
+  "en": "Source Woods",
+  "ko": "근원의 숲"
+ }
+}
