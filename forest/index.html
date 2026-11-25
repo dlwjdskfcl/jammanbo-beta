@@ -2,8 +2,12 @@
 <html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="data:,">
 <meta name="theme-color" content="#10261c">
-<title>잠만보 숲속 마당</title>
+<title>아르케온</title>
+<meta name="description" content="아르케온 · 근원 원소, 고대 문명">
+<meta property="og:title" content="아르케온">
+<meta property="og:description" content="근원 원소, 고대 문명">
 <style>
 :root { --bg:#10261c; --ink:#f4f1e6; --dim:#a9c4b0; --line:#2b4a3a; --gold:#ffd86b; }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -185,6 +189,19 @@ body.photo #tut, body.photo #evo { display:none !important; }
 .dice-rain { position:fixed; inset:0; z-index:25; pointer-events:none; overflow:hidden; } .dice-rain i { position:absolute; top:-40px; width:26px; height:26px; background:#f6f0dc; border:2px solid #2a1f12; border-radius:4px; animation:uxFall linear forwards; box-shadow:0 2px 0 rgba(0,0,0,.35); }
 .dice-rain i::before { content:''; position:absolute; left:50%; top:50%; width:5px; height:5px; margin:-2.5px; background:#2a1f12; border-radius:50%; box-shadow:-7px -7px 0 #2a1f12, 7px 7px 0 #2a1f12, 7px -7px 0 #2a1f12, -7px 7px 0 #2a1f12; } @keyframes uxFall { to { transform:translateY(112vh) rotate(var(--rot)); } }
 @media (prefers-reduced-motion: reduce) { .dice-rain { display:none; } }
+/* 아르케온: 구역 이름표 · 곧 출시예정 리본 · 아르케 도감 */
+#zone { position:fixed; left:50%; top:calc(var(--barH,46px) + 10px); transform:translate(-50%,-6px); z-index:7; padding:5px 16px; background:var(--p0); color:var(--ink); border:2px solid var(--pl); border-bottom-width:4px; border-radius:var(--r); font-weight:800; font-size:16px; letter-spacing:-.01em; opacity:0; pointer-events:none; transition:opacity .35s, transform .35s; white-space:nowrap; }
+#zone.show { opacity:1; transform:translate(-50%,0); }
+#soonRib { position:fixed; left:8px; top:calc(var(--barH,46px) + 10px); z-index:7; padding:4px 12px; background:var(--amber); color:#2c1d06; border:2px solid #5a3f0e; border-radius:var(--r); box-shadow:0 2px 0 #5a3f0e; font-weight:900; font-size:15px; letter-spacing:.04em; pointer-events:none; }
+body.photo #zone, body.photo #soonRib { display:none !important; }
+#sheet #codex { font-size:16px; } #codex h3 { margin:2px 0 10px; }
+#codex .cx-me { display:flex; align-items:center; gap:14px; padding:12px; border:2px solid var(--pl); border-radius:8px; background:var(--p1); } #codex .cx-img { width:72px; height:72px; image-rendering:pixelated; flex:none; background:var(--p0); border:2px solid var(--pl); }
+#codex .cx-me b { font-size:18px; } #codex .cx-s { color:var(--dim); font-size:15px; margin-top:2px; } #codex .cx-soon { padding:12px; border:2px dashed var(--pl); border-radius:8px; color:var(--dim); }
+#codex .cx-h { margin:16px 0 6px; font-weight:800; color:var(--amber); letter-spacing:.04em; font-size:15px; }
+#codex ol, #codex ul { list-style:none; margin:0; padding:0; } #codex li { display:flex; align-items:baseline; gap:10px; padding:7px 4px; border-top:2px dotted rgba(58,90,70,.55); flex-wrap:wrap; } #codex li:first-child { border-top:0; }
+#codex .cx-ev .n { flex:none; width:24px; height:24px; line-height:20px; text-align:center; border:2px solid var(--pl); border-radius:4px; font-size:13px; font-weight:800; color:var(--dim); font-variant-numeric:tabular-nums; }
+#codex li.ok .n { background:var(--leaf); border-color:#3f7a2f; color:#10260a; } #codex li.next .n { border-color:var(--amber); color:var(--amber); } #codex li.lock { opacity:.55; } #codex li em { font-style:normal; color:var(--amber); font-size:14px; margin-left:auto; }
+#codex .cx-eg li { color:var(--dim); } #codex .cx-eg li.ok { color:var(--ink); font-weight:700; }
 </style></head><body>
 <div id="bar">
   <a class="hp back" id="lkHome" href="../" style="display:none" title="잠만보로">←</a>
@@ -208,12 +225,12 @@ body.photo #tut, body.photo #evo { display:none !important; }
   <div id="shGrab"><i></i></div>
   <div class="sh-head"><b id="shTitle"></b><div id="shSubs"></div><button class="sh-x" id="shX" aria-label="닫기">✕</button></div>
   <div id="shBody">
-    <div id="yard" style="display:none"></div><div id="me"></div><div id="mk"></div>
+    <div id="yard" style="display:none"></div><div id="me"></div><div id="mk"></div><div id="codex" style="display:none"></div>
     <div id="more" style="display:none">
       <div class="mg">
         <button class="btn" id="mPhoto">사진</button>
         <button class="btn" id="mSnd">소리</button><button class="btn" id="mWx">날씨 효과</button>
-        <a class="btn" id="lkDex" href="미리보기.html" style="display:flex;align-items:center;justify-content:center;gap:6px;min-height:52px;font-size:16px">도감</a><button class="btn" id="mName">이름표</button>
+        <button class="btn" id="mCodex">아르케 도감</button><button class="btn" id="mName">이름표</button>
       </div>
       <div class="vol"><span>볼륨</span><input type="range" id="vol" min="0" max="100" step="5"><b id="volN">60</b></div>
       <div class="dim" id="volHint">소리는 기본이 꺼져 있어요. 위에서 켜면 발소리 · 새소리 · 바람이 들려요.</div>
@@ -233,7 +250,7 @@ body.photo #tut, body.photo #evo { display:none !important; }
   <button class="tb" data-t="soc"><span class="ic">👥</span>친구<i class="bdg2"></i></button>
   <button class="tb" data-t="more"><span class="ic">⋯</span>더보기<i class="bdg2"></i></button>
 </nav>
-<div id="act"></div><div id="toast"></div><div id="tut"></div><div id="evo" role="status" aria-live="polite"></div>
+<div id="act"></div><div id="toast"></div><div id="tut"></div><div id="evo" role="status" aria-live="polite"></div><div id="zone" role="status"></div><div id="soonRib" style="display:none"></div>
 <div id="chat"><div class="r"><input id="chatIn" maxlength="24" placeholder="말풍선 (24자까지)" autocomplete="off"><button class="btn gold" id="chatSend">보내기</button><button class="btn" id="chatX">✕</button></div><div class="r" id="emoRow"></div></div>
 <div id="bw"><div class="box" id="bwBox"></div></div>
 <div id="photoBar"><button class="btn big" id="phName">이름 숨기기</button><button class="btn big gold" id="phSave">저장</button><button class="btn big" id="phX">닫기</button></div>
@@ -385,8 +402,8 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
 (function () {
   if (location.search) try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}   // 메뉴의 ?reset 정리
   var inSite = /\/forest\/?(index\.html)?$/.test(location.pathname);
-  var lkHome = document.getElementById('lkHome'), lkDex = document.getElementById('lkDex');
-  if (inSite) { lkHome.style.display = ''; lkDex.href = '../dex/'; }
+  var lkHome = document.getElementById('lkHome');
+  if (inSite) { lkHome.style.display = ''; }   // 도감은 더보기 안의 아르케 도감으로 합침
 
   // ---------- 월드 설정 (맵을 키우려면 W · H 와 아래 '지역' 만 늘리면 됨) ----------
   var T = 16, W = 88, H = 96, CHK = 32, PW = W * T, PH = H * T;   // 2026-11-25 56x64 → 88x96 (기존 구역은 왼쪽 위 56x64 에 그대로, 동쪽 · 남쪽을 넓힘)
@@ -862,14 +879,14 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
   var tipEl = document.getElementById('tip'), tipOn = true; function hideTip() { if (tipOn) { tipOn = false; tipEl.style.opacity = 0; } } setTimeout(hideTip, 9000);
 
   // ---------- 월드 서버 (로그인 · 지갑 · 보상 · 성장) ----------
-  var CFG = SCENE_CFG, KEYS5 = SCENE_EVO.keys;
+  var CFG = SCENE_CFG, KEYS5 = SCENE_EVO.keys, DEMO = !!(CFG.demo || /[?&]demo=1/.test(location.search));   // 데모: 로그인 · 서버 · 월드 호출 전부 없음
   var hostOk = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) || location.protocol === 'file:';
-  var API = (hostOk && window.WORLD_API_OVERRIDE) || CFG.worldApi;
+  var API = DEMO ? '' : (hostOk && window.WORLD_API_OVERRIDE) || CFG.worldApi;
   var env = (function () { var m = window.JMB_CONFIG || {}; return m.env || (!/github\.io$/.test(location.hostname) ? 'local' : /^\/jammanbo\//.test(location.pathname) ? 'prod' : 'beta'); })();
   var KAKAO_STORE = 'jmb_kakao_v2' + (env && env !== 'prod' ? '_' + env : '');
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function kakaoSession() { try { var s = JSON.parse(lsGet(KAKAO_STORE) || 'null'); return s && s.token ? s : null; } catch (e) { return null; } }
-  var ks = kakaoSession(), wtok = '', me = null, meChar = null, net = { ok: null };
+  var ks = DEMO ? null : kakaoSession(), wtok = '', me = null, meChar = null, net = { ok: null };
   function call(fn, a, t) {
     return fetch(API + '/api', { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: fn, t: t === undefined ? wtok : t, a: a || {} }) })
       .then(function (r) { return r.json(); }).then(function (j) { if (!j || !j.ok) { var e = new Error((j && j.e) || '서버 오류'); e.code = j && j.code; e.slow = j && j.slow; throw e; } uxRes(fn, j.r); return j.r; });
@@ -924,12 +941,12 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
     if (st) { wtok = st; return call('me', {}).then(function (r) { applyMe(r.me || r); }, function () { wtok = ''; try { sessionStorage.removeItem('jmb_world_tok'); } catch (e) {} return login(); }); }
     return login();
   }
-  if (API) loadRoster().then(boot); else if (!ks) lkLogin.style.display = '';
+  if (API) loadRoster().then(boot); else if (!ks && !DEMO) lkLogin.style.display = '';
   setInterval(function () { if (API && document.visibilityState === 'visible') loadRoster(); }, 60000);
 
   // ---------- 2단계: 일하기 · 만들기 · 함께 보기 · 게시판 · 사진 ----------
   // 서버 기능(work · presence)은 응답이 없거나 '알 수 없는 요청'이면 그 기능만 조용히 숨김 (1단계 동작은 그대로)
-  var VER = '2.5.0'; document.getElementById('gver').textContent = '화면 v' + VER;
+  var VER = '2.6.0'; document.getElementById('gver').textContent = '화면 v' + VER;
   var nowMs = Date.now(), animF = 0, actT = 0, depN = 0, photo = false, photoHide = false, shotReq = false;
   var DIRS = ['down', 'right', 'up', 'left'];
   var feat = { work: null, pos: null, board: null, streak: null, skill: null, shop: null, fish: null, coins: null, meteor: null };
@@ -937,7 +954,7 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]; }); }
   function svc(f, fn, a, t) { return call(fn, a, t).catch(function (e) { if (/알 수 없는 요청/.test(e.message || '')) { feat[f] = false; syncUi(); } throw e; }); }
   var toastEl = $('toast'), toastTm = 0;
-  function toast(msg, ms) { toastEl.textContent = uxPlain(msg); toastEl.classList.add('show'); clearTimeout(toastTm); toastTm = setTimeout(function () { toastEl.classList.remove('show'); }, ms || 2600); }
+  function toast(msg, ms) { toastEl.textContent = uxPlain(uxTerm(msg)); toastEl.classList.add('show'); clearTimeout(toastTm); toastTm = setTimeout(function () { toastEl.classList.remove('show'); }, ms || 2600); }
   function art(rows, pal) { var h = rows.length, w = rows[0].length; return sprite(w, h, function (q) { for (var yy = 0; yy < h; yy++) for (var xx = 0; xx < w; xx++) { var ch = rows[yy].charAt(xx); if (ch !== '.' && pal[ch]) px(q, xx, yy, pal[ch]); } }); }
   function rot90(c) { var o = mk(c.height, c.width), q = o.getContext('2d'); q.imageSmoothingEnabled = false; q.translate(c.height, 0); q.rotate(Math.PI / 2); q.drawImage(c, 0, 0); return o; }
   var KN = { wood: '나무', stone: '돌', herb: '풀' }, KICON = { wood: '🪵', stone: '🪨', herb: '🌿', fiber: '🧵' }, VERB = { wood: '🪓 베기', stone: '⛏ 캐기', herb: '🌿 캐기' };
@@ -2990,8 +3007,8 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
   // ----- 아래 탭 바 · 바텀시트 -----
   var sheetEl = $('sheet'), shBody = $('shBody'), shTitle = $('shTitle'), shSubs = $('shSubs'), tabsEl = $('tabs'), yardEl = $('yard'), moreEl = $('more'), tycEl = $('tyc');
   ['qp', 'cp', 'fbDress'].forEach(function (id) { var e = $(id); if (e) shBody.appendChild(e); });   // 예전에 따로 떠 있던 패널을 시트 안으로
-  var PN = { yard: yardEl, me: mePanel, mk: mkPanel, qp: $('qp'), cp: $('cp'), dress: $('fbDress'), more: moreEl }, PKEYS = ['yard', 'me', 'mk', 'qp', 'cp', 'dress', 'more'];
-  var SUBS = { yard: [['yard', '마당'], ['me', '내 정보']], bag: [['bag', '재료'], ['craft', '만들기'], ['build', '짓기'], ['skill', '스킬']], more: [['more', '메뉴'], ['dress', '착용']] };
+  var PN = { yard: yardEl, me: mePanel, mk: mkPanel, qp: $('qp'), cp: $('cp'), dress: $('fbDress'), codex: $('codex'), more: moreEl }, PKEYS = ['yard', 'me', 'mk', 'qp', 'cp', 'dress', 'codex', 'more'];
+  var SUBS = { yard: [['yard', '마당'], ['me', '내 정보']], bag: [['bag', '재료'], ['craft', '만들기'], ['build', '짓기'], ['skill', '스킬']], more: [['more', '메뉴'], ['dress', '착용'], ['codex', TM('feature.codex')]] };
   var TITLE = { yard: '마당', bag: '가방', note: '수첩', soc: '친구 · 함께 짓기', more: '더보기' };
   var shGroup = null, shSub = null, lastSub = {}, lastOpened = null, lastSubHtml = '';
   function sheetOpen() { return !!sheetEl && sheetEl.classList.contains('open'); }
@@ -3004,7 +3021,7 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
     PKEYS.forEach(function (k) { var p = PN[k]; if (p && p !== keep && k !== 'qp') p.style.display = 'none'; });
   }
   function closeSheet() { closePanels(null); syncSheet(); }
-  function groupOf(k) { return k === 'yard' ? ['yard', 'yard'] : k === 'me' ? ['yard', 'me'] : k === 'mk' ? ['bag', mkView === 'skill' ? 'skill' : mkTab] : k === 'qp' ? ['note', 'note'] : k === 'cp' ? ['soc', 'soc'] : k === 'dress' ? ['more', 'dress'] : ['more', 'more']; }
+  function groupOf(k) { return k === 'yard' ? ['yard', 'yard'] : k === 'me' ? ['yard', 'me'] : k === 'mk' ? ['bag', mkView === 'skill' ? 'skill' : mkTab] : k === 'qp' ? ['note', 'note'] : k === 'cp' ? ['soc', 'soc'] : k === 'dress' ? ['more', 'dress'] : k === 'codex' ? ['more', 'codex'] : ['more', 'more']; }
   function syncSheet() {
     var opens = PKEYS.filter(function (k) { return PN[k] && PN[k].style.display === 'block'; });
     if (opens.length > 1) { var keep = lastOpened && lastOpened.style.display === 'block' ? lastOpened : PN[opens[0]]; closePanels(keep); opens = PKEYS.filter(function (k) { return PN[k] && PN[k].style.display === 'block'; }); }
@@ -3023,6 +3040,7 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
     else if (sub === 'note') { closePanels(PN.qp); if (PN.qp.style.display !== 'block') $('qBtn').click(); }
     else if (sub === 'soc') { closePanels(PN.cp); if (PN.cp.style.display !== 'block') $('socBtn').click(); }
     else if (sub === 'dress') { closePanels(PN.dress); if (PN.dress.style.display !== 'block') $('fbBtn').click(); }
+    else if (sub === 'codex') { closePanels(PN.codex); PN.codex.style.display = 'block'; renderCodex(); }
     else if (sub === 'more') { closePanels(moreEl); moreEl.style.display = 'block'; uiMore(); }
     syncSheet();
   }
@@ -3123,7 +3141,7 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
   }
   moreEl.addEventListener('click', function (e) {
     var b = e.target.closest ? e.target.closest('button') : null; if (!b) return; var id = b.id;
-    if (id === 'mPhoto') { closeSheet(); $('photoBtn').click(); }
+    if (id === 'mCodex') showSub('codex'); else if (id === 'mPhoto') { closeSheet(); $('photoBtn').click(); }
     else if (id === 'mSnd') $('fabSnd').click(); else if (id === 'mWx') $('fabWx').click(); else if (id === 'mName') $('nameBtn').click();
     else if (id === 'mFit') $('zoomReset').click(); else if (id === 'mPause') $('pause').click(); else if (id === 'mClock') $('clock').click();
     else if (id === 'mFol') { $('fabFollow').click(); closeSheet(); }
@@ -3407,8 +3425,12 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
   var uxScanQ = 0;
   function uxScan() {
     uxScanQ = 0;
+    if (tutEl && uxTutOn()) tutEl.style.display = (sheetOpen() || photo) ? 'none' : 'block';   // 시트가 열리면 임무 카드는 잠시 숨김
     Array.prototype.forEach.call(document.querySelectorAll('#bar .hp'), uxHud);
     Array.prototype.forEach.call(document.querySelectorAll('#sheet button, #sheet a.btn, #photoBar button, #act button, #tyc button, #bar a.hp, #tut button'), uxStrip);
+    Array.prototype.forEach.call(document.querySelectorAll('#sheet, #toast, #tut, #act, #tyc, #card, #bw, #tip, #evo, #chat, #photoBar'), function (c) {   // 옛 문구 → 용어집 값 (금액은 '20 N')
+      var w = document.createTreeWalker(c, NodeFilter.SHOW_TEXT, null), n; while ((n = w.nextNode())) { var v = n.nodeValue; if (v.indexOf('니트론') >= 0 || v.indexOf('숲속 마당') >= 0) { var nv = uxTerm(v); if (nv !== v) n.nodeValue = nv; } }
+    });
   }
   if (window.MutationObserver) new MutationObserver(function () { if (!uxScanQ) { uxScanQ = 1; requestAnimationFrame(uxScan); } }).observe(document.body, { subtree: true, childList: true, characterData: true });
   uxScan();
@@ -3423,7 +3445,7 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
   }
   function uxSnap() { if (meChar && meChar.idle) { try { var c = document.createElement('canvas'); c.width = meChar.idle.width; c.height = meChar.idle.height; c.getContext('2d').drawImage(meChar.idle, 0, 0); uxPrev = c; } catch (e) {} } }
   function uxOnMe(prev, m) {
-    renderTut();
+    renderTut(); if (PN.codex && PN.codex.style.display === 'block') renderCodex();
     if (uxSeen == null) { uxSeen = m.g; return; }
     if (uxPend || m.g > uxSeen) uxPlayEvo(uxPend ? uxPend.from : (prev == null ? uxSeen : prev), uxPend ? uxPend.to : m.g);
   }
@@ -3503,6 +3525,7 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
   }
   var uxCave = { n: 0, at: 0 };
   function uxEggTap(sx, sy) {
+    if (DEMO) return uxDemoTap(sx, sy);
     if (!me || !meChar || !wtok) return false; var w = toWorld(sx, sy), mx = meChar.x, my = meChar.y, ac = uxAcorns();
     for (var i = 0; i < ac.length; i++) { var id = 'a' + (i + 1); if (uxFound(id)) continue; var ax = ac[i][0] * T + 8, ay = ac[i][1] * T + 10; if (Math.hypot(w.x - ax, w.y - ay) < 11 && Math.hypot(mx - ax, my - ay) < 10 * T) { uxEggSend(id); return true; } }
     if (!uxFound('cave') && Math.hypot(w.x - (71 * T + 24), w.y - (8 * T + 8)) < 30 && Math.hypot(mx - (71 * T + 24), my - (8 * T + 8)) < 9 * T) { var nw = performance.now(); uxCave.n = nw - uxCave.at < 4000 ? uxCave.n + 1 : 1; uxCave.at = nw; if (uxCave.n >= 3) { uxCave.n = 0; uxEggSend('cave'); return true; } }
@@ -3539,5 +3562,61 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
     if (idle > 120000 && !uxNapSent && !uxFound('nap')) { uxNapSent = true; uxEggSend('nap'); }
     var kst = new Date(Date.now() + 9 * 3600e3), h = kst.getUTCHours(), m = kst.getUTCMinutes(); if (h === 3 && (m === 33 || m === 34) && !uxFound('t333')) uxEggSend('t333');
   }, 5000);
+
+  // ===== 아르케온: 용어집 연결 · 구역 이름표 · 아르케 도감 · 데모(서버 없는 구경) =====
+  // 용어는 forest/terms.json (시트 '용어집' 탭에서 내보냄). 못 읽어도 같은 값의 기본값으로 동작 (깜빡임 없음)
+  var TERMS = TMdef();
+  function TMdef() { return { 'game.name': '아르케온', 'game.tagline': '근원 원소, 고대 문명', 'currency.name': '니트론', 'currency.unit': 'N', 'feature.codex': '아르케 도감', 'feature.soon': '곧 출시예정', 'place.plaza': '니트라 광장', 'place.mine': '니트 광맥', 'place.gate': '아르케 관문', 'place.spring': '뿌리온천', 'place.farm': '콩밭 야영지', 'place.woods': '근원의 숲', 'place.garden': '약초원', 'place.coast': '대기 해안' }; }
+  function TM(k) { return (TERMS && TERMS[k]) || TMdef()[k] || k; }
+  function uxTerm(s) {   // 옛 문구('니트론' · '숲속 마당')를 용어집 값으로: 금액은 '20 N', 이름은 용어집 이름
+    var cu = TM('currency.unit'), cn = TM('currency.name');
+    return String(s).replace(/(\d[\d,]*)\s*니트론/g, '$1 ' + cu).replace(/니트론\s*([+\-]\s*\d[\d,]*)/g, function (_, d) { return d.replace(/\s/g, '') + ' ' + cu; }).replace(/니트론\s+(\d[\d,]*)/g, '$1 ' + cu).replace(/니트론/g, cn).replace(/숲속 마당/g, TM('game.name'));
+  }
+  function uxTermsApply() {
+    document.title = TM('game.name');
+    var cx = $('mCodex'); if (cx) cx.textContent = TM('feature.codex');
+    SUBS.more.forEach(function (x) { if (x[0] === 'codex') x[1] = TM('feature.codex'); }); lastSubHtml = ''; if (sheetOpen()) syncSheet();
+    var rb = $('soonRib'); if (rb) rb.textContent = TM('feature.soon');
+    uxScan();
+  }
+  try { fetch('terms.json?v=' + VER + '&t=' + Math.floor(Date.now() / 600000)).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { if (!j) return; Object.keys(j).forEach(function (k) { if (j[k] && j[k].ko) TERMS[k] = j[k].ko; }); uxTermsApply(); }).catch(function () {}); } catch (e) {}
+
+  // --- 구역 이름표 (들어갈 때 한 번) ---
+  var UXZ = [['place.gate', 66, 4, 78, 13], ['place.plaza', 19, 43, 30, 49], ['place.garden', 32, 64, 56, 84], ['place.mine', 58, 0, 88, 24], ['place.spring', 58, 24, 88, 41], ['place.farm', 58, 41, 88, 62], ['place.woods', 0, 64, 32, 96], ['place.coast', 40, 66, 88, 96]];
+  var uxZoneKey = '', uxZoneTm = 0, zoneEl = $('zone');
+  setInterval(function () {
+    if (!zoneEl || photo || document.visibilityState !== 'visible') return;
+    var tx = (meChar && wtok ? meChar.x : camX) / T, ty = (meChar && wtok ? meChar.y : camY) / T, k = '';
+    for (var i = 0; i < UXZ.length; i++) { var z = UXZ[i]; if (tx >= z[1] && tx < z[3] && ty >= z[2] && ty < z[4]) { k = z[0]; break; } }
+    if (k && k !== uxZoneKey) { zoneEl.textContent = TM(k); zoneEl.classList.add('show'); clearTimeout(uxZoneTm); uxZoneTm = setTimeout(function () { zoneEl.classList.remove('show'); }, 2600); }
+    uxZoneKey = k;
+  }, 700);
+
+  // --- 아르케 도감: 내 진화 · 다음 조건 · 모은 숨은 재미(찾은 것만) ---
+  var UXEGGS = [['golden', '황금 물고기'], ['cave', '동굴의 속삭임'], ['nap', '낮잠'], ['t333', '새벽 3시 33분'], ['wish', '별똥별 소원']];
+  function renderCodex() {
+    var el = $('codex'); if (!el) return; var S = SCENE_EVO.stages, g = me ? me.g : -1, eggs = (me && me.tut && me.tut.eggs) || [];
+    var h = '<h3>' + esc(TM('feature.codex')) + '</h3>';
+    if (me) {
+      var img = (meChar && meChar.idle) || uxFallbackImg(), nx = S[g + 1], sum = KEYS5.reduce(function (a, k) { return a + (me.s[k] || 0); }, 0);
+      h += '<div class="cx-me"><img class="cx-img" alt="" src="' + img.toDataURL() + '"><div><b>' + esc(S[g].name) + '</b><div class="cx-s">' + g + '단계 · 능력치 합 ' + sum + '</div><div class="cx-s">' + (nx ? '다음 · ' + esc(needText(nx.need)) : '마지막 단계예요') + '</div></div></div>';
+    } else h += '<div class="cx-soon">' + esc(TM('feature.soon')) + ' · 정식으로 열리면 내 캐릭터의 진화가 여기에 쌓여요</div>';
+    h += '<div class="cx-h">진화</div><ol class="cx-ev">';
+    S.forEach(function (st, i) { var cl = i <= g ? 'ok' : i === g + 1 ? 'next' : 'lock', show = i <= g + 1 || (g < 0 && i <= 1); h += '<li class="' + cl + '"><span class="n">' + i + '</span><span class="t">' + (show ? esc(st.name) : '???') + '</span>' + (i === g + 1 && st.need ? '<em>' + esc(needText(st.need)) + '</em>' : '') + '</li>'; });
+    var ac = eggs.filter(function (k) { return /^a\d$/.test(k); }).length;
+    h += '</ol><div class="cx-h">숨은 재미</div><ul class="cx-eg"><li class="' + (ac ? 'ok' : '') + '"><span class="t">' + (ac ? '숨은 도토리 ' + ac + '/7' : '???') + '</span></li>';
+    UXEGGS.forEach(function (e) { var f = eggs.indexOf(e[0]) >= 0; h += '<li class="' + (f ? 'ok' : '') + '"><span class="t">' + (f ? e[1] : '???') + '</span></li>'; });
+    el.innerHTML = h + '</ul>';
+  }
+
+  // --- 데모: 서버 없이 구경만. 행동을 누르면 '곧 출시예정' ---
+  if (DEMO) {
+    var rib = $('soonRib'); if (rib) { rib.textContent = TM('feature.soon'); rib.style.display = 'block'; }
+    $('tabs').addEventListener('click', function (e) { var b = e.target.closest ? e.target.closest('.tb') : null; if (b && b.getAttribute('data-t') !== 'more') { e.stopPropagation(); e.preventDefault(); toast(TM('feature.soon'), 1800); } }, true);
+  }
+  function uxDemoTap(sx, sy) {
+    var w = toWorld(sx, sy), hit = resList.some(function (o) { return Math.hypot(o.tx * T + 8 - w.x, o.ty * T + 8 - w.y) < 14; }) || objs.some(function (o) { return (o.kind === 'cottage' || o.kind === 'cave' || o.kind === 'board') && Math.hypot(o.tx * T + 16 - w.x, o.ty * T + 8 - w.y) < 24; });
+    if (hit) { toast(TM('feature.soon'), 1800); sfx('ui'); } return hit;
+  }
 })();
 </script></body></html>

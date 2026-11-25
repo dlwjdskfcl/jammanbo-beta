@@ -20,7 +20,7 @@ function run(ROOT) {
   var GAMES = window.JMB_GAME_LIST ? window.JMB_GAME_LIST(ROOT) : [];
   var TODAY_ = (function () { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); })();
   function attrs(g) { return 'href="' + g.href + '" data-g="' + g.id + '"' + (g.ext ? ' target="_blank" rel="noopener"' : ''); }
-  function nm(g) { return g.name + (g.ext ? ' <span class="jmb-ext" aria-label="새 창">↗</span>' : '') + (g.isNew && g.isNew >= TODAY_ ? ' <span class="jmb-new">NEW</span>' : '') + (g.dev ? ' <span class="jmb-adm">개발자</span>' : g.admin ? ' <span class="jmb-adm">운영진</span>' : ''); }
+  function nm(g) { return g.name + (g.ext ? ' <span class="jmb-ext" aria-label="새 창">↗</span>' : '') + (g.soon ? ' <span class="jmb-soon">' + g.soon + '</span>' : (g.isNew && g.isNew >= TODAY_ ? ' <span class="jmb-new">NEW</span>' : '')) + (g.dev ? ' <span class="jmb-adm">개발자</span>' : g.admin ? ' <span class="jmb-adm">운영진</span>' : ''); }
   // 최근에 한 게임 (arcade.js 가 기기에 남김) — 홈 카드 순서에 씀
   function playLog() { try { return JSON.parse(localStorage.getItem('jmb_arcade_log') || '{}') || {}; } catch (e) { return {}; } }
   function isAdm() { return !!window.ADMIN_PW; }   // auth.js isAdmin() 과 같은 기준
@@ -86,6 +86,7 @@ function run(ROOT) {
     '.jmb-mini-cards .jmb-tichu-card{margin:0;flex-direction:column;align-items:flex-start;gap:10px;position:relative}' +
     '.jmb-mini-cards .jmb-tichu-card .go{position:absolute;right:14px;top:14px}' +
     '.jmb-ext{font-size:.8em;opacity:.55;font-weight:600}' +
+    '.jmb-soon{display:inline-block;font-size:10px;font-weight:800;padding:1px 6px;border-radius:4px;background:#e9b44c;color:#2c1d06;vertical-align:2px;letter-spacing:0;white-space:nowrap}' +
     '.jmb-new{display:inline-block;font-size:10px;font-weight:800;padding:0 5px;border-radius:999px;background:#e5484d;color:#fff;vertical-align:2px;letter-spacing:0}' +
     '.jmb-adm{display:inline-block;font-size:10.5px;font-weight:800;padding:0 6px;border-radius:999px;background:var(--surface2,#f2f4f7);color:var(--muted,#8b95a1);vertical-align:2px;letter-spacing:0}' +
     '.jmb-mini-cards .jmb-ext-card{grid-column:1/-1;flex-direction:row;align-items:center}' +
@@ -148,7 +149,7 @@ function run(ROOT) {
     menu.className = 'jmb-mini-menu'; menu.setAttribute('role', 'menu'); menu.id = 'jmbMiniMenu';
     var dark = isDark();
     menu.innerHTML = '<div class="hd">미니게임</div>' + shown().map(function (g) {
-      return '<a role="menuitem" ' + attrs(g) + '><span class="ic" style="background:' + (dark ? g.bgDark : g.bg) + '">' + g.emoji + '</span><span><b>' + nm(g) + '</b><small>' + g.desc + '</small></span></a>';
+      return '<a role="menuitem" ' + attrs(g) + '><span class="ic" style="background:' + (dark ? g.bgDark : g.bg) + '">' + (g.icon || g.emoji) + '</span><span><b>' + nm(g) + '</b><small>' + g.desc + '</small></span></a>';
     }).join('');
     document.body.appendChild(menu);
     var r = btn.getBoundingClientRect(), mw = menu.offsetWidth;
@@ -239,7 +240,7 @@ function run(ROOT) {
     box.className += ' c' + cols; box.style.setProperty('--cols', cols);
     var dark = isDark();
     box.innerHTML = list.map(function (g) {
-      return '<a class="card jmb-tichu-card' + (g.ext ? ' jmb-ext-card' : '') + '" ' + attrs(g) + '><span class="ic" style="background:' + (dark ? g.bgDark : g.bg) + '">' + g.emoji + '</span><span class="tx"><b>' + nm(g) + '</b><small>' + g.desc + '</small></span><span class="go" aria-hidden="true">›</span></a>';
+      return '<a class="card jmb-tichu-card' + (g.ext ? ' jmb-ext-card' : '') + '" ' + attrs(g) + '><span class="ic" style="background:' + (dark ? g.bgDark : g.bg) + '">' + (g.icon || g.emoji) + '</span><span class="tx"><b>' + nm(g) + '</b><small>' + g.desc + '</small></span><span class="go" aria-hidden="true">›</span></a>';
     }).join('');
     if (tiles && tiles.nextSibling) view.insertBefore(box, tiles.nextSibling);
     else if (tiles) view.appendChild(box);
