@@ -179,6 +179,10 @@
   "en": "Arche Codex",
   "ko": "아르케 도감"
  },
+ "feature.request": {
+  "en": "Requests",
+  "ko": "요청"
+ },
  "feature.soon": {
   "en": "Coming Soon",
   "ko": "곧 출시예정"
@@ -546,6 +550,162 @@
  "raid.warn": {
   "en": "Something stirs beyond the gate",
   "ko": "문 밖이 소란스러워요. 곧 야습이 시작돼요"
+ },
+ "req.all": {
+  "en": "All",
+  "ko": "전체"
+ },
+ "req.anon": {
+  "en": "Post anonymously",
+  "ko": "익명으로 올리기"
+ },
+ "req.anon.name": {
+  "en": "Explorer",
+  "ko": "탐험가"
+ },
+ "req.cancel": {
+  "en": "Cancel",
+  "ko": "취소"
+ },
+ "req.cat.bal": {
+  "en": "Balance",
+  "ko": "밸런스"
+ },
+ "req.cat.bug": {
+  "en": "Bug",
+  "ko": "버그"
+ },
+ "req.cat.etc": {
+  "en": "Other",
+  "ko": "기타"
+ },
+ "req.cat.feat": {
+  "en": "Feature",
+  "ko": "기능"
+ },
+ "req.del": {
+  "en": "Delete",
+  "ko": "지우기"
+ },
+ "req.del.ask": {
+  "en": "Delete this post?",
+  "ko": "이 글을 지울까요"
+ },
+ "req.e.cat": {
+  "en": "Pick a category",
+  "ko": "분류를 골라 주세요"
+ },
+ "req.e.full": {
+  "en": "Board is full today",
+  "ko": "오늘은 요청이 가득 찼어요. 내일 다시 올려 주세요"
+ },
+ "req.e.gone": {
+  "en": "No such request",
+  "ko": "그런 요청이 없어요"
+ },
+ "req.e.limit": {
+  "en": "Daily post limit reached",
+  "ko": "오늘은 요청을 더 올릴 수 없어요"
+ },
+ "req.e.notmine": {
+  "en": "Not your post",
+  "ko": "내 글이 아니에요"
+ },
+ "req.e.race": {
+  "en": "Try again",
+  "ko": "다른 요청과 겹쳤어요. 한 번 더 해 주세요"
+ },
+ "req.e.self": {
+  "en": "Cannot upvote your own post",
+  "ko": "내 글에는 공감할 수 없어요"
+ },
+ "req.e.title": {
+  "en": "Add a title",
+  "ko": "제목을 적어 주세요"
+ },
+ "req.e.vote": {
+  "en": "Daily upvotes used up",
+  "ko": "오늘 공감은 다 썼어요"
+ },
+ "req.empty": {
+  "en": "No requests yet",
+  "ko": "아직 올라온 요청이 없어요"
+ },
+ "req.err": {
+  "en": "Could not load requests",
+  "ko": "요청을 불러오지 못했어요"
+ },
+ "req.f.body": {
+  "en": "Details",
+  "ko": "내용"
+ },
+ "req.f.title": {
+  "en": "Title",
+  "ko": "제목"
+ },
+ "req.left": {
+  "en": "{n} posts left today",
+  "ko": "오늘 {n}번 더 올릴 수 있어요"
+ },
+ "req.loading": {
+  "en": "Loading",
+  "ko": "불러오는 중"
+ },
+ "req.mine": {
+  "en": "Mine",
+  "ko": "내 글"
+ },
+ "req.reply": {
+  "en": "Dev reply",
+  "ko": "개발자 답변"
+ },
+ "req.retry": {
+  "en": "Retry",
+  "ko": "다시 불러오기"
+ },
+ "req.send": {
+  "en": "Send",
+  "ko": "보내기"
+ },
+ "req.sent": {
+  "en": "Request sent",
+  "ko": "요청을 보냈어요"
+ },
+ "req.sort.new": {
+  "en": "New",
+  "ko": "최신순"
+ },
+ "req.sort.votes": {
+  "en": "Top",
+  "ko": "공감순"
+ },
+ "req.st.done": {
+  "en": "Done",
+  "ko": "반영"
+ },
+ "req.st.dup": {
+  "en": "Duplicate",
+  "ko": "중복"
+ },
+ "req.st.hold": {
+  "en": "On hold",
+  "ko": "보류"
+ },
+ "req.st.new": {
+  "en": "Received",
+  "ko": "접수"
+ },
+ "req.st.review": {
+  "en": "In review",
+  "ko": "검토 중"
+ },
+ "req.title": {
+  "en": "Dev requests",
+  "ko": "개발 요청"
+ },
+ "req.write": {
+  "en": "Write",
+  "ko": "글쓰기"
  },
  "zone.already": {
   "en": "Already there",

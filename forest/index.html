@@ -254,6 +254,26 @@ body.hasjoy #joy { display:block; } body.photo #joy, body.photo #insp { display:
 #codex .cx-ev .n { flex:none; width:24px; height:24px; line-height:20px; text-align:center; border:2px solid var(--pl); border-radius:var(--r); font-size:13px; font-weight:800; color:var(--dim); font-variant-numeric:tabular-nums; }
 #codex li.ok .n { background:var(--leaf); border-color:#3f7a2f; color:#10260a; } #codex li.next .n { border-color:var(--amber); color:var(--amber); } #codex li.lock { opacity:.55; } #codex li em { font-style:normal; color:var(--amber); font-size:14px; margin-left:auto; }
 #codex .cx-eg li { color:var(--dim); } #codex .cx-eg li.ok { color:var(--ink); font-weight:700; }
+/* 개발 요청 게시판 (더보기 > 요청) */
+#req { font-size:16px; } #req h3 { margin:2px 0 var(--s3); display:flex; align-items:center; justify-content:space-between; gap:var(--s2); }
+.rq-bar { display:flex; flex-wrap:wrap; gap:var(--s2); margin:0 0 var(--s2); align-items:center; }
+.rq-chip { font:inherit; font-size:15px; min-height:40px; padding:0 var(--s3); border:2px solid var(--pl); border-radius:var(--r); background:var(--c1); color:var(--dim); cursor:pointer; }
+.rq-chip.on { background:var(--c3); color:var(--ink); border-color:var(--amber); }
+#req select { font:inherit; font-size:16px; min-height:40px; border:2px solid var(--pl); border-radius:var(--r); background:var(--c1); color:var(--ink); padding:0 var(--s2); }
+.rq-row { display:flex; gap:var(--s3); padding:var(--s3); margin:var(--s2) 0; background:var(--c1); border:2px solid var(--pl); border-radius:var(--r2); }
+.rq-v { flex:none; width:48px; min-height:56px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; font:inherit; font-weight:800; font-variant-numeric:tabular-nums; border:2px solid var(--pl); border-radius:var(--r); background:var(--c2); color:var(--dim); cursor:pointer; }
+.rq-v .ico { width:16px; height:16px; } .rq-v.on { border-color:var(--amber); color:var(--amber); } .rq-v:disabled { opacity:.45; cursor:default; }
+.rq-m { flex:1; min-width:0; } .rq-t { font-weight:800; overflow-wrap:anywhere; }
+.rq-meta { color:var(--dim); font-size:var(--fs0); margin-top:var(--s1); display:flex; flex-wrap:wrap; gap:var(--s2); align-items:center; }
+.rq-b { margin-top:6px; white-space:pre-wrap; overflow-wrap:anywhere; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; cursor:pointer; } .rq-b.open { display:block; }
+.rq-s { font-size:12px; font-weight:800; padding:1px 7px; border:2px solid var(--pl); border-radius:var(--r); color:var(--dim); }
+.rq-s.review { border-color:var(--amber); color:var(--amber); } .rq-s.done { border-color:var(--leaf); color:var(--leaf); } .rq-s.dup { text-decoration:line-through; }
+.rq-r { margin-top:var(--s2); padding:6px var(--s3); border-left:4px solid var(--leaf); background:var(--c0); } .rq-r b { display:block; color:var(--leaf); font-size:var(--fs0); }
+.rq-pg { display:flex; align-items:center; justify-content:center; gap:var(--s3); margin:var(--s3) 0; }
+.rq-f label { display:block; margin:var(--s3) 0 var(--s1); color:var(--dim); font-size:var(--fs0); } .rq-n { float:right; font-variant-numeric:tabular-nums; }
+.rq-f input[type=text], .rq-f textarea { width:100%; box-sizing:border-box; font:inherit; font-size:16px; padding:8px 10px; border:2px solid var(--pl); border-radius:var(--r); background:var(--c0); color:var(--ink); } .rq-f textarea { min-height:110px; resize:vertical; }
+.rq-ck { display:flex; align-items:center; gap:var(--s2); margin:var(--s3) 0; min-height:44px; } .rq-ck input { width:22px; height:22px; margin:0; }
+.rq-em { padding:var(--s4); border:2px dashed var(--pl); border-radius:var(--r2); color:var(--dim); text-align:center; }
 /* ===== 9단계: 디자인 시스템 — 토큰 한 곳 · 아이콘/스프라이트 · 목록 행 · 토스트 스택 · 포커스 =====
    색 · 간격 · 모서리 · 글자 · 모션은 아래 :root 만 고치면 모든 시트 · 버튼 · 목록에 같이 적용됨 */
 :root {
@@ -358,12 +378,12 @@ body:has(#sheet.open) #tip { display:none; }
   <div id="shGrab"><i></i></div>
   <div class="sh-head"><b id="shTitle"></b><div id="shSubs"></div><button class="sh-x" id="shX" aria-label="닫기">✕</button></div>
   <div id="shBody">
-    <div id="yard" style="display:none"></div><div id="me"></div><div id="mk"></div><div id="codex" style="display:none"></div>
+    <div id="yard" style="display:none"></div><div id="me"></div><div id="mk"></div><div id="codex" style="display:none"></div><div id="req" style="display:none"></div>
     <div id="more" style="display:none">
       <div class="mg">
         <button class="btn" id="mPhoto">사진</button>
         <button class="btn" id="mSnd">소리</button><button class="btn" id="mWx">날씨 효과</button>
-        <button class="btn" id="mCodex">아르케 도감</button><button class="btn" id="mName">이름표</button>
+        <button class="btn" id="mCodex">아르케 도감</button><button class="btn" id="mReq" style="display:none">요청</button><button class="btn" id="mName">이름표</button>
       </div>
       <div class="vol"><span>볼륨</span><input type="range" id="vol" min="0" max="100" step="5"><b id="volN">60</b></div>
       <div class="dim" id="volHint">소리는 기본 꺼짐 · 켜면 발소리 · 새소리 · 바람 소리</div>
@@ -1248,7 +1268,7 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
 
   // ---------- 2단계: 일하기 · 만들기 · 함께 보기 · 게시판 · 사진 ----------
   // 서버 기능(work · presence)은 응답이 없거나 '알 수 없는 요청'이면 그 기능만 조용히 숨김 (1단계 동작은 그대로)
-  var VER = '2.10.0'; document.getElementById('gver').textContent = '화면 v' + VER;
+  var VER = '2.11.0'; document.getElementById('gver').textContent = '화면 v' + VER;
   var nowMs = Date.now(), animF = 0, actT = 0, depN = 0, photo = false, photoHide = false, shotReq = false;
   var DIRS = ['down', 'right', 'up', 'left'];
   var feat = { work: null, pos: null, board: null, streak: null, skill: null, shop: null, fish: null, coins: null, meteor: null };
@@ -3576,21 +3596,21 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
   // ----- 아래 탭 바 · 바텀시트 -----
   var sheetEl = $('sheet'), shBody = $('shBody'), shTitle = $('shTitle'), shSubs = $('shSubs'), tabsEl = $('tabs'), yardEl = $('yard'), moreEl = $('more'), tycEl = $('tyc');
   ['qp', 'cp', 'fbDress'].forEach(function (id) { var e = $(id); if (e) shBody.appendChild(e); });   // 예전에 따로 떠 있던 패널을 시트 안으로
-  var PN = { yard: yardEl, me: mePanel, mk: mkPanel, qp: $('qp'), cp: $('cp'), dress: $('fbDress'), codex: $('codex'), more: moreEl }, PKEYS = ['yard', 'me', 'mk', 'qp', 'cp', 'dress', 'codex', 'more'];
-  var SUBS = { yard: [['yard', '마당'], ['me', '내 정보']], bag: [['bag', '재료'], ['craft', '만들기'], ['build', '짓기'], ['skill', '스킬']], more: [['more', '메뉴'], ['dress', '착용'], ['codex', TM('feature.codex')]] };
+  var PN = { yard: yardEl, me: mePanel, mk: mkPanel, qp: $('qp'), cp: $('cp'), dress: $('fbDress'), codex: $('codex'), req: $('req'), more: moreEl }, PKEYS = ['yard', 'me', 'mk', 'qp', 'cp', 'dress', 'codex', 'req', 'more'];
+  var SUBS = { yard: [['yard', '마당'], ['me', '내 정보']], bag: [['bag', '재료'], ['craft', '만들기'], ['build', '짓기'], ['skill', '스킬']], more: [['more', '메뉴'], ['dress', '착용'], ['codex', TM('feature.codex')], ['req', TM('feature.request')]] };
   var TITLE = { yard: '마당', bag: '가방', note: '수첩', soc: '친구 · 함께 짓기', more: '더보기' };
   var shGroup = null, shSub = null, lastSub = {}, lastOpened = null, lastSubHtml = '';
   function sheetOpen() { return !!sheetEl && sheetEl.classList.contains('open'); }
   function shown(e) { return !!e && e.style.display !== 'none' && e.style.display !== ''; }
   function btnOn(id) { var b = $(id); return !!b && b.style.display !== 'none'; }
-  function subOk(s) { if (s === 'bag' || s === 'craft' || s === 'build') return hasWork(); if (s === 'skill') return hasSkill(); if (s === 'me') return !!me; if (s === 'dress') return btnOn('fbBtn'); return true; }
+  function subOk(s) { if (s === 'bag' || s === 'craft' || s === 'build') return hasWork(); if (s === 'skill') return hasSkill(); if (s === 'me') return !!me; if (s === 'dress') return btnOn('fbBtn'); if (s === 'req') return !!me && !DEMO; return true; }
   function groupOk(g) { return g === 'bag' ? hasWork() || hasSkill() : g === 'note' ? btnOn('qBtn') : g === 'soc' ? btnOn('socBtn') : true; }
   function closePanels(keep) {
     if (PN.qp && PN.qp !== keep && PN.qp.style.display === 'block') $('qBtn').click();   // 수첩은 안쪽 상태가 있어 자기 버튼으로 닫음
     PKEYS.forEach(function (k) { var p = PN[k]; if (p && p !== keep && k !== 'qp') p.style.display = 'none'; });
   }
   function closeSheet() { closePanels(null); syncSheet(); }
-  function groupOf(k) { return k === 'yard' ? ['yard', 'yard'] : k === 'me' ? ['yard', 'me'] : k === 'mk' ? ['bag', mkView === 'skill' ? 'skill' : mkTab] : k === 'qp' ? ['note', 'note'] : k === 'cp' ? ['soc', 'soc'] : k === 'dress' ? ['more', 'dress'] : k === 'codex' ? ['more', 'codex'] : ['more', 'more']; }
+  function groupOf(k) { return k === 'yard' ? ['yard', 'yard'] : k === 'me' ? ['yard', 'me'] : k === 'mk' ? ['bag', mkView === 'skill' ? 'skill' : mkTab] : k === 'qp' ? ['note', 'note'] : k === 'cp' ? ['soc', 'soc'] : k === 'dress' ? ['more', 'dress'] : k === 'codex' ? ['more', 'codex'] : k === 'req' ? ['more', 'req'] : ['more', 'more']; }
   function syncSheet() {
     var opens = PKEYS.filter(function (k) { return PN[k] && PN[k].style.display === 'block'; });
     if (opens.length > 1) { var keep = lastOpened && lastOpened.style.display === 'block' ? lastOpened : PN[opens[0]]; closePanels(keep); opens = PKEYS.filter(function (k) { return PN[k] && PN[k].style.display === 'block'; }); }
@@ -3610,6 +3630,7 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
     else if (sub === 'soc') { closePanels(PN.cp); if (PN.cp.style.display !== 'block') $('socBtn').click(); }
     else if (sub === 'dress') { closePanels(PN.dress); if (PN.dress.style.display !== 'block') $('fbBtn').click(); }
     else if (sub === 'codex') { closePanels(PN.codex); PN.codex.style.display = 'block'; renderCodex(); }
+    else if (sub === 'req') { closePanels(PN.req); PN.req.style.display = 'block'; rq.compose = null; rq.ask = 0; rqLoad(); }
     else if (sub === 'more') { closePanels(moreEl); moreEl.style.display = 'block'; uiMore(); }
     syncSheet();
   }
@@ -3703,7 +3724,7 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
   function tyUi(force) { if (shown(yardEl)) renderYard(); if (force) ty.selKey = ''; tyTick(); }
   // ----- 더보기 (착용 · 사진 · 소리 · 날씨 · 도감 · 설정) -----
   function uiMore() {
-    if (!moreEl || !shown(moreEl)) return; var sn = $('mSnd');
+    if (!moreEl || !shown(moreEl)) return; var sn = $('mSnd'); $('mReq').style.display = me && !DEMO ? '' : 'none';
     sn.textContent = AU.on ? '소리 켜짐' : '소리 꺼짐'; sn.classList.toggle('on', AU.on); $('mWx').textContent = '날씨 효과 ' + (wxOn ? '켬' : '끔'); $('mWx').classList.toggle('on', wxOn);
     $('mName').textContent = '이름표: ' + (nameMode === 'on' ? '켬' : nameMode === 'off' ? '끔' : '자동'); $('mFit').textContent = fitMode === 'fill' ? '화면 꽉 채움' : '전체 보기'; $('mPause').textContent = paused ? '다시 움직이기' : '잠깐 멈추기';
     $('mClock').textContent = '시간: ' + (timeMode === 'day' ? '낮 고정' : timeMode === 'night' ? '밤 고정' : '자동'); $('mFol').textContent = follow ? '따라가는 중' : '따라가기'; $('mFol').classList.toggle('on', follow);
@@ -3711,7 +3732,7 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
   }
   moreEl.addEventListener('click', function (e) {
     var b = e.target.closest ? e.target.closest('button') : null; if (!b) return; var id = b.id;
-    if (id === 'mCodex') showSub('codex'); else if (id === 'mPhoto') { closeSheet(); $('photoBtn').click(); }
+    if (id === 'mCodex') showSub('codex'); else if (id === 'mReq') showSub('req'); else if (id === 'mPhoto') { closeSheet(); $('photoBtn').click(); }
     else if (id === 'mSnd') $('fabSnd').click(); else if (id === 'mWx') $('fabWx').click(); else if (id === 'mName') $('nameBtn').click();
     else if (id === 'mFit') $('zoomReset').click(); else if (id === 'mPause') $('pause').click(); else if (id === 'mClock') $('clock').click();
     else if (id === 'mFol') { $('fabFollow').click(); closeSheet(); }
@@ -3964,7 +3985,8 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
     rain: '<path d="M6 15a4.5 4.5 0 0 1 .8-8.9A6 6 0 0 1 18.4 8 3.7 3.7 0 0 1 18 15zM8 18.5l-1 2M12.5 18.5l-1 2M17 18.5l-1 2"/>',
     check: '<path d="M5 12.5l4.6 4.6L19 7.5"/>',
     star: '<path d="M12 3l2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4z"/>',
-    chev: '<path d="M6 15l6-6 6 6"/>'
+    chev: '<path d="M6 15l6-6 6 6"/>',
+    up: '<path d="M12 5l7.5 11H4.5z" fill="currentColor"/>'
   };
   function uxIco(n, c) { return '<svg class="ico' + (c ? ' ' + c : '') + '" viewBox="0 0 24 24" aria-hidden="true">' + (UXI[n] || '') + '</svg>'; }
   var UXT = /[\u{1F000}-\u{1FAFF}\u{2190}-\u{21FF}\u{22EF}\u{2300}-\u{23FF}\u{25B6}\u{2600}-\u{27BF}\u{2900}-\u{297F}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}]/u, UXE = new RegExp(UXT.source, 'gu');
@@ -4215,8 +4237,8 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
   // 용어는 forest/terms.json (시트 '용어집' 탭에서 내보냄). 못 읽어도 같은 값의 기본값으로 동작 (깜빡임 없음)
   var TDEF2 = {"obj.roulette": "운명 바퀴", "obj.roulette.d": "장신구를 돌려 단단하게 만드는 바퀴예요. 높은 단계는 깨질 수도 있어요", "obj.dicetable": "주사위 탁자", "obj.dicetable.d": "채집과 제작의 운을 정하는 스무 면 주사위가 놓여 있어요", "obj.meepleshed": "일꾼 쉼터", "obj.meepleshed.d": "미플 일꾼들이 건물로 나가기 전에 쉬는 곳이에요", "act.roulette": "강화하러 가기", "act.roulette.tip": "가방에서 장신구를 골라 강화해요", "act.dice": "굴려 보기", "act.meeple": "일꾼 배치", "act.meeple.tip": "마당에서 건물마다 일꾼을 보내요", "bg.rl.title": "운명 바퀴", "bg.rl.spin": "돌리기", "bg.rl.again": "한 번 더", "bg.rl.ok": "확인", "bg.rl.win": "단단해졌어요", "bg.rl.keep": "이번엔 그대로예요", "bg.rl.break": "깨졌어요", "bg.rl.warn": "높은 단계라 깨질 수 있어요", "bg.rl.refund": "깨지면 재료는 사라지고 낸 니트론만 돌려받아요", "bg.rl.o.succ": "성공", "bg.rl.o.keep": "유지", "bg.rl.o.brk": "파괴", "bg.rl.pity": "연속 실패 보정", "bg.dice.crit": "대성공", "bg.dice.capped": "오늘 대성공 보너스는 다 썼어요", "bg.dice.fiber": "섬유", "bg.meeple": "일꾼", "bg.meeple.on": "생산 {n}", "bg.meeple.hint": "보내면 생산 +{n}%", "bg.meeple.cd": "잠시 뒤 바꿀 수 있어요", "act.knock": "똑똑. 아무도 없어요", "act.listen": "파도 소리가 들려요", "act.look": "살펴봐요", "act.read": "게시판을 읽어요", "act.sealed": "문이 꿈쩍도 안 해요", "act.sit": "앉아서 쉬어요", "act.smell": "좋은 향기가 나요", "act.soak": "발을 담갔어요. 따뜻해요", "act.splash": "첨벙! 시원해요", "act.stand": "다시 일어나요", "act.thud": "퍽! 끄떡없어요", "act.touch": "손끝이 서늘해요", "act.warm": "불을 쬐어요. 몸이 풀려요", "obj.bench": "벤치", "obj.bench.d": "앉아서 쉬어 가기 좋은 자리예요.", "obj.board": "게시판", "obj.board.d": "마을 소식이 붙어 있어요.", "obj.bridge": "나무 다리", "obj.bridge.d": "밟을 때마다 삐걱거려요.", "obj.bush": "풀숲", "obj.bush.d": "약초 향이 은은하게 나요.", "obj.campfire": "모닥불", "obj.campfire.d": "타닥타닥 불씨가 튀어요. 곁에 있으면 몸이 풀려요.", "obj.cave": "아르케 관문", "obj.cave.d": "서늘한 바람이 불어 나와요. 안쪽에 오래된 문명의 흔적이 있대요.", "obj.cottage": "오두막", "obj.cottage.d": "굴뚝에서 가느다란 연기가 올라와요.", "obj.dbones": "뼈 무더기", "obj.dbones.d": "오래전 누군가 쉬어 간 흔적이에요.", "obj.dcrystal": "청록 결정", "obj.dcrystal.d": "희미하게 빛나요. 만지면 차가워요.", "obj.dgate": "봉인된 문", "obj.dgate.d": "굳게 닫혀 있어요. 위층으로 가는 길인가 봐요.", "obj.dpillar": "돌기둥", "obj.dpillar.d": "금이 간 오래된 기둥이에요.", "obj.dstairs": "바깥으로 가는 계단", "obj.dstairs.d": "위에서 바깥 빛이 희미하게 들어와요.", "obj.dstatue": "이름 없는 석상", "obj.dstatue.d": "얼굴은 닳았지만, 오래 누군가를 기다린 듯해요.", "obj.fall": "폭포", "obj.fall.d": "물보라가 시원하게 튀어요.", "obj.fence": "울타리", "obj.fence.d": "마을을 두른 튼튼한 나무 울타리예요.", "obj.flower": "들꽃", "obj.flower.d": "작은 꽃이 살랑거려요.", "obj.gatepost": "문기둥", "obj.gatepost.d": "마을 문 곁을 지키는 기둥이에요.", "obj.hot": "온천", "obj.hot.d": "따뜻한 김이 올라와요.", "obj.lamp": "가로등", "obj.lamp.d": "해가 지면 따뜻한 불이 들어와요.", "obj.log": "통나무", "obj.log.d": "앉기 좋게 눕혀 둔 통나무예요.", "obj.mush": "버섯", "obj.mush.d": "비 온 뒤에 올라온 버섯이에요. 먹지는 마세요.", "obj.ore": "광석", "obj.ore.d": "단단한 광석이 박혀 있어요.", "obj.palm": "야자수", "obj.palm.d": "짠 바람을 맞고 자란 야자수예요.", "obj.pine": "소나무", "obj.pine.d": "곧게 뻗은 소나무예요. 송진 냄새가 나요.", "obj.pink": "벚나무", "obj.pink.d": "분홍 꽃잎이 바람에 흩날려요.", "obj.rock": "바위", "obj.rock.d": "이끼 낀 단단한 바위예요.", "obj.round": "둥근 나무", "obj.round.d": "잎이 풍성해서 그늘이 시원해요.", "obj.scarecrow": "허수아비", "obj.scarecrow.d": "밭을 지키는 허수아비예요. 맞아도 끄떡없어요.", "obj.shell": "조개", "obj.shell.d": "귀에 대면 파도 소리가 나요.", "obj.struct": "건물", "obj.struct.d": "누군가 정성껏 지은 건물이에요.", "obj.stump": "그루터기", "obj.stump.d": "나이테가 빽빽해요. 오래된 나무였나 봐요.", "obj.torch": "횃불", "obj.torch.d": "벽에 걸린 횃불이 일렁여요.", "obj.water": "물", "obj.water.d": "맑은 물이 흘러요. 손을 담그면 시원해요.", "zone.already": "이미 그쪽이에요", "zone.dungeon": "아르케 유적", "zone.enter": "서늘한 공기가 감싸요", "zone.far.in": "관문이 아직 멀어요", "zone.far.out": "계단이 아직 멀어요", "zone.field": "아르케온 들판", "zone.floor": "층", "zone.gate.ask": "아르케 관문으로 들어갈까요?", "zone.ko": "지금은 움직일 수 없어요", "zone.leave": "바깥 공기가 따뜻해요", "zone.stairs.ask": "유적을 나갈까요?", "zone.village": "니트라 마을"};   // 용어집 obj.* · act.* · zone.* 의 기본값 (빌드 때 terms.json 에서 복사 — 시트를 고치면 terms.json 이 우선)
   var TERMS = TMdef();
-  function TMdef() { return { 'game.name': '아르케온', 'game.tagline': '근원 원소, 고대 문명', 'currency.name': '니트론', 'currency.unit': 'N', 'feature.codex': '아르케 도감', 'feature.soon': '곧 출시예정', 'monster.slime': '니트 슬라임', 'monster.root': '뿌리 도깨비', 'monster.elite': '아르케 수호병', 'monster.gold': '황금 슬라임', 'raid.name': '야습', 'raid.warn': '문 밖이 소란스러워요. 곧 야습이 시작돼요', 'raid.on': '야습! 몬스터가 문으로 몰려와요', 'raid.clear': '야습을 물리쳤어요', 'raid.end': '야습이 물러갔어요', 'combat.attack': '공격', 'combat.auto': '자동 공격', 'combat.ko': '쓰러졌어요', 'combat.wake': '모닥불 곁에서 깨어났어요', 'place.plaza': '니트라 광장', 'place.mine': '니트 광맥', 'place.gate': '아르케 관문', 'place.spring': '뿌리온천', 'place.farm': '콩밭 야영지', 'place.woods': '근원의 숲', 'place.garden': '약초원', 'place.coast': '대기 해안' }; }
-  function TM(k) { return (TERMS && TERMS[k]) || TMdef()[k] || TDEF2[k] || k; }
+  function TMdef() { return { 'game.name': '아르케온', 'game.tagline': '근원 원소, 고대 문명', 'currency.name': '니트론', 'currency.unit': 'N', 'feature.codex': '아르케 도감', 'feature.request': '요청', 'feature.soon': '곧 출시예정', 'monster.slime': '니트 슬라임', 'monster.root': '뿌리 도깨비', 'monster.elite': '아르케 수호병', 'monster.gold': '황금 슬라임', 'raid.name': '야습', 'raid.warn': '문 밖이 소란스러워요. 곧 야습이 시작돼요', 'raid.on': '야습! 몬스터가 문으로 몰려와요', 'raid.clear': '야습을 물리쳤어요', 'raid.end': '야습이 물러갔어요', 'combat.attack': '공격', 'combat.auto': '자동 공격', 'combat.ko': '쓰러졌어요', 'combat.wake': '모닥불 곁에서 깨어났어요', 'place.plaza': '니트라 광장', 'place.mine': '니트 광맥', 'place.gate': '아르케 관문', 'place.spring': '뿌리온천', 'place.farm': '콩밭 야영지', 'place.woods': '근원의 숲', 'place.garden': '약초원', 'place.coast': '대기 해안' }; }
+  function TM(k) { return (TERMS && TERMS[k]) || TMdef()[k] || TDEF2[k] || (typeof RQD !== 'undefined' && RQD[k]) || k; }
   function uxTerm(s) {   // 옛 문구('니트론' · '숲속 마당')를 용어집 값으로: 금액은 '20 N', 이름은 용어집 이름
     var cu = TM('currency.unit'), cn = TM('currency.name');
     return String(s).replace(/(\d[\d,]*)\s*니트론/g, '$1 ' + cu).replace(/니트론\s*([+\-]\s*\d[\d,]*)/g, function (_, d) { return d.replace(/\s/g, '') + ' ' + cu; }).replace(/니트론\s+(\d[\d,]*)/g, '$1 ' + cu).replace(/니트론/g, cn).replace(/숲속 마당/g, TM('game.name'));
@@ -4224,7 +4246,8 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
   function uxTermsApply() {
     document.title = TM('game.name'); var ttS = document.querySelector('#bar .ttl span'); if (ttS) ttS.textContent = ' ' + TM('game.name');
     var cx = $('mCodex'); if (cx) cx.textContent = TM('feature.codex');
-    SUBS.more.forEach(function (x) { if (x[0] === 'codex') x[1] = TM('feature.codex'); }); lastSubHtml = ''; if (sheetOpen()) syncSheet();
+    var rqb = $('mReq'); if (rqb) rqb.textContent = TM('feature.request');
+    SUBS.more.forEach(function (x) { if (x[0] === 'codex') x[1] = TM('feature.codex'); else if (x[0] === 'req') x[1] = TM('feature.request'); }); lastSubHtml = ''; if (sheetOpen()) syncSheet();
     var rb = $('soonRib'); if (rb) rb.textContent = TM('feature.soon');
     uxScan();
   }
@@ -4493,6 +4516,86 @@ function needText(n) { var t = []; if (n.sum) t.push('능력치 합 ' + n.sum + 
 
   // --- 아르케 도감: 내 진화 · 다음 조건 · 모은 숨은 재미(찾은 것만) ---
   var UXEGGS = [['golden', '황금 물고기'], ['cave', '동굴의 속삭임'], ['nap', '낮잠'], ['t333', '새벽 3시 33분'], ['wish', '별똥별 소원'], ['gslime', '황금 슬라임']];
+  // ===== 개발 요청 게시판 (더보기 > 요청) — 서버 requests.js(reqList · reqPost · reqVote · reqDelete). 데모에서는 메뉴 · 호출이 모두 없음 =====
+  var RQD = {'req.title':'개발 요청','req.write':'글쓰기','req.send':'보내기','req.all':'전체','req.cat.bug':'버그','req.cat.feat':'기능','req.cat.bal':'밸런스','req.cat.etc':'기타','req.st.new':'접수','req.st.review':'검토 중','req.st.done':'반영','req.st.hold':'보류','req.st.dup':'중복','req.sort.votes':'공감순','req.sort.new':'최신순','req.mine':'내 글','req.anon':'익명으로 올리기','req.anon.name':'탐험가','req.f.title':'제목','req.f.body':'내용','req.reply':'개발자 답변','req.empty':'아직 올라온 요청이 없어요','req.err':'요청을 불러오지 못했어요','req.sent':'요청을 보냈어요','req.del':'지우기','req.del.ask':'이 글을 지울까요','req.left':'오늘 {n}번 더 올릴 수 있어요','req.e.cat':'분류를 골라 주세요','req.e.title':'제목을 적어 주세요','req.cancel':'취소','req.retry':'다시 불러오기','req.loading':'불러오는 중'};
+  var RQC = ['bug', 'feat', 'bal', 'etc'], RQS = ['new', 'review', 'done', 'hold', 'dup'];
+  var rq = { cat: '', status: '', sort: 'votes', mine: 0, page: 1, pages: 1, total: 0, items: [], quota: null, max: { title: 40, body: 500 }, busy: false, err: false, compose: null, ask: 0, open: {} };
+  function rqT(k) { return TM('req.' + k); }
+  function rqDate(ts) { var d = new Date(ts); return (d.getMonth() + 1) + '.' + d.getDate(); }
+  function rqLoad() {
+    if (DEMO || !me) return; rq.busy = true; rq.err = false; renderReq();
+    call('reqList', { cat: rq.cat, status: rq.status, sort: rq.sort, mine: rq.mine, page: rq.page }).then(function (r) {
+      rq.busy = false; rq.items = r.items; rq.pages = r.pages; rq.total = r.total; rq.page = r.page; rq.quota = r.quota; rq.max = r.max || rq.max; renderReq();
+    }).catch(function () { rq.busy = false; rq.err = true; renderReq(); });
+  }
+  function rqChip(a, v, on, label) { return '<button class="rq-chip' + (on ? ' on' : '') + '" data-a="' + a + '" data-v="' + v + '">' + esc(label) + '</button>'; }
+  function renderReq() {
+    var el = $('req'); if (!el || DEMO) return;
+    if (rq.compose) { rqCompose(el); return; }
+    var h = '<h3><span>' + esc(rqT('title')) + '</span><button class="btn gold" data-a="new">' + esc(rqT('write')) + '</button></h3><div class="rq-bar">' + rqChip('cat', '', !rq.cat, rqT('all'));
+    RQC.forEach(function (c) { h += rqChip('cat', c, rq.cat === c, rqT('cat.' + c)); });
+    h += '</div><div class="rq-bar"><select data-sel="status" aria-label="' + esc(rqT('st.new')) + '"><option value="">' + esc(rqT('all')) + '</option>';
+    RQS.forEach(function (s) { h += '<option value="' + s + '"' + (rq.status === s ? ' selected' : '') + '>' + esc(rqT('st.' + s)) + '</option>'; });
+    h += '</select><select data-sel="sort"><option value="votes"' + (rq.sort === 'votes' ? ' selected' : '') + '>' + esc(rqT('sort.votes')) + '</option><option value="new"' + (rq.sort === 'new' ? ' selected' : '') + '>' + esc(rqT('sort.new')) + '</option></select>' + rqChip('mine', '', rq.mine, rqT('mine')) + '</div>';
+    if (rq.err) h += '<div class="rq-em">' + esc(rqT('err')) + '<br><button class="btn" data-a="retry">' + esc(rqT('retry')) + '</button></div>';
+    else if (rq.busy && !rq.items.length) h += '<div class="rq-em">' + esc(rqT('loading')) + '</div>';
+    else if (!rq.items.length) h += '<div class="rq-em">' + esc(rqT('empty')) + '</div>';
+    else rq.items.forEach(function (it) {
+      h += '<div class="rq-row"><button class="rq-v' + (it.voted ? ' on' : '') + '" data-a="vote" data-id="' + it.id + '"' + (it.mine ? ' disabled' : '') + ' aria-label="' + esc(rqT('sort.votes')) + '">' + uxIco('up') + '<span>' + it.votes + '</span></button><div class="rq-m"><div class="rq-t">' + esc(it.title) + '</div>'
+        + '<div class="rq-meta"><span class="rq-s ' + it.status + '">' + esc(rqT('st.' + it.status)) + '</span><span>' + esc(rqT('cat.' + it.cat)) + '</span><span>' + esc(it.who || rqT('anon.name')) + (it.mine ? ' · ' + esc(rqT('mine')) : '') + '</span><span>' + rqDate(it.ts) + '</span></div>'
+        + (it.body ? '<div class="rq-b' + (rq.open[it.id] ? ' open' : '') + '" data-a="body" data-id="' + it.id + '">' + esc(it.body) + '</div>' : '')
+        + (it.reply ? '<div class="rq-r"><b>' + esc(rqT('reply')) + '</b>' + esc(it.reply) + '</div>' : '')
+        + (it.mine ? '<div class="rq-meta"><button class="btn" data-a="del" data-id="' + it.id + '">' + esc(rq.ask === it.id ? rqT('del.ask') : rqT('del')) + '</button></div>' : '') + '</div></div>';
+    });
+    if (rq.pages > 1) h += '<div class="rq-pg"><button class="btn" data-a="pg" data-v="-1"' + (rq.page <= 1 ? ' disabled' : '') + '>‹</button><span>' + rq.page + ' / ' + rq.pages + '</span><button class="btn" data-a="pg" data-v="1"' + (rq.page >= rq.pages ? ' disabled' : '') + '>›</button></div>';
+    el.innerHTML = h;
+  }
+  function rqCompose(el) {
+    var c = rq.compose, left = rq.quota ? rq.quota.posts : null;
+    var h = '<h3><span>' + esc(rqT('write')) + '</span></h3><div class="rq-f"><div class="rq-bar">';
+    RQC.forEach(function (k) { h += rqChip('ccat', k, c.cat === k, rqT('cat.' + k)); });
+    h += '</div><label>' + esc(rqT('f.title')) + ' <span class="rq-n" id="rqNt">' + c.title.length + '/' + rq.max.title + '</span></label><input type="text" id="rqIt" maxlength="' + rq.max.title + '" value="' + esc(c.title) + '" autocomplete="off">'
+      + '<label>' + esc(rqT('f.body')) + ' <span class="rq-n" id="rqNb">' + c.body.length + '/' + rq.max.body + '</span></label><textarea id="rqIb" maxlength="' + rq.max.body + '">' + esc(c.body) + '</textarea>'
+      + '<label class="rq-ck"><input type="checkbox" id="rqIa"' + (c.anon ? ' checked' : '') + '> ' + esc(rqT('anon')) + '</label>'
+      + (left != null ? '<div class="rq-meta">' + esc(rqT('left').replace('{n}', left)) + '</div>' : '')
+      + '<div class="rq-bar" style="margin-top:12px"><button class="btn gold" data-a="send"' + (c.busy ? ' disabled' : '') + '>' + esc(rqT('send')) + '</button><button class="btn" data-a="cancel">' + esc(rqT('cancel')) + '</button></div></div>';
+    el.innerHTML = h;
+  }
+  (function () {
+    var el = $('req'); if (!el) return;
+    el.addEventListener('input', function (e) {   // 입력은 상태에만 저장 (다시 그리면 포커스를 잃음)
+      var c = rq.compose, t = e.target; if (!c) return;
+      if (t.id === 'rqIt') { c.title = t.value; $('rqNt').textContent = t.value.length + '/' + rq.max.title; }
+      else if (t.id === 'rqIb') { c.body = t.value; $('rqNb').textContent = t.value.length + '/' + rq.max.body; }
+      else if (t.id === 'rqIa') c.anon = t.checked ? 1 : 0;
+    });
+    el.addEventListener('change', function (e) { var s = e.target.getAttribute && e.target.getAttribute('data-sel'); if (!s) return; rq[s] = e.target.value; rq.page = 1; rqLoad(); });
+    el.addEventListener('click', function (e) {
+      var b = e.target.closest ? e.target.closest('[data-a]') : null; if (!b || b.disabled) return; var a = b.getAttribute('data-a'), v = b.getAttribute('data-v'), id = Number(b.getAttribute('data-id'));
+      if (a === 'cat') { rq.cat = v; rq.page = 1; rqLoad(); }
+      else if (a === 'mine') { rq.mine = rq.mine ? 0 : 1; rq.page = 1; rqLoad(); }
+      else if (a === 'pg') { rq.page = Math.max(1, rq.page + Number(v)); rqLoad(); }
+      else if (a === 'retry') rqLoad();
+      else if (a === 'new') { rq.compose = { cat: '', title: '', body: '', anon: 0, busy: false }; renderReq(); }
+      else if (a === 'ccat') { rq.compose.cat = v; renderReq(); }
+      else if (a === 'cancel') { rq.compose = null; renderReq(); }
+      else if (a === 'body') { rq.open[id] = !rq.open[id]; renderReq(); }
+      else if (a === 'vote') {
+        var it = rq.items.filter(function (x) { return x.id === id; })[0]; if (!it || it.mine) return; var on = !it.voted, was = [it.voted, it.votes]; it.voted = on; it.votes += on ? 1 : -1; sfx('ui'); renderReq();
+        call('reqVote', { id: id, on: on ? 1 : 0 }).then(function (r) { it.votes = r.votes; it.voted = r.voted; renderReq(); }).catch(function (er) { it.voted = was[0]; it.votes = was[1]; toast(er.message, 2200); renderReq(); });
+      }
+      else if (a === 'del') {
+        if (rq.ask !== id) { rq.ask = id; renderReq(); return; }
+        rq.ask = 0; call('reqDelete', { id: id }).then(function () { rqLoad(); }).catch(function (er) { toast(er.message, 2200); rqLoad(); });
+      }
+      else if (a === 'send') {
+        var c = rq.compose; if (!c.cat) { toast(rqT('e.cat'), 2000); return; } if (!c.title.trim()) { toast(rqT('e.title'), 2000); return; }
+        c.busy = true; renderReq();
+        call('reqPost', { cat: c.cat, title: c.title, body: c.body, anon: c.anon }).then(function () { rq.compose = null; rq.sort = 'new'; rq.cat = ''; rq.status = ''; rq.mine = 0; rq.page = 1; toast(rqT('sent'), 1800); sfx('ui'); rqLoad(); })
+          .catch(function (er) { c.busy = false; toast(er.message, 2600); renderReq(); });
+      }
+    });
+  })();
   function renderCodex() {
     var el = $('codex'); if (!el) return; var S = SCENE_EVO.stages, g = me ? me.g : -1, eggs = (me && me.tut && me.tut.eggs) || [];
     var h = '<h3>' + esc(TM('feature.codex')) + '</h3>';

@@ -134,6 +134,15 @@ footer{margin-top:20px;text-align:center;font-size:12px;color:var(--sub)}
     <pre id="repOut" hidden></pre><div class="msg" id="rMsg"></div>
   </section>
 
+  <section class="card" id="sReq">
+    <h2>개발 요청</h2>
+    <div class="row"><select id="qSt"><option value="">상태 전체</option><option value="new">접수</option><option value="review">검토 중</option><option value="done">반영</option><option value="hold">보류</option><option value="dup">중복</option></select>
+      <label><input type="checkbox" id="qHid"> 숨긴 글만</label><button class="ghost" id="btnReq">불러오기</button><span id="qCnt" class="pill"></span></div>
+    <div id="qList"></div>
+    <div class="row"><button class="ghost" id="btnReqPurge">숨긴 글 정리</button><label for="qDays">며칠 지난</label><input id="qDays" type="number" value="30" min="1"></div>
+    <div class="msg" id="qMsg"></div>
+  </section>
+
   <footer>화면 <span id="gver"></span></footer>
 </div>
 
@@ -142,7 +151,7 @@ footer{margin-top:20px;text-align:center;font-size:12px;color:var(--sub)}
 <script>
 (function () {
   'use strict';
-  var VER = 'v0.1.0';
+  var VER = 'v0.2.0';
   var DEFAULT_API = 'https://jmb-world-beta.dlwjd.workers.dev';
   var $ = function (id) { return document.getElementById(id); };
   var KEY = '';   // 메모리에만 보관 (저장 · 로그 금지)
@@ -313,6 +322,28 @@ footer{margin-top:20px;text-align:center;font-size:12px;color:var(--sub)}
       show('rMsg', send ? '보고를 보냈어요' : '미리보기예요 (보내지 않았어요)');
     }, function (e) { show('rMsg', e.message, true); }).then(function () { btn.disabled = false; });
   }
+  // ---- 개발 요청 (requests.js: reqAdminList · reqSetStatus · reqHide · reqPurge) — 작성자 n 은 이 화면에서만 보임
+  var QST = { new: '접수', review: '검토 중', done: '반영', hold: '보류', dup: '중복' }, QCAT = { bug: '버그', feat: '기능', bal: '밸런스', etc: '기타' };
+  function qLoad() {
+    return admin('reqAdminList', { status: $('qSt').value, hidden: $('qHid').checked ? 1 : 0 }).then(function (r) {
+      $('qCnt').textContent = r.total + '건'; var h = '';
+      r.items.forEach(function (it) {
+        h += '<div class="card" style="margin:8px 0" data-id="' + it.id + '"><b>' + esc(it.title) + '</b> <span class="pill">' + esc(QCAT[it.cat] || it.cat) + '</span> <span class="pill">공감 ' + it.votes + '</span>'
+          + (it.hidden ? ' <span class="pill bad">숨김</span>' : '') + '<div style="font-size:12px;opacity:.75;margin:4px 0">' + esc(it.n) + (it.anon ? ' (익명으로 표시됨)' : '') + ' · ' + new Date(it.ts).toLocaleString('ko-KR') + '</div>'
+          + (it.body ? '<div style="white-space:pre-wrap;word-break:break-word;margin:4px 0">' + esc(it.body) + '</div>' : '')
+          + '<div class="row"><select data-f="st">' + Object.keys(QST).map(function (k) { return '<option value="' + k + '"' + (it.status === k ? ' selected' : '') + '>' + QST[k] + '</option>'; }).join('') + '</select>'
+          + '<input class="grow" data-f="reply" maxlength="80" placeholder="개발자 답변 한 줄 (선택)" value="' + esc(it.reply) + '"><button data-q="save">저장</button><button class="ghost" data-q="hide">' + (it.hidden ? '숨김 해제' : '숨기기') + '</button></div></div>';
+      });
+      $('qList').innerHTML = h || '<div class="msg">없어요</div>'; show('qMsg', '');
+    }, function (e) { show('qMsg', e.message, true); });
+  }
+  $('btnReq').onclick = qLoad;
+  $('qList').addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('[data-q]') : null; if (!b) return; var c = b.closest('[data-id]'), id = Number(c.getAttribute('data-id'));
+    if (b.getAttribute('data-q') === 'save') run(b, 'qMsg', 'reqSetStatus', { id: id, status: c.querySelector('[data-f=st]').value, reply: c.querySelector('[data-f=reply]').value }, function () { return '저장했어요'; });
+    else { var off = /해제/.test(b.textContent); run(b, 'qMsg', 'reqHide', { id: id, on: off ? 0 : 1 }, function () { return off ? '숨김을 풀었어요' : '숨겼어요'; }).then(qLoad); }
+  });
+  $('btnReqPurge').onclick = function () { var b = this, d = Number($('qDays').value); confirmBox('숨긴 글 중 ' + d + '일 지난 것을 완전히 지울까요? (되돌릴 수 없어요)', function () { run(b, 'qMsg', 'reqPurge', { days: d }, function (r) { return '글 ' + r.posts + '개 · 공감 ' + r.votes + '개를 지웠어요'; }).then(qLoad); }); };
   $('btnRepView').onclick = function () { report(false, this); };
   $('btnRepSend').onclick = function () { var b = this; confirmBox('오늘 사용량 보고를 텔레그램으로 보낼까요?', function () { report(true, b); }); };
 })();
